@@ -11,6 +11,7 @@ import ProjectForm from './project-form'
 import ContactList from './contact-list'
 import HeroForm from './hero-form'
 import ContactInfoForm from './contact-info-form'
+import { IProject } from '@/models/Project'
 
 interface Project {
   _id: string
@@ -20,6 +21,8 @@ interface Project {
   githubLink: string
   demoLink: string
   image: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 interface Contact {
@@ -39,7 +42,7 @@ const AdminDashboard = () => {
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [showHeroForm, setShowHeroForm] = useState(false)
   const [showContactInfoForm, setShowContactInfoForm] = useState(false)
-  const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [editingProject, setEditingProject] = useState<IProject | null>(null)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -132,12 +135,24 @@ const AdminDashboard = () => {
     }
   }
 
-  const handleProjectSaved = (project: Project) => {
+  const handleProjectSaved = (project: IProject) => {
+    const projectData: Project = {
+      _id: String(project._id),
+      title: project.title,
+      description: project.description,
+      techStack: project.techStack,
+      githubLink: project.githubLink,
+      demoLink: project.demoLink,
+      image: project.image,
+      createdAt: project.createdAt?.toISOString(),
+      updatedAt: project.updatedAt?.toISOString()
+    }
+
     if (editingProject) {
-      setProjects(projects.map(p => p._id === project._id ? project : p))
+      setProjects(projects.map(p => p._id === projectData._id ? projectData : p))
       setEditingProject(null)
     } else {
-      setProjects([project, ...projects])
+      setProjects([projectData, ...projects])
     }
     setShowProjectForm(false)
   }
@@ -275,7 +290,13 @@ const AdminDashboard = () => {
                             size="sm"
                             variant="outline"
                             onClick={() => {
-                              setEditingProject(project)
+                              const projectData: IProject = {
+                                ...project,
+                                _id: project._id as any,
+                                createdAt: project.createdAt ? new Date(project.createdAt) : new Date(),
+                                updatedAt: project.updatedAt ? new Date(project.updatedAt) : new Date()
+                              } as IProject
+                              setEditingProject(projectData)
                               setShowProjectForm(true)
                             }}
                           >
