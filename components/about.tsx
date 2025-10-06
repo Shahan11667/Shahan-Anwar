@@ -7,12 +7,12 @@ import { Code, Database, Smartphone, Palette, Server, Globe } from 'lucide-react
 
 const About = () => {
   const skills = [
-    { name: 'Frontend', icon: Code, technologies: ['React', 'Next.js', 'TypeScript', 'Tailwind CSS'] },
-    { name: 'Backend', icon: Server, technologies: ['Node.js', 'Express', 'Python', 'Django'] },
-    { name: 'Database', icon: Database, technologies: ['MongoDB', 'PostgreSQL', 'Redis', 'MySQL'] },
-    { name: 'Mobile', icon: Smartphone, technologies: ['React Native', 'Flutter', 'iOS', 'Android'] },
-    { name: 'Design', icon: Palette, technologies: ['Figma', 'Adobe XD', 'Sketch', 'Photoshop'] },
-    { name: 'DevOps', icon: Globe, technologies: ['AWS', 'Docker', 'Vercel', 'GitHub Actions'] },
+    { name: 'Frontend Development', icon: Code, technologies: ['React', 'Next.js', 'TypeScript', 'Tailwind CSS', 'JavaScript', 'HTML5', 'CSS3'] },
+    { name: 'Backend Development', icon: Server, technologies: ['Node.js', 'Express', 'Python', 'Django', 'REST APIs', 'GraphQL'] },
+    { name: 'Database Management', icon: Database, technologies: ['MongoDB', 'PostgreSQL', 'Redis', 'MySQL', 'Firebase'] },
+    { name: 'Mobile App Development', icon: Smartphone, technologies: ['React Native', 'Flutter', 'iOS', 'Android', 'Cross-platform'] },
+    { name: 'UI/UX Design', icon: Palette, technologies: ['Figma', 'Adobe XD', 'Sketch', 'Photoshop', 'User Research'] },
+    { name: 'DevOps & Deployment', icon: Globe, technologies: ['AWS', 'Docker', 'Vercel', 'GitHub Actions', 'CI/CD'] },
   ]
 
   const experience = [
@@ -60,11 +60,13 @@ const About = () => {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            About Me
+            About Shahan Anwar - Full Stack Developer & Next.js Expert
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            I'm a passionate full-stack developer with over 4 years of experience
-            creating digital solutions that make a real impact.
+            I'm Shahan Anwar, a passionate Full Stack Developer and Next.js expert with over 4 years of experience
+            creating innovative web applications and mobile apps. I specialize in modern technologies like React,
+            TypeScript, Node.js, and mobile app development. Based in Karachi, Pakistan, I help businesses
+            build scalable digital solutions.
           </p>
         </motion.div>
 
@@ -76,22 +78,25 @@ const About = () => {
             transition={{ duration: 0.8 }}
             viewport={{ once: true }}
           >
-            <h3 className="text-2xl font-bold mb-6">Who I Am</h3>
+            <h3 className="text-2xl font-bold mb-6">About Shahan Anwar - Full Stack Developer</h3>
             <div className="space-y-4 text-muted-foreground">
               <p>
-                I'm a creative problem-solver who loves turning complex ideas into
-                simple, beautiful, and intuitive solutions. With a strong foundation
-                in both frontend and backend development, I enjoy the full spectrum
-                of web development.
+                I'm Shahan Anwar, a creative problem-solver who loves turning complex ideas into
+                simple, beautiful, and intuitive solutions. As a Full Stack Developer and Next.js expert,
+                I have a strong foundation in both frontend and backend development, specializing in
+                React, TypeScript, Node.js, and mobile app development.
               </p>
               <p>
                 When I'm not coding, you can find me exploring new technologies,
                 contributing to open-source projects, or sharing knowledge with
-                the developer community.
+                the developer community. I'm passionate about creating innovative
+                web applications and mobile apps that solve real-world problems.
               </p>
               <p>
                 I believe in writing clean, maintainable code and creating
-                user experiences that are both functional and delightful.
+                user experiences that are both functional and delightful. My expertise
+                spans across web development, mobile app development, and modern
+                JavaScript frameworks.
               </p>
             </div>
           </motion.div>

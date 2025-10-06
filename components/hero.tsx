@@ -1,63 +1,43 @@
 "use client"
 
-import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { ArrowDown, Github, Linkedin, Mail, Download } from 'lucide-react'
-
-interface HeroData {
-  name: string
-  title: string
-  subtitle: string
-  description: string
-  image: string
-  resumeLink: string
-  socialLinks: {
-    github: string
-    linkedin: string
-    email: string
-  }
-}
+import { useHero } from '@/hooks'
 
 const Hero = () => {
-  const [heroData, setHeroData] = useState<HeroData>({
-    name: "Loading...",
-    title: "Loading...",
-    subtitle: "Loading...",
-    description: "Loading...",
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&h=500&fit=crop&crop=face",
-    resumeLink: "#",
-    socialLinks: {
-      github: "#",
-      linkedin: "#",
-      email: "#"
-    }
-  })
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchHeroData = async () => {
-      try {
-        const response = await fetch('/api/hero')
-        if (response.ok) {
-          const data = await response.json()
-          setHeroData(data)
-        }
-      } catch (error) {
-        console.error('Error fetching hero data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchHeroData()
-  }, [])
+  const { data: heroData, loading, error } = useHero()
 
   const scrollToSection = (sectionId: string) => {
     const element = document.querySelector(sectionId)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' })
     }
+  }
+
+  // Show loading state
+  if (loading) {
+    return (
+      <section id="home" className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </section>
+    )
+  }
+
+  // Show error state
+  if (error || !heroData) {
+    return (
+      <section id="home" className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold mb-4">Shahan Anwar</h1>
+          <p className="text-xl text-muted-foreground mb-4">Full Stack Developer | Next.js Expert</p>
+          <p className="text-muted-foreground">Unable to load content. Please try again later.</p>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -160,14 +140,14 @@ const Hero = () => {
               </span>
             </motion.h1>
 
-            <motion.p
+            <motion.h2
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.6 }}
               className="text-xl sm:text-2xl lg:text-3xl text-muted-foreground mb-4"
             >
               {heroData.title}
-            </motion.p>
+            </motion.h2>
 
             <motion.p
               initial={{ opacity: 0, y: 20 }}

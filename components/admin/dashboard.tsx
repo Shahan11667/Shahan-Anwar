@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings } from 'lucide-react'
+import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle } from 'lucide-react'
 import ProjectForm from './project-form'
 import ContactList from './contact-list'
 import HeroForm from './hero-form'
@@ -17,10 +17,12 @@ interface Project {
   _id: string
   title: string
   description: string
+  longDescription?: string
   techStack: string[]
   githubLink: string
   demoLink: string
   image: string
+  images?: string[]
   createdAt?: string
   updatedAt?: string
 }
@@ -36,9 +38,10 @@ interface Contact {
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'hero' | 'projects' | 'contacts' | 'contact-info'>('hero')
+  const [activeTab, setActiveTab] = useState<'hero' | 'projects' | 'contacts' | 'contact-info' | 'chat-users'>('hero')
   const [projects, setProjects] = useState<Project[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [chatUsers, setChatUsers] = useState<any[]>([])
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [showHeroForm, setShowHeroForm] = useState(false)
   const [showContactInfoForm, setShowContactInfoForm] = useState(false)
@@ -81,9 +84,10 @@ const AdminDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [projectsRes, contactsRes] = await Promise.all([
+      const [projectsRes, contactsRes, chatUsersRes] = await Promise.all([
         fetch('/api/projects'),
-        fetch('/api/contacts')
+        fetch('/api/contacts'),
+        fetch('/api/chat/users')
       ])
 
       if (projectsRes.ok) {
@@ -94,6 +98,13 @@ const AdminDashboard = () => {
       if (contactsRes.ok) {
         const contactsData = await contactsRes.json()
         setContacts(contactsData)
+      }
+
+      if (chatUsersRes.ok) {
+        const chatUsersData = await chatUsersRes.json()
+        // The API returns users in a 'data' property
+        const users = chatUsersData.data || chatUsersData
+        setChatUsers(Array.isArray(users) ? users : [])
       }
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -106,6 +117,76 @@ const AdminDashboard = () => {
       router.push('/admin/login')
     } catch (error) {
       console.error('Logout error:', error)
+    }
+  }
+
+  const handleApproveUser = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/chat/users/${userId}/approve`, {
+        method: 'PUT'
+      })
+
+      if (response.ok) {
+        toast({
+          title: "User Approved",
+          description: "User has been approved successfully.",
+        })
+        // Refresh chat users
+        const chatUsersRes = await fetch('/api/chat/users')
+        if (chatUsersRes.ok) {
+          const chatUsersData = await chatUsersRes.json()
+          const users = chatUsersData.data || chatUsersData
+          setChatUsers(Array.isArray(users) ? users : [])
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to approve user.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error approving user:', error)
+      toast({
+        title: "Error",
+        description: "Something went wrong.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleRejectUser = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/chat/users/${userId}/reject`, {
+        method: 'PUT'
+      })
+
+      if (response.ok) {
+        toast({
+          title: "User Rejected",
+          description: "User has been rejected.",
+        })
+        // Refresh chat users
+        const chatUsersRes = await fetch('/api/chat/users')
+        if (chatUsersRes.ok) {
+          const chatUsersData = await chatUsersRes.json()
+          const users = chatUsersData.data || chatUsersData
+          setChatUsers(Array.isArray(users) ? users : [])
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to reject user.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error rejecting user:', error)
+      toast({
+        title: "Error",
+        description: "Something went wrong.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -140,12 +221,18 @@ const AdminDashboard = () => {
       _id: String(project._id),
       title: project.title,
       description: project.description,
+      longDescription: project.longDescription,
       techStack: project.techStack,
       githubLink: project.githubLink,
       demoLink: project.demoLink,
       image: project.image,
-      createdAt: project.createdAt?.toISOString(),
-      updatedAt: project.updatedAt?.toISOString()
+      images: project.images || [],
+      createdAt: typeof project.createdAt === 'string'
+        ? project.createdAt
+        : project.createdAt?.toISOString(),
+      updatedAt: typeof project.updatedAt === 'string'
+        ? project.updatedAt
+        : project.updatedAt?.toISOString()
     }
 
     if (editingProject) {
@@ -218,6 +305,14 @@ const AdminDashboard = () => {
           >
             <Settings className="h-4 w-4 mr-2" />
             Contact Info
+          </Button>
+          <Button
+            variant={activeTab === 'chat-users' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('chat-users')}
+            size="sm"
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Chat Users
           </Button>
         </div>
 
@@ -293,8 +388,12 @@ const AdminDashboard = () => {
                               const projectData: IProject = {
                                 ...project,
                                 _id: project._id as any,
-                                createdAt: project.createdAt ? new Date(project.createdAt) : new Date(),
-                                updatedAt: project.updatedAt ? new Date(project.updatedAt) : new Date()
+                                createdAt: project.createdAt ?
+                                  (typeof project.createdAt === 'string' ? new Date(project.createdAt) : project.createdAt) :
+                                  new Date(),
+                                updatedAt: project.updatedAt ?
+                                  (typeof project.updatedAt === 'string' ? new Date(project.updatedAt) : project.updatedAt) :
+                                  new Date()
                               } as IProject
                               setEditingProject(projectData)
                               setShowProjectForm(true)
@@ -379,6 +478,90 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* Chat Users Tab */}
+        {activeTab === 'chat-users' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Chat Users Management</h2>
+              <div className="text-sm text-muted-foreground">
+                Total Users: {Array.isArray(chatUsers) ? chatUsers.length : 0} |
+                Pending: {Array.isArray(chatUsers) ? chatUsers.filter(user => !user.isApproved).length : 0} |
+                Approved: {Array.isArray(chatUsers) ? chatUsers.filter(user => user.isApproved).length : 0}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {!Array.isArray(chatUsers) || chatUsers.length === 0 ? (
+                <Card>
+                  <CardContent className="p-6 text-center">
+                    <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-muted-foreground">No chat users found.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                Array.isArray(chatUsers) && chatUsers.map((user) => (
+                  <Card key={user._id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <User className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold">{user.displayName}</h3>
+                            <p className="text-sm text-muted-foreground">@{user.username}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${user.isApproved
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                {user.isApproved ? 'Approved' : 'Pending Approval'}
+                              </span>
+                              {user.isAdmin && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  Admin
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {!user.isApproved && (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() => handleApproveUser(user._id)}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleRejectUser(user._id)}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          {user.isApproved && (
+                            <span className="text-sm text-green-600 font-medium">
+                              ✓ Approved
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           </div>
         )}
       </div>

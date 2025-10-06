@@ -21,10 +21,12 @@ interface ProjectFormProps {
 interface ProjectFormData {
   title: string
   description: string
+  longDescription: string
   techStack: string[]
   githubLink: string
   demoLink: string
   image: string
+  images: string[]
 }
 
 const ProjectForm = ({ project, onSave, onClose }: ProjectFormProps) => {
@@ -35,10 +37,12 @@ const ProjectForm = ({ project, onSave, onClose }: ProjectFormProps) => {
     defaultValues: {
       title: project?.title || '',
       description: project?.description || '',
+      longDescription: project?.longDescription || '',
       techStack: project?.techStack || [],
       githubLink: project?.githubLink || '',
       demoLink: project?.demoLink || '',
       image: project?.image || '',
+      images: project?.images || [],
     }
   })
 
@@ -62,28 +66,43 @@ const ProjectForm = ({ project, onSave, onClose }: ProjectFormProps) => {
       const url = project ? `/api/projects/${project._id}` : '/api/projects'
       const method = project ? 'PUT' : 'POST'
       
+      // Filter out empty images
+      const cleanedData = {
+        ...data,
+        images: data.images?.filter(img => img.trim() !== '') || []
+      }
+
+      console.log('Submitting project data:', cleanedData)
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(cleanedData),
       })
+
+      console.log('Response status:', response.status)
+      console.log('Response ok:', response.ok)
 
       if (response.ok) {
         const savedProject = await response.json()
+        console.log('Saved project:', savedProject)
         onSave(savedProject)
         toast({
           title: project ? "Project updated" : "Project created",
           description: `The project has been ${project ? 'updated' : 'created'} successfully.`,
         })
       } else {
-        throw new Error('Failed to save project')
+        const errorData = await response.json()
+        console.error('API Error:', errorData)
+        throw new Error(errorData.error || 'Failed to save project')
       }
     } catch (error) {
+      console.error('Submission error:', error)
       toast({
         title: "Error",
-        description: "Failed to save project. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to save project. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -134,13 +153,13 @@ const ProjectForm = ({ project, onSave, onClose }: ProjectFormProps) => {
 
               <div>
                 <label htmlFor="description" className="block text-sm font-medium mb-2">
-                  Description *
+                  Short Description *
                 </label>
                 <Textarea
                   id="description"
-                  rows={4}
+                  rows={3}
                   {...register('description', { required: 'Description is required' })}
-                  placeholder="Enter project description"
+                  placeholder="Enter short project description (for cards)"
                   className={errors.description ? 'border-destructive' : ''}
                 />
                 {errors.description && (
@@ -148,6 +167,22 @@ const ProjectForm = ({ project, onSave, onClose }: ProjectFormProps) => {
                     {errors.description.message}
                   </p>
                 )}
+              </div>
+
+              <div>
+                <label htmlFor="longDescription" className="block text-sm font-medium mb-2">
+                  Detailed Description
+                </label>
+                <Textarea
+                  id="longDescription"
+                  rows={6}
+                  {...register('longDescription')}
+                  placeholder="Enter detailed project description (for project detail page)"
+                  className={errors.longDescription ? 'border-destructive' : ''}
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  This will be shown on the project detail page. You can use multiple paragraphs.
+                </p>
               </div>
 
               <div>
@@ -239,18 +274,65 @@ const ProjectForm = ({ project, onSave, onClose }: ProjectFormProps) => {
 
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Project Image *
+                  Main Project Image *
                 </label>
                 <ImageUpload
                   value={watch('image') || ''}
                   onChange={(url) => setValue('image', url)}
-                  placeholder="Upload project screenshot"
+                  placeholder="Upload main project screenshot"
                 />
                 {errors.image && (
                   <p className="text-sm text-destructive mt-1">
                     {errors.image.message}
                   </p>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Additional Images
+                </label>
+                <div className="space-y-4">
+                  {watch('images')?.map((image, index) => (
+                    <div key={index} className="flex items-center space-x-2">
+                      <ImageUpload
+                        value={image}
+                        onChange={(url) => {
+                          const newImages = [...(watch('images') || [])]
+                          newImages[index] = url
+                          setValue('images', newImages)
+                        }}
+                        placeholder={`Upload additional image ${index + 1}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newImages = watch('images')?.filter((_, i) => i !== index) || []
+                          setValue('images', newImages)
+                        }}
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const newImages = [...(watch('images') || []), '']
+                      setValue('images', newImages)
+                    }}
+                    className="w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Another Image
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add multiple images to showcase different aspects of your project.
+                </p>
               </div>
 
               <div className="flex justify-end space-x-4">

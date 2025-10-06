@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
 import { Mail, Phone, MapPin, Send } from 'lucide-react'
+import { useContactInfo, useSubmitContact } from '@/hooks'
 
 interface ContactForm {
   name: string
@@ -16,70 +16,26 @@ interface ContactForm {
   message: string
 }
 
-interface ContactInfo {
-  email: string
-  phone: string
-  location: string
-}
-
 const Contact = () => {
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [contactInfo, setContactInfo] = useState<ContactInfo>({
-    email: "Loading...",
-    phone: "Loading...",
-    location: "Loading..."
-  })
-  const [loading, setLoading] = useState(true)
+  const { data: contactInfo, loading: contactInfoLoading } = useContactInfo()
+  const { mutate: submitContact, loading: isSubmitting } = useSubmitContact()
   const { toast } = useToast()
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ContactForm>()
 
-  useEffect(() => {
-    const fetchContactInfo = async () => {
-      try {
-        const response = await fetch('/api/contact-info')
-        if (response.ok) {
-          const data = await response.json()
-          setContactInfo(data)
-        }
-      } catch (error) {
-        console.error('Error fetching contact info:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchContactInfo()
-  }, [])
-
   const onSubmit = async (data: ContactForm) => {
-    setIsSubmitting(true)
-    
     try {
-      const response = await fetch('/api/contact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+      await submitContact(data)
+      toast({
+        title: "Message sent successfully!",
+        description: "Thank you for reaching out. I'll get back to you soon.",
       })
-
-      if (response.ok) {
-        toast({
-          title: "Message sent successfully!",
-          description: "Thank you for reaching out. I'll get back to you soon.",
-        })
-        reset()
-      } else {
-        throw new Error('Failed to send message')
-      }
+      reset()
     } catch (error) {
       toast({
         title: "Error sending message",
         description: "Please try again later or contact me directly.",
         variant: "destructive",
       })
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
@@ -87,19 +43,19 @@ const Contact = () => {
     {
       icon: Mail,
       title: 'Email',
-      value: contactInfo.email,
-      href: `mailto:${contactInfo.email}`,
+      value: contactInfo?.email || 'Loading...',
+      href: contactInfo?.email ? `mailto:${contactInfo.email}` : '#',
     },
     {
       icon: Phone,
       title: 'Phone',
-      value: contactInfo.phone,
-      href: `tel:${contactInfo.phone.replace(/\D/g, '')}`,
+      value: contactInfo?.phone || 'Loading...',
+      href: contactInfo?.phone ? `tel:${contactInfo.phone.replace(/\D/g, '')}` : '#',
     },
     {
       icon: MapPin,
       title: 'Location',
-      value: contactInfo.location,
+      value: contactInfo?.location || 'Loading...',
       href: '#',
     },
   ]

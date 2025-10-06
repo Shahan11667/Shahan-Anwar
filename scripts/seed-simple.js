@@ -65,10 +65,16 @@ const sampleProjects = [
   {
     title: "E-Commerce Platform",
     description: "A full-stack e-commerce platform built with Next.js, featuring user authentication, payment processing, and admin dashboard. Includes real-time inventory management and order tracking.",
+        longDescription: "This comprehensive e-commerce platform was built from the ground up using modern web technologies. The application features a robust user authentication system with JWT tokens, a complete product management system with image uploads, a sophisticated shopping cart with real-time updates, and secure payment processing through Stripe integration.\n\nThe platform includes an admin dashboard for managing products, orders, and users, as well as a responsive frontend that works seamlessly across all devices. The backend API is built with Next.js API routes and uses MongoDB for data persistence.\n\nKey features include:\n- User registration and authentication\n- Product catalog with search and filtering\n- Shopping cart with persistent storage\n- Order management system\n- Payment processing with Stripe\n- Admin dashboard for content management\n- Responsive design for all devices",
     techStack: ["Next.js", "TypeScript", "MongoDB", "Stripe", "Tailwind CSS"],
     githubLink: "https://github.com/johndoe/ecommerce-platform",
     demoLink: "https://ecommerce-demo.vercel.app",
-    image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=600&fit=crop"
+        image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=600&fit=crop",
+        images: [
+            "https://images.unsplash.com/photo-1556742111-a301076d9d18?w=800&h=600&fit=crop",
+            "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=600&fit=crop",
+            "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&h=600&fit=crop"
+        ]
   },
   {
     title: "Task Management App",

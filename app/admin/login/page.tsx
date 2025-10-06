@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import { Lock, User, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import DynamicTitle from '@/components/dynamic-title'
 
 interface LoginForm {
   username: string
@@ -81,6 +82,10 @@ const AdminLogin = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+      <DynamicTitle
+        title="Admin Login"
+        description="Login to access the admin dashboard."
+      />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

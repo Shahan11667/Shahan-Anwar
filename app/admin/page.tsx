@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminDashboard from '@/components/admin/dashboard'
+import DynamicTitle from '@/components/dynamic-title'
 
 export default function AdminPage() {
   const router = useRouter()
@@ -14,5 +15,13 @@ export default function AdminPage() {
     }
   }, [])
 
-  return <AdminDashboard />
+  return (
+    <>
+      <DynamicTitle
+        title="Admin Dashboard"
+        description="Admin dashboard for managing portfolio content."
+      />
+      <AdminDashboard />
+    </>
+  )
 }
