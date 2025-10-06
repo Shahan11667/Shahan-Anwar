@@ -1,0 +1,404 @@
+"use client"
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/use-toast'
+import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings } from 'lucide-react'
+import ProjectForm from './project-form'
+import ContactList from './contact-list'
+import HeroForm from './hero-form'
+import ContactInfoForm from './contact-info-form'
+
+interface Project {
+  _id: string
+  title: string
+  description: string
+  techStack: string[]
+  githubLink: string
+  demoLink: string
+  image: string
+}
+
+interface Contact {
+  _id: string
+  name: string
+  email: string
+  message: string
+  createdAt: string
+}
+
+const AdminDashboard = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'hero' | 'projects' | 'contacts' | 'contact-info'>('hero')
+  const [projects, setProjects] = useState<Project[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [showProjectForm, setShowProjectForm] = useState(false)
+  const [showHeroForm, setShowHeroForm] = useState(false)
+  const [showContactInfoForm, setShowContactInfoForm] = useState(false)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const { toast } = useToast()
+  const router = useRouter()
+
+  useEffect(() => {
+    checkAuth()
+  }, [])
+
+  const checkAuth = async () => {
+    try {
+      console.log('Checking authentication...')
+      const response = await fetch('/api/auth/verify')
+      console.log('Auth response status:', response.status)
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Auth data:', data)
+        if (data.user) {
+          console.log('User authenticated:', data.user)
+          setIsAuthenticated(true)
+          fetchData()
+        } else {
+          console.log('No user data, redirecting to login')
+          router.push('/admin/login')
+        }
+      } else {
+        console.log('Auth failed, redirecting to login')
+        router.push('/admin/login')
+      }
+    } catch (error) {
+      console.error('Auth check error:', error)
+      router.push('/admin/login')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchData = async () => {
+    try {
+      const [projectsRes, contactsRes] = await Promise.all([
+        fetch('/api/projects'),
+        fetch('/api/contacts')
+      ])
+
+      if (projectsRes.ok) {
+        const projectsData = await projectsRes.json()
+        setProjects(projectsData)
+      }
+
+      if (contactsRes.ok) {
+        const contactsData = await contactsRes.json()
+        setContacts(contactsData)
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+      router.push('/admin/login')
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+  }
+
+  const handleDeleteProject = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this project?')) return
+
+    try {
+      const response = await fetch(`/api/projects/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        setProjects(projects.filter(p => p._id !== id))
+        toast({
+          title: "Project deleted",
+          description: "The project has been successfully deleted.",
+        })
+      } else {
+        throw new Error('Failed to delete project')
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete project. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleProjectSaved = (project: Project) => {
+    if (editingProject) {
+      setProjects(projects.map(p => p._id === project._id ? project : p))
+      setEditingProject(null)
+    } else {
+      setProjects([project, ...projects])
+    }
+    setShowProjectForm(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return null
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border bg-card">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+            <Button onClick={handleLogout} variant="outline">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Tabs */}
+        <div className="flex flex-wrap gap-2 mb-8">
+          <Button
+            variant={activeTab === 'hero' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('hero')}
+            size="sm"
+          >
+            <User className="h-4 w-4 mr-2" />
+            Hero Section
+          </Button>
+          <Button
+            variant={activeTab === 'projects' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('projects')}
+            size="sm"
+          >
+            <FolderOpen className="h-4 w-4 mr-2" />
+            Projects ({projects.length})
+          </Button>
+          <Button
+            variant={activeTab === 'contacts' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('contacts')}
+            size="sm"
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Messages ({contacts.length})
+          </Button>
+          <Button
+            variant={activeTab === 'contact-info' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('contact-info')}
+            size="sm"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Contact Info
+          </Button>
+        </div>
+
+        {/* Hero Tab */}
+        {activeTab === 'hero' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Hero Section Management</h2>
+              <Button onClick={() => setShowHeroForm(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Hero Section
+              </Button>
+            </div>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <div className="w-32 h-32 mx-auto mb-4 rounded-full overflow-hidden">
+                    <img
+                      src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&h=500&fit=crop&crop=face"
+                      alt="Hero Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">Hero Section Preview</h3>
+                  <p className="text-muted-foreground mb-4">
+                    This is how your hero section appears on the homepage. Click "Edit Hero Section" to customize the content.
+                  </p>
+                  <Button onClick={() => setShowHeroForm(true)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Hero Section
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Projects Tab */}
+        {activeTab === 'projects' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Projects Management</h2>
+              <Button onClick={() => setShowProjectForm(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Project
+              </Button>
+            </div>
+
+            {projects.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <p className="text-muted-foreground">No projects found. Add your first project!</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {projects.map((project) => (
+                  <Card key={project._id}>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle>{project.title}</CardTitle>
+                          <CardDescription className="mt-2">
+                            {project.description}
+                          </CardDescription>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingProject(project)
+                              setShowProjectForm(true)
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteProject(project._id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {project.techStack.map((tech) => (
+                          <span
+                            key={tech}
+                            className="px-2 py-1 bg-secondary text-secondary-foreground rounded text-sm"
+                          >
+                            {tech}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex space-x-2">
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={project.githubLink} target="_blank" rel="noopener noreferrer">
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Code
+                          </a>
+                        </Button>
+                        <Button size="sm" variant="outline" asChild>
+                          <a href={project.demoLink} target="_blank" rel="noopener noreferrer">
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Demo
+                          </a>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Contacts Tab */}
+        {activeTab === 'contacts' && (
+          <ContactList contacts={contacts} />
+        )}
+
+        {/* Contact Info Tab */}
+        {activeTab === 'contact-info' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Contact Information</h2>
+              <Button onClick={() => setShowContactInfoForm(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Contact Info
+              </Button>
+            </div>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Settings className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">Contact Information Management</h3>
+                  <p className="text-muted-foreground mb-4">
+                    This information appears in the contact section of your portfolio. 
+                    Click "Edit Contact Info" to update your email, phone, and location.
+                  </p>
+                  <Button onClick={() => setShowContactInfoForm(true)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Contact Info
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+
+      {/* Project Form Modal */}
+      {showProjectForm && (
+        <ProjectForm
+          project={editingProject}
+          onSave={handleProjectSaved}
+          onClose={() => {
+            setShowProjectForm(false)
+            setEditingProject(null)
+          }}
+        />
+      )}
+
+      {/* Hero Form Modal */}
+      {showHeroForm && (
+        <HeroForm
+          onSave={() => {
+            setShowHeroForm(false)
+            // Optionally refresh the page to show updated hero data
+            window.location.reload()
+          }}
+          onClose={() => setShowHeroForm(false)}
+        />
+      )}
+
+      {/* Contact Info Form Modal */}
+      {showContactInfoForm && (
+        <ContactInfoForm
+          onSave={() => {
+            setShowContactInfoForm(false)
+            // Optionally refresh the page to show updated contact info
+            window.location.reload()
+          }}
+          onClose={() => setShowContactInfoForm(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+export default AdminDashboard
