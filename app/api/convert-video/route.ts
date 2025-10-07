@@ -21,8 +21,7 @@ export async function POST(request: NextRequest) {
 
     // Dynamic import of Transloadit
     const TransloaditModule = await import('transloadit');
-    const Transloadit = TransloaditModule.default || TransloaditModule;
-    const TransloaditClass = Transloadit.Transloadit || Transloadit;
+      const TransloaditClass = (TransloaditModule as any).Transloadit || (TransloaditModule as any).default?.Transloadit || TransloaditModule;
     
     // Initialize Transloadit client
     const transloadit = new (TransloaditClass as any)({
