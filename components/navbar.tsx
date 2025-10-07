@@ -10,6 +10,7 @@ import { useTheme } from 'next-themes'
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [videoEditorEnabled, setVideoEditorEnabled] = useState(false)
   const { theme, setTheme } = useTheme()
 
   useEffect(() => {
@@ -20,13 +21,34 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const navItems = [
+  // Fetch admin settings to check if video editor is enabled
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/admin/settings')
+        const data = await response.json()
+        if (data.success) {
+          setVideoEditorEnabled(data.data.videoEditorEnabled || false)
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error)
+      }
+    }
+    fetchSettings()
+  }, [])
+
+  const baseNavItems = [
     { name: 'Home', href: '#home' },
     { name: 'About', href: '#about' },
     { name: 'Projects', href: '#projects' },
     { name: 'Contact', href: '#contact' },
     { name: 'Live Chat', href: '/chat', external: true },
   ]
+
+  // Add video editor to nav items if enabled
+  const navItems = videoEditorEnabled
+    ? [...baseNavItems, { name: '🎬 Video Editor', href: '/video-editor', external: true }]
+    : baseNavItems
 
   const scrollToSection = (href: string) => {
     const element = document.querySelector(href)

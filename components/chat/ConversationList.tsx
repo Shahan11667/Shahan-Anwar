@@ -50,13 +50,54 @@ interface ConversationListProps {
 
 export default function ConversationList({ onSelectConversation, selectedUserId }: ConversationListProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [view, setView] = useState<'all' | 'conversations'>('all');
   const { user, isAuthenticated, loading: authLoading } = useChatAuth();
   const { isConnected } = useSocket();
+
+  // Load all approved users
+  const loadAllUsers = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    console.log('🔄 ConversationList - Loading all users...');
+    try {
+      const token = localStorage.getItem('chat_token');
+
+      const response = await fetch('/api/chat/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Filter approved users only and exclude self
+        const approvedUsers = (data.data || data).filter((u: User) =>
+          u._id !== user?._id
+        );
+        console.log('🔄 ConversationList - All users loaded:', approvedUsers.length);
+        setAllUsers(approvedUsers);
+      } else {
+        console.error('🔄 ConversationList - Failed to load users:', response.statusText);
+        setAllUsers([]);
+      }
+    } catch (error) {
+      console.error('🔄 ConversationList - Error loading users:', error);
+      setAllUsers([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   // Load conversations function
   const loadConversations = async (isRefresh = false) => {
@@ -69,15 +110,12 @@ export default function ConversationList({ onSelectConversation, selectedUserId 
     console.log('🔄 ConversationList - Loading conversations...');
     try {
       const token = localStorage.getItem('chat_token');
-      console.log('🔄 ConversationList - Token:', token ? 'Present' : 'Missing');
       
       const response = await fetch('/api/chat/conversations', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-
-      console.log('🔄 ConversationList - Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
@@ -96,24 +134,26 @@ export default function ConversationList({ onSelectConversation, selectedUserId 
     }
   };
 
-  // Load conversations
+  // Load data
   useEffect(() => {
-
-    // Load conversations when user is authenticated and not loading
+    // Load data when user is authenticated and not loading
     if (isAuthenticated && user && !authLoading) {
-      console.log('🔄 ConversationList - User authenticated, loading conversations');
+      console.log('🔄 ConversationList - User authenticated, loading data');
+      loadAllUsers();
       loadConversations();
     } else if (!authLoading && !isAuthenticated) {
-      console.log('🔄 ConversationList - User not authenticated, clearing conversations');
+      console.log('🔄 ConversationList - User not authenticated, clearing data');
       setConversations([]);
+      setAllUsers([]);
       setLoading(false);
     }
   }, [isAuthenticated, user, authLoading]);
 
-  // Reload conversations when socket reconnects
+  // Reload data when socket reconnects
   useEffect(() => {
     if (isConnected && isAuthenticated && user) {
-      console.log('🔄 ConversationList - Socket reconnected, reloading conversations');
+      console.log('🔄 ConversationList - Socket reconnected, reloading data');
+      loadAllUsers(true);
       loadConversations(true);
     }
   }, [isConnected, isAuthenticated, user]);
@@ -189,24 +229,20 @@ export default function ConversationList({ onSelectConversation, selectedUserId 
   return (
     <div className="w-80 border-r bg-card h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Chats</h2>
+      <div className="p-4 border-b space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Messages</h2>
           <div className="flex items-center space-x-2">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => loadConversations(true)}
+              onClick={() => {
+                loadAllUsers(true);
+                loadConversations(true);
+              }}
               disabled={refreshing}
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSearch(!showSearch)}
-            >
-              <Search className="h-4 w-4" />
             </Button>
             <div className="flex items-center space-x-1">
               <Wifi className={`h-3 w-3 ${isConnected ? 'text-green-500' : 'text-red-500'}`} />
@@ -217,116 +253,182 @@ export default function ConversationList({ onSelectConversation, selectedUserId 
           </div>
         </div>
 
+        {/* View Toggle */}
+        <div className="flex space-x-2">
+          <Button
+            variant={view === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setView('all')}
+            className="flex-1"
+          >
+            <User className="h-4 w-4 mr-1" />
+            All Users ({allUsers.length})
+          </Button>
+          <Button
+            variant={view === 'conversations' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setView('conversations')}
+            className="flex-1"
+          >
+            <MessageCircle className="h-4 w-4 mr-1" />
+            Chats ({conversations.length})
+          </Button>
+        </div>
+
         {/* Search */}
-        {showSearch && (
-          <div className="space-y-2">
-            <Input
-              placeholder="Search by email or name..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                handleSearch(e.target.value);
-              }}
-            />
-            
-            {searchResults.length > 0 ? (
-              <div className="max-h-48 overflow-y-auto">
-                <div className="text-xs text-muted-foreground mb-2">
-                  Found {searchResults.length} user(s)
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search users..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              handleSearch(e.target.value);
+            }}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Search Results */}
+        {searchQuery.length >= 2 && searchResults.length > 0 && (
+          <div className="absolute z-10 w-full bg-card border rounded-lg shadow-lg mt-1 max-h-64 overflow-y-auto">
+            {searchResults.map((searchUser) => (
+              <div
+                key={searchUser._id}
+                className="flex items-center space-x-3 p-3 hover:bg-muted cursor-pointer"
+                onClick={() => handleUserSelect(searchUser)}
+              >
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-5 w-5 text-primary" />
                 </div>
-                {searchResults.map((user) => (
-                  <div
-                    key={user._id}
-                    className="flex items-center space-x-3 p-2 hover:bg-muted rounded cursor-pointer"
-                    onClick={() => handleUserSelect(user)}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                      <User className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{user.displayName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      {user.isOnline ? (
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      ) : (
-                        <Clock className="h-3 w-3 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
-                ))}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{searchUser.displayName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{searchUser.email}</p>
+                </div>
+                {searchUser.isOnline && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                )}
               </div>
-            ) : searchQuery.length >= 2 ? (
-              <div className="text-sm text-muted-foreground text-center py-4">
-                No users found for "{searchQuery}"
-              </div>
-            ) : null}
+            ))}
           </div>
         )}
       </div>
 
-      {/* Conversations List */}
+      {/* User/Conversation List */}
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">
-          {conversations.length === 0 ? (
+          {/* Show All Users View */}
+          {view === 'all' && allUsers.length === 0 && (
+            <div className="text-center py-8">
+              <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No approved users</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Wait for admin approval to see other users
+              </p>
+            </div>
+          )}
+
+          {view === 'all' && allUsers.map((chatUser) => (
+            <Card
+              key={chatUser._id}
+              className={`cursor-pointer transition-colors ${selectedUserId === chatUser._id
+                ? 'bg-primary/10 border-primary'
+                : 'hover:bg-muted'
+                }`}
+              onClick={() => onSelectConversation(chatUser._id, chatUser)}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    {chatUser.isOnline && (
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background"></div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {chatUser.displayName}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      @{chatUser.username}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center space-x-1">
+                    {chatUser.isOnline ? (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        Online
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Offline</span>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {/* Show Conversations View */}
+          {view === 'conversations' && conversations.length === 0 && (
             <div className="text-center py-8">
               <MessageCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">No conversations yet</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Search for users to start chatting
+                Click on a user to start chatting
               </p>
             </div>
-          ) : (
-            conversations.map((conversation) => (
-              <Card
-                key={conversation._id}
-                className={`cursor-pointer transition-colors ${
-                  selectedUserId === conversation._id
-                    ? 'bg-primary/10 border-primary'
-                    : 'hover:bg-muted'
-                }`}
-                onClick={() => onSelectConversation(conversation._id, {
-                  _id: conversation._id,
-                  username: conversation.username,
-                  displayName: conversation.displayName,
-                  email: conversation.email,
-                  avatar: conversation.avatar,
-                  isOnline: conversation.isOnline,
-                  lastSeen: conversation.lastMessage.createdAt
-                })}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="relative">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="h-5 w-5 text-primary" />
-                      </div>
-                      {conversation.isOnline && (
-                        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background"></div>
-                      )}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium truncate">
-                          {conversation.displayName}
-                        </p>
-                        <div className="flex items-center space-x-1">
-                          <span className="text-xs text-muted-foreground">
-                            {formatTime(conversation.lastMessage.createdAt)}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {conversation.lastMessage.content}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
           )}
+
+          {view === 'conversations' && conversations.map((conversation) => (
+            <Card
+              key={conversation._id}
+              className={`cursor-pointer transition-colors ${selectedUserId === conversation._id
+                ? 'bg-primary/10 border-primary'
+                : 'hover:bg-muted'
+                }`}
+              onClick={() => onSelectConversation(conversation._id, {
+                _id: conversation._id,
+                username: conversation.username,
+                displayName: conversation.displayName,
+                email: conversation.email,
+                avatar: conversation.avatar,
+                isOnline: conversation.isOnline,
+                lastSeen: conversation.lastMessage.createdAt
+              })}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    {conversation.isOnline && (
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background"></div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium truncate">
+                        {conversation.displayName}
+                      </p>
+                      <div className="flex items-center space-x-1">
+                        <span className="text-xs text-muted-foreground">
+                          {formatTime(conversation.lastMessage.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {conversation.lastMessage.content}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </ScrollArea>
     </div>

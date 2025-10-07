@@ -6,7 +6,9 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle } from 'lucide-react'
+import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle, Video, Scissors, Maximize2 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import ProjectForm from './project-form'
 import ContactList from './contact-list'
 import HeroForm from './hero-form'
@@ -38,10 +40,11 @@ interface Contact {
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'hero' | 'projects' | 'contacts' | 'contact-info' | 'chat-users'>('hero')
+  const [activeTab, setActiveTab] = useState<'hero' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings'>('hero')
   const [projects, setProjects] = useState<Project[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [chatUsers, setChatUsers] = useState<any[]>([])
+  const [settings, setSettings] = useState<any>(null)
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [showHeroForm, setShowHeroForm] = useState(false)
   const [showContactInfoForm, setShowContactInfoForm] = useState(false)
@@ -84,10 +87,11 @@ const AdminDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [projectsRes, contactsRes, chatUsersRes] = await Promise.all([
+      const [projectsRes, contactsRes, chatUsersRes, settingsRes] = await Promise.all([
         fetch('/api/projects'),
         fetch('/api/contacts'),
-        fetch('/api/chat/users')
+        fetch('/api/chat/users'),
+        fetch('/api/admin/settings')
       ])
 
       if (projectsRes.ok) {
@@ -105,6 +109,13 @@ const AdminDashboard = () => {
         // The API returns users in a 'data' property
         const users = chatUsersData.data || chatUsersData
         setChatUsers(Array.isArray(users) ? users : [])
+      }
+
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json()
+        if (settingsData.success) {
+          setSettings(settingsData.data)
+        }
       }
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -244,6 +255,38 @@ const AdminDashboard = () => {
     setShowProjectForm(false)
   }
 
+  const handleToggleSetting = async (settingName: string, currentValue: boolean) => {
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          [settingName]: !currentValue
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setSettings(data.data)
+        toast({
+          title: "Settings updated",
+          description: data.message || "Settings have been successfully updated.",
+        })
+      } else {
+        throw new Error(data.error || 'Failed to update settings')
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update settings. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -313,6 +356,14 @@ const AdminDashboard = () => {
           >
             <Users className="h-4 w-4 mr-2" />
             Chat Users
+          </Button>
+          <Button
+            variant={activeTab === 'settings' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('settings')}
+            size="sm"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Settings
           </Button>
         </div>
 
@@ -561,6 +612,57 @@ const AdminDashboard = () => {
                   </Card>
                 ))
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2">Feature Settings</h2>
+              <p className="text-muted-foreground">
+                Control which features are visible on your portfolio website.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Video Editor - Convert to 9:16 */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+                        <Maximize2 className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="videoEditor" className="text-base font-semibold cursor-pointer">
+                          Convert to 9:16 (Video Editor)
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Convert videos to YouTube Shorts format at /video-editor
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      id="videoEditor"
+                      checked={settings?.videoEditorEnabled || false}
+                      onCheckedChange={() => handleToggleSetting('videoEditorEnabled', settings?.videoEditorEnabled || false)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Video Trim Feature */}
+
+
+              {/* Placeholder for future features */}
+              <Card className="border-dashed">
+                <CardContent className="p-6 text-center">
+                  <Settings className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">More feature settings coming soon...</p>
+                </CardContent>
+              </Card>
             </div>
           </div>
         )}

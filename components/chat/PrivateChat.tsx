@@ -11,10 +11,15 @@ import {
   ArrowLeft, 
   User,
   Wifi,
-  Clock
+  Clock,
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Video as VideoIcon
 } from 'lucide-react';
 import { useSocket } from '@/contexts/SocketContext';
 import { useChatAuth } from '@/hooks/useChat';
+import MessageInput from './MessageInput';
 
 interface User {
   _id: string;
@@ -40,6 +45,10 @@ interface Message {
   };
   content: string;
   messageType: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
   conversationType: string;
   isEdited: boolean;
   editedAt?: string;
@@ -59,7 +68,6 @@ interface PrivateChatProps {
 
 export default function PrivateChat({ selectedUser, onBack }: PrivateChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
@@ -111,6 +119,8 @@ export default function PrivateChat({ selectedUser, onBack }: PrivateChatProps) 
   useEffect(() => {
     const handleNewMessage = (message: Message) => {
       console.log('📨 PrivateChat received message:', message);
+      console.log('📨 Message type:', message.messageType);
+      console.log('📨 File URL:', (message as any).fileUrl);
       console.log('📨 Selected user ID:', selectedUser._id);
       console.log('📨 Current user ID:', currentUser?._id);
       console.log('📨 Message sender ID:', message.sender._id);
@@ -162,19 +172,62 @@ export default function PrivateChat({ selectedUser, onBack }: PrivateChatProps) 
     }
   }, [selectedUser._id, currentUser?._id, socket]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !isConnected) return;
+  const handleSendMessage = (content: string, fileData?: {
+    fileUrl: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+    messageType: 'image' | 'video' | 'document';
+  }) => {
+    if ((!content.trim() && !fileData) || !isConnected) return;
 
-    const messageData = {
-      content: newMessage.trim(),
-      messageType: 'text' as const,
+    const messageData: any = {
+      content: content.trim() || (fileData ? fileData.fileName : ''),
+      messageType: fileData ? fileData.messageType : 'text',
       recipientId: selectedUser._id,
-      conversationType: 'private' as const
+      conversationType: 'private',
     };
 
-    sendMessage(messageData as any);
-    setNewMessage('');
+    // Add file data if present
+    if (fileData) {
+      messageData.fileUrl = fileData.fileUrl;
+      messageData.fileName = fileData.fileName;
+      messageData.fileSize = fileData.fileSize;
+      messageData.mimeType = fileData.mimeType;
+    }
+
+    // Optimistic update - add message to UI immediately
+    const tempMessage: Message = {
+      _id: `temp-${Date.now()}`,
+      sender: {
+        _id: currentUser?._id || '',
+        username: currentUser?.username || '',
+        displayName: currentUser?.displayName || '',
+        avatar: currentUser?.avatar || '',
+        role: 'user'
+      },
+      recipient: {
+        _id: selectedUser._id
+      },
+      content: messageData.content,
+      messageType: messageData.messageType,
+      ...(fileData && {
+        fileUrl: fileData.fileUrl,
+        fileName: fileData.fileName,
+        fileSize: fileData.fileSize,
+        mimeType: fileData.mimeType
+      }),
+      conversationType: 'private',
+      isEdited: false,
+      isDeleted: false,
+      reactions: [],
+      readBy: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    } as any;
+
+    setMessages(prev => [...prev, tempMessage]);
+    sendMessage(messageData);
   };
 
   const formatTime = (dateString: string) => {
@@ -283,17 +336,88 @@ export default function PrivateChat({ selectedUser, onBack }: PrivateChatProps) 
                 )}
                 
                 <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${
+                  <div className={`max-w-xs lg:max-w-md rounded-lg overflow-hidden ${
                     isOwn 
                       ? 'bg-primary text-primary-foreground' 
                       : 'bg-muted'
                   }`}>
-                    <p className="text-sm">{message.content}</p>
-                    <p className={`text-xs mt-1 ${
-                      isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                    }`}>
-                      {formatTime(message.createdAt)}
-                    </p>
+                    {/* Image Message */}
+                    {message.messageType === 'image' && (message as any).fileUrl && (
+                      <div>
+                        <img
+                          src={(message as any).fileUrl}
+                          alt="Shared image"
+                          className="w-full h-auto max-h-96 object-contain cursor-pointer"
+                          onClick={() => window.open((message as any).fileUrl, '_blank')}
+                        />
+                        {message.content && message.content !== (message as any).fileName && (
+                          <div className="px-3 py-2">
+                            <p className="text-sm">{message.content}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Video Message */}
+                    {message.messageType === 'video' && (message as any).fileUrl && (
+                      <div>
+                        <video
+                          src={(message as any).fileUrl}
+                          controls
+                          className="w-full h-auto max-h-96"
+                        />
+                        {message.content && message.content !== (message as any).fileName && (
+                          <div className="px-3 py-2">
+                            <p className="text-sm">{message.content}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Document Message */}
+                    {message.messageType === 'document' && (message as any).fileUrl && (
+                      <div className="px-3 py-2">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-primary/10 rounded flex items-center justify-center">
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{(message as any).fileName || 'Document'}</p>
+                            <p className="text-xs opacity-70">
+                              {((message as any).fileSize / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                          <a
+                            href={(message as any).fileUrl}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button size="sm" variant="ghost">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </a>
+                        </div>
+                        {message.content && message.content !== (message as any).fileName && (
+                          <p className="text-sm mt-2">{message.content}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Text Message */}
+                    {message.messageType === 'text' && (
+                      <div className="px-3 py-2">
+                        <p className="text-sm">{message.content}</p>
+                      </div>
+                    )}
+
+                    {/* Timestamp */}
+                    <div className="px-3 pb-2">
+                      <p className={`text-xs ${isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                        }`}>
+                        {formatTime(message.createdAt)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -306,22 +430,10 @@ export default function PrivateChat({ selectedUser, onBack }: PrivateChatProps) 
 
       {/* Message Input */}
       <CardContent className="border-t bg-card p-4">
-        <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            disabled={!isConnected}
-            className="flex-1"
-          />
-          <Button
-            type="submit"
-            size="sm"
-            disabled={!newMessage.trim() || !isConnected}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
+        <MessageInput
+          onSendMessage={handleSendMessage}
+          disabled={!isConnected}
+        />
       </CardContent>
     </div>
   );

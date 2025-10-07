@@ -93,8 +93,15 @@ export async function GET(request: NextRequest) {
         avatar: message.sender.avatar,
         role: message.sender.role
       },
+      recipient: message.recipient ? {
+        _id: message.recipient.toString()
+      } : undefined,
       content: message.content,
       messageType: message.messageType,
+      fileUrl: message.fileUrl,
+      fileName: message.fileName,
+      fileSize: message.fileSize,
+      mimeType: message.mimeType,
       conversationType: message.conversationType,
       isEdited: message.isEdited,
       editedAt: message.editedAt?.toISOString(),

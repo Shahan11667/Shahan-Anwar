@@ -97,17 +97,37 @@ export default function ChatInterface() {
         </div>
       </header>
 
-      {/* Main Chat Interface */}
+      {/* Main Chat Interface - WhatsApp Style */}
       <div className="h-[calc(100vh-80px)] flex">
-        {selectedUser ? (
-          <PrivateChat 
-            selectedUser={selectedUser} 
-            onBack={handleBack}
-          />
-        ) : (
-          <ConversationList 
+        {/* Left Sidebar - Always visible on desktop */}
+        <div className={`${selectedUser ? 'hidden md:block' : 'block'} w-full md:w-auto`}>
+          <ConversationList
             onSelectConversation={handleSelectConversation}
+            selectedUserId={selectedUser?._id}
           />
+        </div>
+
+        {/* Right Chat Area */}
+        {selectedUser ? (
+          <div className="flex-1">
+            <PrivateChat
+              selectedUser={selectedUser}
+              onBack={handleBack}
+            />
+          </div>
+        ) : (
+            <div className="hidden md:flex flex-1 items-center justify-center bg-muted/20">
+              <div className="text-center">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <LogOut className="h-10 w-10 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Welcome to Private Chat</h3>
+                <p className="text-muted-foreground max-w-md">
+                  Select a user from the sidebar to start chatting.<br />
+                  All messages are private and secure.
+                </p>
+              </div>
+            </div>
         )}
       </div>
     </div>

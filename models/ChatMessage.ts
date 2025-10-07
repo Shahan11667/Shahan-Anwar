@@ -4,7 +4,11 @@ export interface IChatMessage extends Document {
   sender: mongoose.Types.ObjectId
   recipient?: mongoose.Types.ObjectId // For private messages
   content: string
-  messageType: 'text' | 'image' | 'file'
+  messageType: 'text' | 'image' | 'video' | 'document' | 'file'
+  fileUrl?: string // URL for media files
+  fileName?: string // Original file name
+  fileSize?: number // File size in bytes
+  mimeType?: string // MIME type of the file
   roomId?: string // For group messages
   conversationType: 'private' | 'group' // Type of conversation
   isEdited: boolean
@@ -39,8 +43,20 @@ const ChatMessageSchema = new Schema<IChatMessage>({
   },
   messageType: {
     type: String,
-    enum: ['text', 'image', 'file'],
+    enum: ['text', 'image', 'video', 'document', 'file'],
     default: 'text'
+  },
+  fileUrl: {
+    type: String
+  },
+  fileName: {
+    type: String
+  },
+  fileSize: {
+    type: Number
+  },
+  mimeType: {
+    type: String
   },
   roomId: {
     type: String,
