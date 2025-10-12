@@ -6,9 +6,10 @@ import { verifyToken, extractTokenFromHeader } from '@/lib/jwt';
 // GET - Get single session (only if it belongs to the doctor)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify doctor token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);
@@ -67,9 +68,10 @@ export async function GET(
 // PUT - Update session (only if it belongs to the doctor)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify doctor token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);
@@ -178,9 +180,10 @@ export async function PUT(
 // DELETE - Delete session (only if it belongs to the doctor)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify doctor token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);

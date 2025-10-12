@@ -7,9 +7,10 @@ import { verifyToken, extractTokenFromHeader } from '@/lib/jwt';
 // GET - Get single medical record
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; recordId: string } }
+  context: { params: Promise<{ id: string; recordId: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify patient token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);
@@ -68,9 +69,10 @@ export async function GET(
 // PUT - Update medical record
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; recordId: string } }
+  context: { params: Promise<{ id: string; recordId: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify patient token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);
@@ -139,9 +141,10 @@ export async function PUT(
 // DELETE - Delete medical record
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; recordId: string } }
+  context: { params: Promise<{ id: string; recordId: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify patient token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);

@@ -7,9 +7,10 @@ import bcrypt from 'bcryptjs';
 // GET - Get single doctor by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     await connectDB();
 
     const doctor = await Doctor.findById(params.id)
@@ -46,9 +47,10 @@ export async function GET(
 // PUT - Update doctor (Admin only)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify admin token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);
@@ -144,9 +146,10 @@ export async function PUT(
 // DELETE - Delete doctor (Admin only)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify admin token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);

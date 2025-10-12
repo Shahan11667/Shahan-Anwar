@@ -6,9 +6,10 @@ import { verifyToken, extractTokenFromHeader } from '@/lib/jwt';
 // GET - Get single session by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     await connectDB();
 
     const session = await Session.findById(params.id)
@@ -46,9 +47,10 @@ export async function GET(
 // PUT - Update session (Admin only)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify admin token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);
@@ -154,9 +156,10 @@ export async function PUT(
 // DELETE - Delete session (Admin only)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify admin token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);

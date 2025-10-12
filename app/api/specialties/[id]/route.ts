@@ -6,9 +6,10 @@ import { verifyToken, extractTokenFromHeader } from '@/lib/jwt';
 // GET - Get single specialty by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     await connectDB();
 
     const specialty = await Specialty.findById(params.id);
@@ -43,9 +44,10 @@ export async function GET(
 // PUT - Update specialty (Admin only)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify admin token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);
@@ -106,9 +108,10 @@ export async function PUT(
 // DELETE - Delete specialty (Admin only)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify admin token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);

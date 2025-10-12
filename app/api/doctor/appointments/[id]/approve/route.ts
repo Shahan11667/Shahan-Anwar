@@ -6,9 +6,10 @@ import { verifyToken, extractTokenFromHeader } from '@/lib/jwt';
 // PUT - Approve/Confirm appointment
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     // Verify doctor token
     const authHeader = request.headers.get('authorization');
     const token = extractTokenFromHeader(authHeader);
