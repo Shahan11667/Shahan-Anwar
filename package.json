@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "node scripts/seed-simple.js",
+    "seed:admin": "node scripts/seed-admin.js",
+    "seed:specialties": "node scripts/seed-specialties.js",
     "setup": "node scripts/setup.js"
   },
   "dependencies": {
