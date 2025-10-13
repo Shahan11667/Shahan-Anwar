@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
+import '@/models'; // Import all models to ensure they're registered
 import MedicalRecord from '@/models/MedicalRecord';
 import Appointment from '@/models/Appointment';
 import { verifyToken, extractTokenFromHeader } from '@/lib/jwt';
