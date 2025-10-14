@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '@/lib/jwt';
 import connectDB from '@/lib/mongodb';
+import '@/models'; // Import all models to ensure they're registered
 import Admin from '@/models/Admin';
 
 export async function POST(request: NextRequest) {

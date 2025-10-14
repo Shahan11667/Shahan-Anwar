@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import connectDB from '@/lib/mongodb';
+import '@/models'; // Import all models to ensure they're registered
 import Patient from '@/models/Patient';
 
 export async function POST(request: NextRequest) {

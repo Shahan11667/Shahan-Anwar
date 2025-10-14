@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import connectDB from '@/lib/mongodb'
+import '@/models' // Import all models to ensure they're registered
 import Contact from '@/models/Contact'
 import nodemailer from 'nodemailer'
 

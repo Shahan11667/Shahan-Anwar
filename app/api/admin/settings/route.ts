@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import connectDB from '@/lib/mongodb';
+import '@/models'; // Import all models to ensure they're registered
 import AdminSettings from '@/models/AdminSettings';
 
 // GET - Fetch admin settings (public - for checking feature visibility)
