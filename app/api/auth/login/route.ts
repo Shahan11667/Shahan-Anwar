@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import connectDB from '@/lib/mongodb'
+import '@/models' // Import all models to ensure they're registered
 import User from '@/models/User'
 
 export async function POST(request: NextRequest) {
