@@ -68,13 +68,16 @@ export async function GET(request: NextRequest) {
       .skip(skip)
       .limit(limit);
 
+    // Filter out appointments with null/deleted sessions
+    const validAppointments = appointments.filter(apt => apt.session != null);
+
     const total = await Appointment.countDocuments(query);
 
     return NextResponse.json(
       {
         success: true,
         message: 'Appointments fetched successfully',
-        data: appointments,
+        data: validAppointments,
         pagination: {
           page,
           limit,

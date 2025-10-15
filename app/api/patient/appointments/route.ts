@@ -58,13 +58,16 @@ export async function GET(request: NextRequest) {
       .skip(skip)
       .limit(limit);
 
+    // Filter out appointments with null/deleted sessions
+    const validAppointments = appointments.filter(apt => apt.session != null);
+
     const total = await Appointment.countDocuments(query);
 
     return NextResponse.json(
       {
         success: true,
         message: 'Appointments fetched successfully',
-        data: appointments,
+        data: validAppointments,
         pagination: {
           page,
           limit,
@@ -130,13 +133,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find session
-    const session = await Session.findById(sessionId);
+    // Find session and populate specialty
+    const session = await Session.findById(sessionId).populate('specialty', 'name icon');
 
     if (!session) {
       return NextResponse.json(
-        { success: false, message: 'Session not found' },
+        { success: false, message: 'Session not found or has been deleted' },
         { status: 404 }
+      );
+    }
+
+    // Verify session has valid doctor and specialty
+    if (!session.doctor || !session.specialty) {
+      return NextResponse.json(
+        { success: false, message: 'Session has invalid data. Please contact support.' },
+        { status: 400 }
       );
     }
 
