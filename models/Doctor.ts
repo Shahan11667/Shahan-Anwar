@@ -4,6 +4,7 @@ export interface IDoctor extends Document {
   name: string;
   email: string;
   password: string;
+
   phone?: string;
   degree: string;
   specialties: mongoose.Types.ObjectId[];
