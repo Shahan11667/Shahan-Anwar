@@ -12,6 +12,7 @@ import MedicalRecord from './MedicalRecord';
 import Contact from './Contact';
 import ContactInfo from './ContactInfo';
 import Hero from './Hero';
+import About from './About';
 import Project from './Project';
 import User from './User';
 import ChatUser from './ChatUser';
@@ -30,6 +31,7 @@ export {
   Contact,
   ContactInfo,
   Hero,
+  About,
   Project,
   User,
   ChatUser,
@@ -49,6 +51,7 @@ export default {
   Contact,
   ContactInfo,
   Hero,
+  About,
   Project,
   User,
   ChatUser,

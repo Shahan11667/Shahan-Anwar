@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import ProjectForm from './project-form'
 import ContactList from './contact-list'
 import HeroForm from './hero-form'
+import AboutForm from './about-form'
 import ContactInfoForm from './contact-info-form'
 import { IProject } from '@/models/Project'
 
@@ -40,13 +41,14 @@ interface Contact {
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'hero' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings'>('hero')
+  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings'>('hero')
   const [projects, setProjects] = useState<Project[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [chatUsers, setChatUsers] = useState<any[]>([])
   const [settings, setSettings] = useState<any>(null)
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [showHeroForm, setShowHeroForm] = useState(false)
+  const [showAboutForm, setShowAboutForm] = useState(false)
   const [showContactInfoForm, setShowContactInfoForm] = useState(false)
   const [editingProject, setEditingProject] = useState<IProject | null>(null)
   const { toast } = useToast()
@@ -326,6 +328,14 @@ const AdminDashboard = () => {
             Hero Section
           </Button>
           <Button
+            variant={activeTab === 'about' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('about')}
+            size="sm"
+          >
+            <User className="h-4 w-4 mr-2" />
+            About Section
+          </Button>
+          <Button
             variant={activeTab === 'projects' ? 'default' : 'outline'}
             onClick={() => setActiveTab('projects')}
             size="sm"
@@ -397,6 +407,33 @@ const AdminDashboard = () => {
                     Edit Hero Section
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* About Tab */}
+        {activeTab === 'about' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">About Section Management</h2>
+              <Button onClick={() => setShowAboutForm(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit About Section
+              </Button>
+            </div>
+
+            <Card>
+              <CardContent className="p-6 text-center">
+                <User className="h-12 w-12 mx-auto mb-4 text-primary" />
+                <h3 className="text-xl font-bold mb-2">About Section Management</h3>
+                <p className="text-muted-foreground mb-4">
+                  Manage your bio, skills, experience, and education information.
+                </p>
+                <Button onClick={() => setShowAboutForm(true)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit About Section
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -689,6 +726,17 @@ const AdminDashboard = () => {
             window.location.reload()
           }}
           onClose={() => setShowHeroForm(false)}
+        />
+      )}
+
+      {/* About Form Modal */}
+      {showAboutForm && (
+        <AboutForm
+          onSave={() => {
+            setShowAboutForm(false)
+            window.location.reload()
+          }}
+          onClose={() => setShowAboutForm(false)}
         />
       )}
 

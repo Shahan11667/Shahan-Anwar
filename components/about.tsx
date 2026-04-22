@@ -1,53 +1,81 @@
 "use client"
 
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Code, Database, Smartphone, Palette, Server, Globe } from 'lucide-react'
+import { Code, Database, Smartphone, Palette, Server, Globe, User } from 'lucide-react'
+
+const iconMap: Record<string, any> = {
+  Code, Database, Smartphone, Palette, Server, Globe, User
+}
+
+interface Skill {
+  name: string
+  icon: string
+  technologies: string[]
+}
+
+interface Experience {
+  year: string
+  title: string
+  company: string
+  description: string
+}
+
+interface Education {
+  degree: string
+  school: string
+  year: string
+}
+
+interface AboutData {
+  title: string
+  subtitle: string
+  bioParagraphs: string[]
+  skills: Skill[]
+  experience: Experience[]
+  education: Education[]
+}
 
 const About = () => {
-  const skills = [
-    { name: 'Frontend Development', icon: Code, technologies: ['React', 'Next.js', 'TypeScript', 'Tailwind CSS', 'JavaScript', 'HTML5', 'CSS3'] },
-    { name: 'Backend Development', icon: Server, technologies: ['Node.js', 'Express', 'Python', 'Django', 'REST APIs', 'GraphQL'] },
-    { name: 'Database Management', icon: Database, technologies: ['MongoDB', 'PostgreSQL', 'Redis', 'MySQL', 'Firebase'] },
-    { name: 'Mobile App Development', icon: Smartphone, technologies: ['React Native', 'Flutter', 'iOS', 'Android', 'Cross-platform'] },
-    { name: 'UI/UX Design', icon: Palette, technologies: ['Figma', 'Adobe XD', 'Sketch', 'Photoshop', 'User Research'] },
-    { name: 'DevOps & Deployment', icon: Globe, technologies: ['AWS', 'Docker', 'Vercel', 'GitHub Actions', 'CI/CD'] },
-  ]
+  const [data, setData] = useState<AboutData | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const experience = [
-    {
-      year: '2023 - Present',
-      title: 'Senior Full Stack Developer',
-      company: 'Tech Corp',
-      description: 'Leading development of scalable web applications and mentoring junior developers.',
-    },
-    {
-      year: '2021 - 2023',
-      title: 'Full Stack Developer',
-      company: 'StartupXYZ',
-      description: 'Built and maintained multiple client projects using modern web technologies.',
-    },
-    {
-      year: '2020 - 2021',
-      title: 'Frontend Developer',
-      company: 'Digital Agency',
-      description: 'Created responsive and interactive user interfaces for various clients.',
-    },
-  ]
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/about')
+        if (response.ok) {
+          const result = await response.json()
+          setData(result)
+        }
+      } catch (error) {
+        console.error('Error fetching about data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  const education = [
-    {
-      degree: 'Bachelor of Computer Science',
-      school: 'University of Technology',
-      year: '2016 - 2020',
-    },
-    {
-      degree: 'Full Stack Web Development',
-      school: 'Coding Bootcamp',
-      year: '2020',
-    },
-  ]
+    fetchData()
+  }, [])
+
+  if (loading) {
+    return (
+      <section id="about" className="py-20 bg-muted/30">
+        <div className="container mx-auto px-4 flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      </section>
+    )
+  }
+
+  if (!data) return null
+
+  const getIcon = (iconName: string) => {
+    const IconComponent = iconMap[iconName] || User
+    return <IconComponent className="h-5 w-5 text-primary mr-2" />
+  }
 
   return (
     <section id="about" className="py-20 bg-muted/30">
@@ -60,13 +88,10 @@ const About = () => {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            About Shahan Anwar - Full Stack Developer & Next.js Expert
+            {data.title}
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            I'm Shahan Anwar, a passionate Full Stack Developer and Next.js expert with over 4 years of experience
-            creating innovative web applications and mobile apps. I specialize in modern technologies like React,
-            TypeScript, Node.js, and mobile app development. Based in Karachi, Pakistan, I help businesses
-            build scalable digital solutions.
+            {data.subtitle}
           </p>
         </motion.div>
 
@@ -78,26 +103,11 @@ const About = () => {
             transition={{ duration: 0.8 }}
             viewport={{ once: true }}
           >
-            <h3 className="text-2xl font-bold mb-6">About Shahan Anwar - Full Stack Developer</h3>
+            <h3 className="text-2xl font-bold mb-6">Personal Bio</h3>
             <div className="space-y-4 text-muted-foreground">
-              <p>
-                I'm Shahan Anwar, a creative problem-solver who loves turning complex ideas into
-                simple, beautiful, and intuitive solutions. As a Full Stack Developer and Next.js expert,
-                I have a strong foundation in both frontend and backend development, specializing in
-                React, TypeScript, Node.js, and mobile app development.
-              </p>
-              <p>
-                When I'm not coding, you can find me exploring new technologies,
-                contributing to open-source projects, or sharing knowledge with
-                the developer community. I'm passionate about creating innovative
-                web applications and mobile apps that solve real-world problems.
-              </p>
-              <p>
-                I believe in writing clean, maintainable code and creating
-                user experiences that are both functional and delightful. My expertise
-                spans across web development, mobile app development, and modern
-                JavaScript frameworks.
-              </p>
+              {data.bioParagraphs.map((para, index) => (
+                <p key={index}>{para}</p>
+              ))}
             </div>
           </motion.div>
 
@@ -110,7 +120,7 @@ const About = () => {
           >
             <h3 className="text-2xl font-bold mb-6">Skills & Technologies</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {skills.map((skill, index) => (
+              {data.skills.map((skill, index) => (
                 <motion.div
                   key={skill.name}
                   initial={{ opacity: 0, y: 20 }}
@@ -121,7 +131,7 @@ const About = () => {
                   <Card className="h-full">
                     <CardContent className="p-4">
                       <div className="flex items-center mb-3">
-                        <skill.icon className="h-5 w-5 text-primary mr-2" />
+                        {getIcon(skill.icon)}
                         <h4 className="font-semibold">{skill.name}</h4>
                       </div>
                       <div className="flex flex-wrap gap-1">
@@ -150,7 +160,7 @@ const About = () => {
           >
             <h3 className="text-2xl font-bold mb-6">Experience</h3>
             <div className="space-y-6">
-              {experience.map((exp, index) => (
+              {data.experience.map((exp, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, x: -20 }}
@@ -184,7 +194,7 @@ const About = () => {
           >
             <h3 className="text-2xl font-bold mb-6">Education</h3>
             <div className="space-y-6">
-              {education.map((edu, index) => (
+              {data.education.map((edu, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, x: 20 }}

@@ -10,7 +10,7 @@ export interface IDoctor extends Document {
   profileImage?: string;
   bio?: string;
   experience?: number; // years of experience
-  
+
   // Social Media Links (all optional)
   socialMedia?: {
     facebook?: string;
@@ -19,15 +19,15 @@ export interface IDoctor extends Document {
     tiktok?: string;
     linkedin?: string;
   };
-  
+
   // Availability
   isActive: boolean;
   isAvailableForAppointments: boolean;
-  
+
   // Ratings
   rating?: number;
   totalReviews?: number;
-  
+
   createdAt: Date;
   updatedAt: Date;
 }
