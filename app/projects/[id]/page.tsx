@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ExternalLink, Github, Calendar, Tag } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Calendar, Tag } from 'lucide-react'
+import { FaGithub } from 'react-icons/fa'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -240,7 +241,7 @@ const ProjectDetailPage = () => {
               </Button>
               <Button asChild variant="outline" className="flex-1">
                 <a href={project.githubLink} target="_blank" rel="noopener noreferrer">
-                  <Github className="h-4 w-4 mr-2" />
+                  <FaGithub className="h-4 w-4 mr-2" />
                   View Source Code
                 </a>
               </Button>

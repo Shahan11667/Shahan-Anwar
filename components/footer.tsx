@@ -2,14 +2,15 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { Github, Linkedin, Mail, Heart } from 'lucide-react'
+import { Mail, Heart } from 'lucide-react'
+import { FaGithub, FaLinkedin } from 'react-icons/fa'
 
 const Footer = () => {
   const currentYear = new Date().getFullYear()
 
   const socialLinks = [
-    { name: 'GitHub', icon: Github, href: 'https://github.com' },
-    { name: 'LinkedIn', icon: Linkedin, href: 'https://linkedin.com' },
+    { name: 'GitHub', icon: FaGithub, href: 'https://github.com' },
+    { name: 'LinkedIn', icon: FaLinkedin, href: 'https://linkedin.com' },
     { name: 'Email', icon: Mail, href: 'mailto:john@example.com' },
   ]
 

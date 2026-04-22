@@ -2,7 +2,8 @@
 
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
-import { ArrowDown, Github, Linkedin, Mail, Download } from 'lucide-react'
+import { ArrowDown, Mail, Download } from 'lucide-react'
+import { FaGithub, FaLinkedin } from 'react-icons/fa'
 import { useHero } from '@/hooks'
 
 const Hero = () => {
@@ -208,7 +209,7 @@ const Hero = () => {
                 whileTap={{ scale: 0.95 }}
                 className="p-3 rounded-full bg-card hover:bg-primary/10 transition-colors"
               >
-                <Github className="h-6 w-6" />
+                <FaGithub className="h-6 w-6" />
               </motion.a>
               <motion.a
                 href={heroData.socialLinks.linkedin}
@@ -218,7 +219,7 @@ const Hero = () => {
                 whileTap={{ scale: 0.95 }}
                 className="p-3 rounded-full bg-card hover:bg-primary/10 transition-colors"
               >
-                <Linkedin className="h-6 w-6" />
+                <FaLinkedin className="h-6 w-6" />
               </motion.a>
               <motion.a
                 href={heroData.socialLinks.email}
