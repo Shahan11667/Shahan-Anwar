@@ -10,20 +10,22 @@ import { FaYoutube, FaFacebook } from 'react-icons/fa'
 import Navbar from '@/components/navbar'
 import Footer from '@/components/footer'
 
-interface VideoFormat {
-  formatId: string
-  extension: string
-  resolution: string
-  filesize: number
-  url: string
+interface CobaltResponse {
+  status: 'error' | 'redirect' | 'stream' | 'success' | 'rate-limit' | 'picker'
+  url?: string
+  text?: string
+  picker?: Array<{
+    type: 'video' | 'audio' | 'photo' | 'gif'
+    url: string
+    text: string
+  }>
 }
 
 interface VideoInfo {
   title: string
-  thumbnail: string
-  duration: number
-  uploader: string
-  formats: VideoFormat[]
+  url: string
+  status: string
+  picker?: CobaltResponse['picker']
 }
 
 const VideoDownloader = () => {
@@ -41,16 +43,44 @@ const VideoDownloader = () => {
     setVideoInfo(null)
 
     try {
-      const response = await fetch(`/api/download/info?url=${encodeURIComponent(url)}`)
-      const data = await response.json()
-
-      if (data.success) {
-        setVideoInfo(data)
-      } else {
-        setError(data.error || 'Failed to fetch video information')
+      // Call our internal Next.js Middleman API
+      // This fixes CORS errors and allows the server to retry different engines
+      const response = await fetch('/api/download/fetch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url: url
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.text || `Server error (${response.status})`);
       }
-    } catch (err) {
-      setError('An error occurred while fetching video info')
+
+      const data: CobaltResponse = await response.json()
+
+      if (data.status === 'stream' || data.status === 'redirect') {
+        setVideoInfo({
+          title: data.text || 'Ready to download',
+          url: data.url!,
+          status: data.status
+        })
+      } else if (data.status === 'picker') {
+        setVideoInfo({
+          title: 'Multiple files found. Please select one.',
+          url: '',
+          status: 'picker',
+          picker: data.picker
+        })
+      } else {
+        setError(data.text || 'The extraction engine could not process this link. It may be restricted or private.')
+      }
+    } catch (err: any) {
+      console.error('Download error:', err)
+      setError(err.message || 'Could not connect to the download service. Please try again later.')
     } finally {
       setLoading(false)
     }
@@ -133,62 +163,47 @@ const VideoDownloader = () => {
             animate={{ opacity: 1, scale: 1 }}
             className="max-w-5xl mx-auto"
           >
-            <Card className="overflow-hidden border-2 border-primary/20">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="relative aspect-video">
-                  <img
-                    src={videoInfo.thumbnail}
-                    alt={videoInfo.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/20" />
+            <Card className="overflow-hidden border-2 border-primary/20 p-6">
+              <div className="flex flex-col items-center gap-6">
+                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
+                  <Play className="h-10 w-10 text-primary" />
                 </div>
                 
-                <CardHeader className="p-6">
-                  <CardTitle className="text-2xl mb-4 line-clamp-2">{videoInfo.title}</CardTitle>
-                  <div className="space-y-3 mb-6">
-                    <div className="flex items-center text-muted-foreground">
-                      <User className="h-4 w-4 mr-2" />
-                      <span>{videoInfo.uploader}</span>
-                    </div>
-                    <div className="flex items-center text-muted-foreground">
-                      <Clock className="h-4 w-4 mr-2" />
-                      <span>{formatDuration(videoInfo.duration)}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                    <h3 className="font-semibold text-lg">Available Formats</h3>
-                    {videoInfo.formats.length === 0 ? (
-                      <p className="text-muted-foreground italic text-sm">No direct downloads found for this video.</p>
-                    ) : (
-                      videoInfo.formats.map((format, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border border-border hover:border-primary/30 transition-all group"
-                        >
-                          <div className="min-w-0">
-                            <span className="font-medium text-sm block">
-                              {format.resolution} ({format.extension})
+                <div className="text-center">
+                  <h2 className="text-2xl font-bold mb-2">{videoInfo.title}</h2>
+                  <p className="text-muted-foreground mb-6">
+                    Your download link is ready! Click the button below to start the transfer.
+                  </p>
+                  
+                  {videoInfo.status !== 'picker' ? (
+                    <Button size="lg" className="w-full sm:w-auto px-12" asChild>
+                      <a 
+                        href={`/api/download/stream?url=${encodeURIComponent(videoInfo.url)}&filename=${encodeURIComponent(videoInfo.title)}.mp4`} 
+                        download
+                      >
+                        <Download className="h-5 w-5 mr-2" />
+                        Download Now
+                      </a>
+                    </Button>
+                  ) : (
+                    <div className="grid gap-3 w-full">
+                      {videoInfo.picker?.map((item, idx) => (
+                        <Button key={idx} variant="outline" className="w-full justify-between" asChild>
+                          <a 
+                            href={`/api/download/stream?url=${encodeURIComponent(item.url)}&filename=${encodeURIComponent(item.text || 'video')}.mp4`} 
+                            download
+                          >
+                            <span className="flex items-center">
+                              <Play className="h-4 w-4 mr-2" />
+                              {item.text || `${item.type} ${idx + 1}`}
                             </span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatSize(format.filesize)}
-                            </span>
-                          </div>
-                          <Button size="sm" asChild>
-                            <a 
-                              href={`/api/download/stream?url=${encodeURIComponent(url)}&format=${format.formatId}`} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                            >
-                              <Download className="h-4 w-4" />
-                            </a>
-                          </Button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </CardHeader>
+                            <Download className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </Card>
           </motion.div>
