@@ -28,7 +28,7 @@ export default async function Home() {
         title="Home"
         description={heroData?.seoDescription || heroData?.description || "Welcome to my portfolio. Explore my projects, skills, and experience as a developer."}
       />
-      <Navbar />
+      <Navbar userName={heroData?.name} />
       <Hero />
       <About />
       <Projects />

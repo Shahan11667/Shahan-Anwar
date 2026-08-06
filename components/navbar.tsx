@@ -7,10 +7,15 @@ import { Button } from '@/components/ui/button'
 import { Moon, Sun, Menu, X } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
-const Navbar = () => {
+interface NavbarProps {
+  userName?: string
+}
+
+const Navbar = ({ userName }: NavbarProps = {}) => {
   const [isOpen, setIsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [videoEditorEnabled, setVideoEditorEnabled] = useState(false)
+  const [heroName, setHeroName] = useState<string>(userName || 'JD')
   const { theme, setTheme } = useTheme()
 
   useEffect(() => {
@@ -20,6 +25,26 @@ const Navbar = () => {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Fetch hero data if not provided via props (e.g. on client-only pages)
+  useEffect(() => {
+    if (!userName) {
+      const fetchHero = async () => {
+        try {
+          const res = await fetch('/api/hero')
+          if (res.ok) {
+            const data = await res.json()
+            if (data && data.name) {
+              setHeroName(data.name)
+            }
+          }
+        } catch (error) {
+          console.error('Failed to fetch hero for navbar logo:', error)
+        }
+      }
+      fetchHero()
+    }
+  }, [userName])
 
   // Fetch admin settings to check if video editor is enabled
   useEffect(() => {
@@ -36,6 +61,17 @@ const Navbar = () => {
     }
     fetchSettings()
   }, [])
+
+  const getInitials = (name: string) => {
+    if (!name || name === 'JD') return 'JD'
+    const words = name.trim().split(/\s+/)
+    if (words.length === 1) {
+      return name.substring(0, 2).toUpperCase()
+    }
+    return words
+      .map((word) => word[0]?.toUpperCase())
+      .join('')
+  }
 
   const baseNavItems = [
     { name: 'Home', href: '#home' },
@@ -63,11 +99,10 @@ const Navbar = () => {
     <motion.nav
       initial={{ y: -100 }}
       animate={{ y: 0 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
           ? 'bg-background/80 backdrop-blur-md border-b border-border'
           : 'bg-transparent'
-      }`}
+        }`}
     >
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
@@ -77,7 +112,7 @@ const Navbar = () => {
             className="flex-shrink-0"
           >
             <Link href="/" className="text-2xl font-bold text-primary">
-              JD
+              {getInitials(heroName)}
             </Link>
           </motion.div>
 
@@ -94,16 +129,16 @@ const Navbar = () => {
                     {item.name}
                   </Link>
                 ) : (
-                    <motion.button
-                      key={item.name}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => scrollToSection(item.href)}
-                      className="text-foreground hover:text-primary transition-colors duration-200 px-3 py-2 text-sm font-medium"
-                    >
-                      {item.name}
-                    </motion.button>
-                  )
+                  <motion.button
+                    key={item.name}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => scrollToSection(item.href)}
+                    className="text-foreground hover:text-primary transition-colors duration-200 px-3 py-2 text-sm font-medium"
+                  >
+                    {item.name}
+                  </motion.button>
+                )
               ))}
             </div>
           </div>
@@ -153,16 +188,16 @@ const Navbar = () => {
                   {item.name}
                 </Link>
               ) : (
-                  <motion.button
-                    key={item.name}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => scrollToSection(item.href)}
-                    className="text-foreground hover:text-primary block px-3 py-2 text-base font-medium w-full text-left transition-colors duration-200"
-                  >
-                    {item.name}
-                  </motion.button>
-                )
+                <motion.button
+                  key={item.name}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => scrollToSection(item.href)}
+                  className="text-foreground hover:text-primary block px-3 py-2 text-base font-medium w-full text-left transition-colors duration-200"
+                >
+                  {item.name}
+                </motion.button>
+              )
             ))}
             <div className="pt-4 border-t border-border">
               <Button
