@@ -4,3 +4,7 @@ yt-dlp
 pydantic
 brotli
 certifi
+PyMuPDF
+python-multipart
+huggingface_hub
+python-dotenv

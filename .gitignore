@@ -39,3 +39,8 @@ next-env.d.ts
 # uploaded files
 public/uploads/*
 !public/uploads/.gitkeep
+
+# backup files
+mongo-backup/*
+!mongo-backup/.gitkeep
+sample.txt

@@ -1,10 +1,18 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import yt_dlp
 import logging
 import asyncio
 import time
+import fitz # PyMuPDF
+import os
+import json
+from huggingface_hub import InferenceClient
+from dotenv import load_dotenv
+
+# Load environment variables from .env file (for local development)
+load_dotenv(dotenv_path="../.env")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -106,6 +114,88 @@ async def get_video_info(request: VideoRequest):
     except Exception as e:
         logger.error(f"Failed: {str(e)}")
         return {"success": False, "error": str(e)}
+
+@app.post("/api/parse-cv")
+async def parse_cv(file: UploadFile = File(...)):
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+    
+    try:
+        # Read the uploaded PDF file in memory
+        content = await file.read()
+        
+        # Extract text using PyMuPDF
+        doc = fitz.open(stream=content, filetype="pdf")
+        text = ""
+        for page in doc:
+            text += page.get_text()
+            
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract any text from the PDF.")
+            
+        # Call Hugging Face API
+        hf_token = os.getenv("HUGGINGFACE_API_KEY")
+        if not hf_token:
+            raise HTTPException(status_code=500, detail="Hugging Face API key not configured on server.")
+            
+        # Using a reliable free model (Mistral or Llama-3 depending on availability)
+        client = InferenceClient(model="mistralai/Mistral-7B-Instruct-v0.2", token=hf_token)
+        
+        prompt = f"""
+You are an expert resume parser. Extract the following information from the provided CV text.
+Return the output strictly as a JSON object with the following structure, and do not include any other text or markdown formatting outside of the JSON block:
+{{
+  "name": "Full Name",
+  "about": "A short professional summary",
+  "email": "email address",
+  "phone": "phone number",
+  "location": "city, country",
+  "experience": [
+    {{
+      "company": "Company Name",
+      "position": "Job Title",
+      "startDate": "Start Date",
+      "endDate": "End Date or Present",
+      "description": "Short description of responsibilities"
+    }}
+  ],
+  "education": [
+    {{
+      "institution": "School/University Name",
+      "degree": "Degree Name",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "description": "Details"
+    }}
+  ],
+  "skills": ["Skill 1", "Skill 2"]
+}}
+
+CV Text:
+{text}
+"""
+        response = client.text_generation(prompt, max_new_tokens=1500, temperature=0.1)
+        
+        # Try to parse the JSON from the response
+        try:
+            # Clean the response in case the model wraps it in markdown code blocks
+            clean_response = response.strip()
+            if clean_response.startswith('```json'):
+                clean_response = clean_response[7:]
+            if clean_response.startswith('```'):
+                clean_response = clean_response[3:]
+            if clean_response.endswith('```'):
+                clean_response = clean_response[:-3]
+            
+            parsed_data = json.loads(clean_response)
+            return {"success": True, "data": parsed_data}
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse model output as JSON: {{response}}")
+            return {"success": False, "error": "Model did not return valid JSON.", "raw_output": response}
+
+    except Exception as e:
+        logger.error(f"CV Parsing failed: {{str(e)}}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 def read_root():

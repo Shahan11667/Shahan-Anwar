@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle, Video, Scissors, Maximize2 } from 'lucide-react'
+import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle, Video, Scissors, Maximize2, FileText } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import ProjectForm from './project-form'
@@ -14,6 +14,7 @@ import ContactList from './contact-list'
 import HeroForm from './hero-form'
 import AboutForm from './about-form'
 import ContactInfoForm from './contact-info-form'
+import CVParserForm from './cv-parser-form'
 import { IProject } from '@/models/Project'
 
 interface Project {
@@ -41,7 +42,7 @@ interface Contact {
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings'>('hero')
+  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser'>('hero')
   const [projects, setProjects] = useState<Project[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [chatUsers, setChatUsers] = useState<any[]>([])
@@ -50,6 +51,7 @@ const AdminDashboard = () => {
   const [showHeroForm, setShowHeroForm] = useState(false)
   const [showAboutForm, setShowAboutForm] = useState(false)
   const [showContactInfoForm, setShowContactInfoForm] = useState(false)
+  const [showCVParser, setShowCVParser] = useState(false)
   const [editingProject, setEditingProject] = useState<IProject | null>(null)
   const { toast } = useToast()
   const router = useRouter()
@@ -336,6 +338,14 @@ const AdminDashboard = () => {
             About Section
           </Button>
           <Button
+            variant={activeTab === 'cv-parser' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('cv-parser')}
+            size="sm"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            AI CV Parser
+          </Button>
+          <Button
             variant={activeTab === 'projects' ? 'default' : 'outline'}
             onClick={() => setActiveTab('projects')}
             size="sm"
@@ -433,6 +443,35 @@ const AdminDashboard = () => {
                 <Button onClick={() => setShowAboutForm(true)}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit About Section
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* CV Parser Tab */}
+        {activeTab === 'cv-parser' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">AI CV Parser</h2>
+              <Button onClick={() => setShowCVParser(true)}>
+                <FileText className="h-4 w-4 mr-2" />
+                Upload CV
+              </Button>
+            </div>
+
+            <Card>
+              <CardContent className="p-6 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <FileText className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-bold mb-2">Automate with AI</h3>
+                <p className="text-muted-foreground mb-4">
+                  Upload your PDF CV and let AI automatically extract your experience, education, and skills.
+                </p>
+                <Button onClick={() => setShowCVParser(true)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Upload CV
                 </Button>
               </CardContent>
             </Card>
@@ -749,6 +788,16 @@ const AdminDashboard = () => {
             window.location.reload()
           }}
           onClose={() => setShowContactInfoForm(false)}
+        />
+      )}
+
+      {/* CV Parser Modal */}
+      {showCVParser && (
+        <CVParserForm
+          onClose={() => {
+            setShowCVParser(false)
+            if (activeTab === 'cv-parser') setActiveTab('about')
+          }}
         />
       )}
     </div>
