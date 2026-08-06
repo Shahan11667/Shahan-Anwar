@@ -2,16 +2,31 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import { Mail, Heart } from 'lucide-react'
 import { FaGithub, FaLinkedin } from 'react-icons/fa'
 
 const Footer = () => {
   const currentYear = new Date().getFullYear()
+  const [heroData, setHeroData] = useState<any>(null)
+  const [contactData, setContactData] = useState<any>(null)
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/hero').then(res => res.ok ? res.json() : null),
+      fetch('/api/contact-info').then(res => res.ok ? res.json() : null)
+    ])
+      .then(([hero, contact]) => {
+        if (hero) setHeroData(hero)
+        if (contact) setContactData(contact)
+      })
+      .catch(console.error)
+  }, [])
 
   const socialLinks = [
-    { name: 'GitHub', icon: FaGithub, href: 'https://github.com' },
-    { name: 'LinkedIn', icon: FaLinkedin, href: 'https://linkedin.com' },
-    { name: 'Email', icon: Mail, href: 'mailto:john@example.com' },
+    { name: 'GitHub', icon: FaGithub, href: heroData?.socialLinks?.github || 'https://github.com' },
+    { name: 'LinkedIn', icon: FaLinkedin, href: heroData?.socialLinks?.linkedin || 'https://linkedin.com' },
+    { name: 'Email', icon: Mail, href: heroData?.socialLinks?.email ? `mailto:${heroData.socialLinks.email}` : 'mailto:john@example.com' },
   ]
 
   const quickLinks = [
@@ -41,11 +56,10 @@ const Footer = () => {
             className="lg:col-span-2"
           >
             <Link href="/" className="text-2xl font-bold text-primary mb-4 block">
-              John Doe
+              {heroData?.name || 'Portfolio'}
             </Link>
             <p className="text-muted-foreground mb-6 max-w-md">
-              Full-stack developer passionate about creating beautiful, functional,
-              and user-centered digital experiences that make a real impact.
+              {heroData?.subtitle || heroData?.description || 'A passionate professional dedicated to creating beautiful, functional, and user-centered experiences that make a real impact.'}
             </p>
             <div className="flex space-x-4">
               {socialLinks.map((social) => (
@@ -96,9 +110,9 @@ const Footer = () => {
           >
             <h3 className="text-lg font-semibold mb-4">Contact</h3>
             <div className="space-y-2 text-muted-foreground">
-              <p>john@example.com</p>
-              <p>+1 (555) 123-4567</p>
-              <p>San Francisco, CA</p>
+              <p>{contactData?.email || 'contact@example.com'}</p>
+              <p>{contactData?.phone || '+1 (555) 123-4567'}</p>
+              <p>{contactData?.location || 'San Francisco, CA'}</p>
             </div>
           </motion.div>
         </div>
@@ -111,7 +125,7 @@ const Footer = () => {
           className="border-t border-border mt-8 pt-8 flex flex-col sm:flex-row justify-between items-center"
         >
           <p className="text-muted-foreground text-sm">
-            © {currentYear} John Doe. All rights reserved.
+            © {currentYear} {heroData?.name || 'Portfolio'}. All rights reserved.
           </p>
           <p className="text-muted-foreground text-sm flex items-center mt-2 sm:mt-0">
             Made with <Heart className="h-4 w-4 text-red-500 mx-1" /> using Next.js

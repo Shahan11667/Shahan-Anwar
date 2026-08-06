@@ -33,8 +33,8 @@ const Hero = () => {
     return (
       <section id="home" className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl font-bold mb-4">Shahan Anwar</h1>
-          <p className="text-xl text-muted-foreground mb-4">Full Stack Developer | Next.js Expert</p>
+          <h1 className="text-4xl font-bold mb-4">Portfolio</h1>
+          <p className="text-xl text-muted-foreground mb-4">Welcome to my professional space</p>
           <p className="text-muted-foreground">Unable to load content. Please try again later.</p>
         </div>
       </section>

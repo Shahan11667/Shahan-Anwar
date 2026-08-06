@@ -28,8 +28,9 @@ export default function VideoEditorPage() {
   const [videoDuration, setVideoDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
+  const [heroName, setHeroName] = useState('Portfolio Owner');
 
-  // Check if video editor is enabled
+  // Check if video editor is enabled and fetch hero name
   useEffect(() => {
     const checkSettings = async () => {
       try {
@@ -42,8 +43,17 @@ export default function VideoEditorPage() {
             router.push('/');
           }
         }
+
+        // Fetch hero data for footer
+        const heroRes = await fetch('/api/hero');
+        if (heroRes.ok) {
+          const heroData = await heroRes.json();
+          if (heroData?.name) {
+            setHeroName(heroData.name);
+          }
+        }
       } catch (error) {
-        console.error('Failed to check settings:', error);
+        console.error('Failed to initialize:', error);
       } finally {
         setLoading(false);
       }
@@ -569,7 +579,7 @@ export default function VideoEditorPage() {
               className="mt-8 text-center text-gray-600 dark:text-gray-400"
             >
               <p className="text-sm">
-                Built with <span className="text-red-500">❤️</span> by Shahan Anwar
+                Built with <span className="text-red-500">❤️</span> by {heroName}
               </p>
             </motion.div>
           </motion.div>

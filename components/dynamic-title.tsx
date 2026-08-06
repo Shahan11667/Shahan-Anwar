@@ -12,33 +12,37 @@ const DynamicTitle = ({ title, description }: DynamicTitleProps) => {
   const pathname = usePathname()
 
   useEffect(() => {
-    const baseTitle = process.env.NEXT_PUBLIC_PORTFOLIO_NAME || 'Shahan Anwar - Full Stack Developer'
+    const baseTitle = process.env.NEXT_PUBLIC_PORTFOLIO_NAME || 'Portfolio - Full Stack Developer'
     
     let pageTitle = baseTitle
-    let pageDescription = 'Shahan Anwar - Professional Full Stack Developer specializing in Next.js, React, TypeScript, and mobile app development. Explore my portfolio showcasing innovative web applications and projects.'
+    let pageDescription = 'Professional Full Stack Developer specializing in modern web and mobile applications. Explore my portfolio showcasing innovative projects.'
 
-    // Set title based on current page
-    switch (pathname) {
-      case '/':
-        pageTitle = `${baseTitle} | Next.js Expert & Mobile App Developer`
-        pageDescription = 'Shahan Anwar - Professional Full Stack Developer and Next.js expert. Explore my portfolio showcasing innovative web applications, mobile apps, and modern development projects.'
-        break
-      case '/admin':
-        pageTitle = `${baseTitle} - Admin Dashboard`
-        pageDescription = 'Admin dashboard for managing Shahan Anwar portfolio content.'
-        break
-      case '/admin/login':
-        pageTitle = `${baseTitle} - Admin Login`
-        pageDescription = 'Login to access the Shahan Anwar portfolio admin dashboard.'
-        break
-      default:
-        if (pathname?.startsWith('/projects/')) {
-          pageTitle = `${baseTitle} - Project Details`
-          pageDescription = 'View detailed information about Shahan Anwar\'s development projects and technical implementations.'
-        } else {
-          const pageName = pathname ? pathname.charAt(1).toUpperCase() + pathname.slice(2) : 'Page';
-          pageTitle = `${baseTitle} - ${pageName}`;
+    // Set page specific title and description
+    if (pathname === '/') {
+      pageTitle = `Home | ${baseTitle}`
+      pageDescription = 'Professional Full Stack Developer and expert. Explore my portfolio showcasing innovative web applications, mobile apps, and modern development projects.'
+    } else if (pathname?.startsWith('/admin')) {
+      if (pathname === '/admin') {
+        pageTitle = `Admin Dashboard | ${baseTitle}`
+        pageDescription = 'Admin dashboard for managing portfolio content.'
+      } else if (pathname === '/admin/login') {
+        pageTitle = `Admin Login | ${baseTitle}`
+        pageDescription = 'Login to access the portfolio admin dashboard.'
+      } else {
+        const adminPage = pathname.split('/').pop()
+        const formattedAdminPage = adminPage ? adminPage.charAt(0).toUpperCase() + adminPage.slice(1) : 'Dashboard'
+        pageTitle = `${formattedAdminPage} | Admin | ${baseTitle}`
+        pageDescription = `Manage ${formattedAdminPage} settings for the portfolio.`
+      }
+    } else {
+      const pageName = pathname?.split('/').pop()
+      const formattedPageName = pageName ? pageName.charAt(0).toUpperCase() + pageName.slice(1) : ''
+      if (formattedPageName) {
+        pageTitle = `${formattedPageName} | ${baseTitle}`
+        if (formattedPageName === 'Projects') {
+          pageDescription = 'View detailed information about development projects and technical implementations.'
         }
+      }
     }
 
     // Override with custom title/description if provided
