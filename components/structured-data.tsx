@@ -4,7 +4,12 @@ import { useEffect } from 'react'
 
 interface StructuredDataProps {
   type?: 'person' | 'website' | 'organization'
-  data?: any
+  data?: {
+    name?: string;
+    jobTitle?: string;
+    description?: string;
+    url?: string;
+  }
 }
 
 const StructuredData = ({ type = 'person', data }: StructuredDataProps) => {
@@ -13,11 +18,11 @@ const StructuredData = ({ type = 'person', data }: StructuredDataProps) => {
       "@context": "https://schema.org",
       "@type": type === 'person' ? "Person" : type === 'organization' ? "Organization" : "WebSite",
       ...(type === 'person' && {
-        name: "Shahan Anwar",
-        alternateName: "Shahan",
-        jobTitle: "Full Stack Developer",
-        description: "Professional Full Stack Developer and Next.js expert specializing in React, TypeScript, and mobile app development. Based in Karachi, Pakistan.",
-        url: "https://shahananwar.vercel.app",
+        name: data?.name || "Portfolio",
+        alternateName: data?.name,
+        jobTitle: data?.jobTitle || "Developer",
+        description: data?.description || "Professional portfolio.",
+        url: data?.url || "https://shahananwar.vercel.app",
         image: "https://res.cloudinary.com/dbu5uajzc/image/upload/v1/portfolio/profile.jpg",
         sameAs: [
           "https://github.com/shahananwar39",

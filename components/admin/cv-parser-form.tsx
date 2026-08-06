@@ -6,6 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { UploadCloud, FileText, Loader2, CheckCircle2, X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 
 interface CVParserFormProps {
   onClose: () => void
@@ -74,9 +78,16 @@ export default function CVParserForm({ onClose }: CVParserFormProps) {
 
     setIsApplying(true)
     try {
-      // Fetch current about data to merge
-      const aboutResponse = await fetch('/api/about')
-      const currentAbout = aboutResponse.ok ? await aboutResponse.json() : {}
+      // Fetch current data to merge
+      const [aboutRes, heroRes, contactRes] = await Promise.all([
+        fetch('/api/about'),
+        fetch('/api/hero'),
+        fetch('/api/contact-info')
+      ])
+      
+      const currentAbout = aboutRes.ok ? await aboutRes.json() : {}
+      const currentHero = heroRes.ok ? await heroRes.json() : {}
+      const currentContact = contactRes.ok ? await contactRes.json() : {}
 
       // Merge experience
       const newExperience = (parsedData.experience || []).map((exp: any) => ({
@@ -103,30 +114,72 @@ export default function CVParserForm({ onClose }: CVParserFormProps) {
         })
       }
 
-      const mergedData = {
+      // 1. Update About section
+      const mergedAbout = {
         ...currentAbout,
-        title: currentAbout.title || parsedData.name || 'About Me',
-        subtitle: currentAbout.subtitle || parsedData.about || '',
+        title: `About ${parsedData.name || ''} - ${parsedData.title || ''}`.replace(/- $/, '').trim() || currentAbout.title,
+        subtitle: parsedData.title || currentAbout.subtitle || '',
+        bioParagraphs: parsedData.about ? [parsedData.about] : currentAbout.bioParagraphs,
         experience: [...(currentAbout.experience || []), ...newExperience],
         education: [...(currentAbout.education || []), ...newEducation],
         skills: currentSkills
       }
+      
+      // 2. Update Hero section
+      const mergedHero = {
+        ...currentHero,
+        name: parsedData.name || currentHero.name || '',
+        title: parsedData.title || currentHero.title || '',
+        subtitle: parsedData.subtitle || currentHero.subtitle || '',
+        description: parsedData.about || currentHero.description || '',
+        seoDescription: parsedData.seoDescription || currentHero.seoDescription || '',
+        seoKeywords: parsedData.seoKeywords || currentHero.seoKeywords || [],
+        socialLinks: {
+          ...(currentHero.socialLinks || {}),
+          email: parsedData.email || currentHero.socialLinks?.email || '',
+          linkedin: parsedData.linkedin || currentHero.socialLinks?.linkedin || '',
+          github: parsedData.github || currentHero.socialLinks?.github || ''
+        }
+      }
+      
+      // 3. Update Contact section
+      const mergedContact = {
+        ...currentContact,
+        email: parsedData.email || currentContact.email || '',
+        phone: parsedData.phone || currentContact.phone || '',
+        location: parsedData.location || currentContact.location || ''
+      }
 
-      // Update about section
-      const updateResponse = await fetch('/api/about', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mergedData)
-      })
+      // Update all sections simultaneously
+      const updates = [
+        fetch('/api/about', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mergedAbout)
+        }),
+        fetch('/api/hero', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mergedHero)
+        }),
+        fetch('/api/contact-info', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mergedContact)
+        })
+      ];
 
-      if (updateResponse.ok) {
+      const responses = await Promise.all(updates);
+      const allOk = responses.every(r => r.ok);
+
+      if (allOk) {
         toast({
           title: "Portfolio Updated",
-          description: "CV data has been applied to your About section.",
+          description: "CV data has been applied to About, Hero, and Contact sections.",
         })
         onClose()
       } else {
-        throw new Error('Failed to update portfolio')
+        throw new Error('Failed to update one or more portfolio sections')
       }
     } catch (error: any) {
       toast({
@@ -220,13 +273,135 @@ export default function CVParserForm({ onClose }: CVParserFormProps) {
                   <div>
                     <h4 className="font-medium text-green-700 dark:text-green-400">Successfully extracted!</h4>
                     <p className="text-sm text-green-600 dark:text-green-500 mt-1">
-                      Review the data below. Click apply to merge it with your portfolio.
+                      Review and edit the data below. When you're ready, click apply to sync it to your portfolio.
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-muted rounded-lg p-4 font-mono text-xs overflow-x-auto">
-                  <pre>{JSON.stringify(parsedData, null, 2)}</pre>
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Full Name</Label>
+                      <Input 
+                        value={parsedData.name || ''} 
+                        onChange={(e) => setParsedData({...parsedData, name: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Professional Title</Label>
+                      <Input 
+                        value={parsedData.title || ''} 
+                        onChange={(e) => setParsedData({...parsedData, title: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Hero Subtitle</Label>
+                      <Input 
+                        value={parsedData.subtitle || ''} 
+                        onChange={(e) => setParsedData({...parsedData, subtitle: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input 
+                        value={parsedData.email || ''} 
+                        onChange={(e) => setParsedData({...parsedData, email: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>LinkedIn URL</Label>
+                      <Input 
+                        value={parsedData.linkedin || ''} 
+                        onChange={(e) => setParsedData({...parsedData, linkedin: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>GitHub URL</Label>
+                      <Input 
+                        value={parsedData.github || ''} 
+                        onChange={(e) => setParsedData({...parsedData, github: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
+                      <Input 
+                        value={parsedData.phone || ''} 
+                        onChange={(e) => setParsedData({...parsedData, phone: e.target.value})} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Location</Label>
+                      <Input 
+                        value={parsedData.location || ''} 
+                        onChange={(e) => setParsedData({...parsedData, location: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Professional Summary</Label>
+                    <Textarea 
+                      rows={4}
+                      value={parsedData.about || ''} 
+                      onChange={(e) => setParsedData({...parsedData, about: e.target.value})} 
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>SEO Meta Description</Label>
+                    <Textarea 
+                      rows={2}
+                      value={parsedData.seoDescription || ''} 
+                      onChange={(e) => setParsedData({...parsedData, seoDescription: e.target.value})} 
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>SEO Keywords (comma-separated)</Label>
+                    <Input 
+                      value={parsedData.seoKeywords ? parsedData.seoKeywords.join(', ') : ''} 
+                      onChange={(e) => setParsedData({...parsedData, seoKeywords: e.target.value.split(',').map((k: string) => k.trim()).filter(Boolean)})} 
+                    />
+                  </div>
+
+                  {parsedData.experience && parsedData.experience.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Experience ({parsedData.experience.length} roles found)</Label>
+                      <div className="p-3 bg-muted/50 rounded-md space-y-2 max-h-40 overflow-y-auto">
+                        {parsedData.experience.map((exp: any, i: number) => (
+                          <div key={i} className="text-sm border-l-2 border-primary pl-2">
+                            <p className="font-medium">{exp.position} @ {exp.company}</p>
+                            <p className="text-xs text-muted-foreground">{exp.startDate} - {exp.endDate}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {parsedData.education && parsedData.education.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Education ({parsedData.education.length} degrees found)</Label>
+                      <div className="p-3 bg-muted/50 rounded-md space-y-2 max-h-32 overflow-y-auto">
+                        {parsedData.education.map((edu: any, i: number) => (
+                          <div key={i} className="text-sm border-l-2 border-primary pl-2">
+                            <p className="font-medium">{edu.degree}</p>
+                            <p className="text-xs text-muted-foreground">{edu.institution} ({edu.startDate} - {edu.endDate})</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {parsedData.skills && parsedData.skills.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Skills Extracted</Label>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {parsedData.skills.map((skill: string, i: number) => (
+                          <Badge key={i} variant="secondary">{skill}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

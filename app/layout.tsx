@@ -6,74 +6,71 @@ import { Toaster } from '@/components/ui/toaster'
 
 const inter = Inter({ subsets: ['latin'] })
 
-export const metadata: Metadata = {
-  title: 'Shahan Anwar - Full Stack Developer | Next.js Expert | Mobile App Developer',
-  description: 'Shahan Anwar is a skilled Full Stack Developer specializing in Next.js, React, TypeScript, and mobile app development. Explore my portfolio showcasing web applications, mobile apps, and innovative projects.',
-  keywords: [
-    'Shahan Anwar',
-    'Shahan',
-    'Full Stack Developer',
-    'Web Developer',
-    'Next.js Developer',
-    'React Developer',
-    'TypeScript Developer',
-    'Mobile App Developer',
-    'JavaScript Developer',
-    'Node.js Developer',
-    'MongoDB Developer',
-    'Portfolio',
-    'Software Engineer',
-    'Frontend Developer',
-    'Backend Developer',
-    'UI/UX Developer',
-    'Freelance Developer',
-    'Remote Developer',
-    'Pakistan Developer',
-    'Karachi Developer'
-  ],
-  authors: [{ name: 'Shahan Anwar' }],
-  creator: 'Shahan Anwar',
-  publisher: 'Shahan Anwar',
-  openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: 'https://shahananwar.vercel.app',
-    title: 'Shahan Anwar - Full Stack Developer | Next.js Expert',
-    description: 'Professional Full Stack Developer specializing in Next.js, React, TypeScript, and mobile app development. View my portfolio and get in touch for your next project.',
-    siteName: 'Shahan Anwar Portfolio',
-    images: [
-      {
-        url: 'https://res.cloudinary.com/dbu5uajzc/image/upload/v1/portfolio/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Shahan Anwar - Full Stack Developer',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Shahan Anwar - Full Stack Developer | Next.js Expert',
-    description: 'Professional Full Stack Developer specializing in Next.js, React, TypeScript, and mobile app development.',
-    creator: '@shahananwar',
-    images: ['https://res.cloudinary.com/dbu5uajzc/image/upload/v1/portfolio/og-image.jpg'],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-    },
-  },
-  alternates: {
-    canonical: 'https://shahananwar.vercel.app',
-  },
-  verification: {
-    google: 'your-google-verification-code',
-  },
+import connectDB from '@/lib/mongodb'
+import Hero from '@/models/Hero'
+
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    await connectDB()
+    const hero = await Hero.findOne({ isActive: true })
+
+    if (hero) {
+      const dynamicTitle = `${hero.name} | ${hero.title}`
+      const dynamicDesc = hero.seoDescription || hero.description
+      
+      return {
+        title: dynamicTitle,
+        description: dynamicDesc,
+        keywords: hero.seoKeywords && hero.seoKeywords.length > 0 
+          ? hero.seoKeywords 
+          : ['Portfolio', 'Developer', hero.name],
+        authors: [{ name: hero.name }],
+        creator: hero.name,
+        publisher: hero.name,
+        openGraph: {
+          type: 'website',
+          locale: 'en_US',
+          url: 'https://shahananwar.vercel.app',
+          title: dynamicTitle,
+          description: dynamicDesc,
+          siteName: `${hero.name} Portfolio`,
+          images: [
+            {
+              url: hero.image || 'https://res.cloudinary.com/dbu5uajzc/image/upload/v1/portfolio/og-image.jpg',
+              width: 1200,
+              height: 630,
+              alt: dynamicTitle,
+            },
+          ],
+        },
+        twitter: {
+          card: 'summary_large_image',
+          title: dynamicTitle,
+          description: dynamicDesc,
+          images: [hero.image || 'https://res.cloudinary.com/dbu5uajzc/image/upload/v1/portfolio/og-image.jpg'],
+        },
+        robots: {
+          index: true,
+          follow: true,
+          googleBot: {
+            index: true,
+            follow: true,
+            'max-video-preview': -1,
+            'max-image-preview': 'large',
+            'max-snippet': -1,
+          },
+        },
+      }
+    }
+  } catch (error) {
+    console.error('Error generating metadata:', error)
+  }
+
+  // Fallback
+  return {
+    title: 'Portfolio',
+    description: 'Welcome to my portfolio.',
+  }
 }
 
 export default function RootLayout({

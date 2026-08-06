@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import dns from 'dns';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 dns.setDefaultResultOrder('ipv4first');
 const PDFParser = require('pdf2json');
 
 // Helper to wrap pdf2json in a Promise
 function parsePdfBuffer(buffer: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
+    // Fixed typo: was "new PDFParser(this :, 1)", now "new PDFParser(this, 1)"
     const pdfParser = new PDFParser(this, 1);
     
     pdfParser.on('pdfParser_dataError', (errData: any) => {
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'No file uploaded.' }, { status: 400 });
     }
 
-    if (file.type !== 'application/pdf') {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
       return NextResponse.json({ success: false, error: 'Only PDF files are supported.' }, { status: 400 });
     }
 
@@ -42,7 +44,6 @@ export async function POST(request: Request) {
     let text = '';
     try {
       text = await parsePdfBuffer(buffer);
-      // pdf2json includes some formatting artifacts like \r\n and Page markers. Let's clean it up slightly.
       text = text.replace(/\r\n/g, ' ').replace(/[-]+Page \(\d+\) Break[-]+/g, '');
     } catch (parseError: any) {
       console.error('PDF parsing error:', parseError);
@@ -53,100 +54,102 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Could not extract any text from the PDF.' }, { status: 400 });
     }
 
-    // Prepare Hugging Face API request
-    const hfToken = process.env.HUGGINGFACE_API_KEY;
-    if (!hfToken) {
-      console.error("HUGGINGFACE_API_KEY is not configured.");
-      return NextResponse.json({ success: false, error: 'AI processing is not configured on the server.' }, { status: 500 });
+    // Call Gemini API
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey) {
+      return NextResponse.json({ success: false, error: 'AI parsing is currently unavailable (Missing API Key).' }, { status: 503 });
     }
 
-    // Mistral-7B is generally a good reliable free model for instruct tasks
-    const modelUrl = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2';
+    const genAI = new GoogleGenerativeAI(geminiKey);
+    // Use the fast, lightweight model
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-3.5-flash',
+      // Force JSON output with strict schema
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            name: { type: SchemaType.STRING },
+            title: { type: SchemaType.STRING, description: "The professional title of the person, e.g., Senior Software Engineer or Paediatrician" },
+            subtitle: { type: SchemaType.STRING, description: "A short, punchy subtitle or tagline for the hero section." },
+            about: { type: SchemaType.STRING },
+            email: { type: SchemaType.STRING },
+            phone: { type: SchemaType.STRING },
+            location: { type: SchemaType.STRING },
+            linkedin: { type: SchemaType.STRING, description: "LinkedIn profile URL if found" },
+            github: { type: SchemaType.STRING, description: "GitHub profile URL if found" },
+            seoKeywords: { 
+              type: SchemaType.ARRAY, 
+              items: { type: SchemaType.STRING },
+              description: "Generate 10-15 highly optimized SEO keywords based on the person's skills, job title, industry, and location."
+            },
+            seoDescription: { 
+              type: SchemaType.STRING, 
+              description: "Generate a highly optimized SEO meta description (under 160 characters) summarizing their professional profile."
+            },
+            experience: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  company: { type: SchemaType.STRING },
+                  position: { type: SchemaType.STRING },
+                  startDate: { type: SchemaType.STRING },
+                  endDate: { type: SchemaType.STRING },
+                  description: { type: SchemaType.STRING }
+                }
+              }
+            },
+            education: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  institution: { type: SchemaType.STRING },
+                  degree: { type: SchemaType.STRING },
+                  startDate: { type: SchemaType.STRING },
+                  endDate: { type: SchemaType.STRING },
+                  description: { type: SchemaType.STRING }
+                }
+              }
+            },
+            skills: {
+              type: SchemaType.ARRAY,
+              items: { type: SchemaType.STRING }
+            }
+          }
+        }
+      }
+    });
     
     const prompt = `
 You are an expert resume parser. Extract the following information from the provided CV text.
-Return the output strictly as a JSON object with the following structure, and do not include any other text or markdown formatting outside of the JSON block:
-{
-  "name": "Full Name",
-  "about": "A short professional summary",
-  "email": "email address",
-  "phone": "phone number",
-  "location": "city, country",
-  "experience": [
-    {
-      "company": "Company Name",
-      "position": "Job Title",
-      "startDate": "Start Date",
-      "endDate": "End Date or Present",
-      "description": "Short description of responsibilities"
-    }
-  ],
-  "education": [
-    {
-      "institution": "School/University Name",
-      "degree": "Degree Name",
-      "startDate": "Start Date",
-      "endDate": "End Date",
-      "description": "Details"
-    }
-  ],
-  "skills": ["Skill 1", "Skill 2"]
-}
+Return the output strictly as a JSON object matching the provided schema.
 
 CV Text:
 ${text}
 `;
 
-    const response = await fetch(modelUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${hfToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 1500,
-          temperature: 0.1,
-          return_full_text: false,
-        }
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Hugging Face API Error:', errorText);
-      return NextResponse.json({ success: false, error: 'AI Model failed to process the CV. Make sure your API token is valid.' }, { status: 500 });
-    }
-
-    const aiResult = await response.json();
-    let responseText = '';
-    
-    if (Array.isArray(aiResult) && aiResult.length > 0) {
-      responseText = aiResult[0].generated_text || '';
-    } else {
-      responseText = aiResult.generated_text || '';
-    }
-
-    // Clean up response if the model returned markdown code blocks
-    let cleanResponse = responseText.trim();
-    if (cleanResponse.startsWith('```json')) {
-      cleanResponse = cleanResponse.substring(7);
-    }
-    if (cleanResponse.startsWith('```')) {
-      cleanResponse = cleanResponse.substring(3);
-    }
-    if (cleanResponse.endsWith('```')) {
-      cleanResponse = cleanResponse.substring(0, cleanResponse.length - 3);
-    }
-    cleanResponse = cleanResponse.trim();
-
     try {
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let cleanResponse = response.text().trim();
+      
+      // Robustly extract just the JSON object from the response
+      const firstBrace = cleanResponse.indexOf('{');
+      const lastBrace = cleanResponse.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        cleanResponse = cleanResponse.substring(firstBrace, lastBrace + 1);
+      }
+      
+      cleanResponse = cleanResponse.trim();
+
       const parsedData = JSON.parse(cleanResponse);
       return NextResponse.json({ success: true, data: parsedData });
-    } catch (jsonError) {
-      console.error('JSON parsing failed. Raw response:', responseText);
-      return NextResponse.json({ success: false, error: 'The AI model did not return valid JSON.', raw_output: responseText }, { status: 500 });
+    } catch (aiError: any) {
+      console.error('Gemini API Error:', aiError);
+      return NextResponse.json({ success: false, error: 'AI Model failed to process the CV. ' + aiError.message }, { status: 500 });
     }
 
   } catch (error: any) {

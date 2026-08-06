@@ -12,6 +12,8 @@ export interface IHero extends Document {
     linkedin: string;
     email: string;
   };
+  seoKeywords: string[];
+  seoDescription: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -64,6 +66,15 @@ const HeroSchema = new Schema<IHero>({
       required: [true, 'Email is required'],
       trim: true,
     },
+  },
+  seoKeywords: {
+    type: [String],
+    default: [],
+  },
+  seoDescription: {
+    type: String,
+    default: '',
+    trim: true,
   },
   isActive: {
     type: Boolean,
