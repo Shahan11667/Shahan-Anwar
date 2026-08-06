@@ -8,7 +8,7 @@ const PDFParser = require('pdf2json');
 function parsePdfBuffer(buffer: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
     // Fixed typo: was "new PDFParser(this :, 1)", now "new PDFParser(this, 1)"
-    const pdfParser = new PDFParser(this, 1);
+    const pdfParser = new PDFParser(null, 1);
     
     pdfParser.on('pdfParser_dataError', (errData: any) => {
       reject(errData.parserError);
