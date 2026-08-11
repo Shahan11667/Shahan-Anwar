@@ -1,139 +1,99 @@
 "use client"
 
-import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
-import { Mail, Heart } from 'lucide-react'
-import { FaGithub, FaLinkedin } from 'react-icons/fa'
+import { Stethoscope, Phone, Mail, MapPin, Clock } from 'lucide-react'
 
-const Footer = () => {
-  const currentYear = new Date().getFullYear()
-  const [heroData, setHeroData] = useState<any>(null)
-  const [contactData, setContactData] = useState<any>(null)
+interface FooterProps {
+  doctorName?: string
+}
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/hero').then(res => res.ok ? res.json() : null),
-      fetch('/api/contact-info').then(res => res.ok ? res.json() : null)
-    ])
-      .then(([hero, contact]) => {
-        if (hero) setHeroData(hero)
-        if (contact) setContactData(contact)
-      })
-      .catch(console.error)
-  }, [])
-
-  const socialLinks = [
-    { name: 'GitHub', icon: FaGithub, href: heroData?.socialLinks?.github || 'https://github.com' },
-    { name: 'LinkedIn', icon: FaLinkedin, href: heroData?.socialLinks?.linkedin || 'https://linkedin.com' },
-    { name: 'Email', icon: Mail, href: heroData?.socialLinks?.email ? `mailto:${heroData.socialLinks.email}` : 'mailto:john@example.com' },
-  ]
-
-  const quickLinks = [
-    { name: 'Home', href: '#home' },
-    { name: 'About', href: '#about' },
-    { name: 'Projects', href: '#projects' },
-    { name: 'Contact', href: '#contact' },
-  ]
-
-  const scrollToSection = (href: string) => {
-    const element = document.querySelector(href)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' })
-    }
-  }
-
+export default function Footer({ doctorName = "Dr. Jessica Walsh" }: FooterProps) {
   return (
-    <footer className="bg-card border-t border-border">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {/* Brand */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            viewport={{ once: true }}
-            className="lg:col-span-2"
-          >
-            <Link href="/" className="text-2xl font-bold text-primary mb-4 block">
-              {heroData?.name || 'Portfolio'}
+    <footer className="bg-[#0a382c] text-[#faf7f2] pt-16 pb-8 border-t border-white/10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 pb-12 border-b border-white/10">
+          
+          {/* Brand Info */}
+          <div className="space-y-4">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full bg-[#d97745] flex items-center justify-center text-white shadow-md">
+                <Stethoscope className="w-5 h-5" />
+              </div>
+              <span className="font-serif font-bold text-xl text-[#faf7f2]">
+                {doctorName}
+              </span>
             </Link>
-            <p className="text-muted-foreground mb-6 max-w-md">
-              {heroData?.subtitle || heroData?.description || 'A passionate professional dedicated to creating beautiful, functional, and user-centered experiences that make a real impact.'}
+            <p className="text-xs text-[#faf7f2]/70 leading-relaxed font-light">
+              Dedicated to compassionate, comprehensive healthcare for patients. Clinical excellence, preventive care, and personalized treatments.
             </p>
-            <div className="flex space-x-4">
-              {socialLinks.map((social) => (
-                <motion.a
-                  key={social.name}
-                  href={social.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  whileHover={{ scale: 1.1, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="p-2 rounded-full bg-muted hover:bg-primary/10 transition-colors"
-                >
-                  <social.icon className="h-5 w-5" />
-                  <span className="sr-only">{social.name}</span>
-                </motion.a>
-              ))}
-            </div>
-          </motion.div>
+          </div>
 
           {/* Quick Links */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            viewport={{ once: true }}
-          >
-            <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
-            <ul className="space-y-2">
-              {quickLinks.map((link) => (
-                <li key={link.name}>
-                  <button
-                    onClick={() => scrollToSection(link.href)}
-                    className="text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {link.name}
-                  </button>
-                </li>
-              ))}
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-sm text-[#d97745] uppercase tracking-wider">
+              Quick Links
+            </h4>
+            <ul className="space-y-2 text-xs text-[#faf7f2]/80">
+              <li><a href="#hero" className="hover:text-[#d97745] transition-colors">Home</a></li>
+              <li><a href="#about" className="hover:text-[#d97745] transition-colors">About Professional</a></li>
+              <li><a href="#services" className="hover:text-[#d97745] transition-colors">Our Services</a></li>
+              <li><a href="#values" className="hover:text-[#d97745] transition-colors">Why Choose Me</a></li>
+              <li><a href="#qualifications" className="hover:text-[#d97745] transition-colors">Education & Credentials</a></li>
+              <li><a href="#testimonials" className="hover:text-[#d97745] transition-colors">Patient Reviews</a></li>
             </ul>
-          </motion.div>
+          </div>
 
-          {/* Contact Info */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            viewport={{ once: true }}
-          >
-            <h3 className="text-lg font-semibold mb-4">Contact</h3>
-            <div className="space-y-2 text-muted-foreground">
-              <p>{contactData?.email || 'contact@example.com'}</p>
-              <p>{contactData?.phone || '+1 (555) 123-4567'}</p>
-              <p>{contactData?.location || 'San Francisco, CA'}</p>
-            </div>
-          </motion.div>
+          {/* Services */}
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-sm text-[#d97745] uppercase tracking-wider">
+              Medical Specialties
+            </h4>
+            <ul className="space-y-2 text-xs text-[#faf7f2]/80">
+              <li><span>Internal Medicine</span></li>
+              <li><span>Pediatric Care</span></li>
+              <li><span>Cardiology Consultations</span></li>
+              <li><span>General Health Checkups</span></li>
+              <li><span>Preventive Wellness</span></li>
+            </ul>
+          </div>
+
+          {/* Contact Details */}
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-sm text-[#d97745] uppercase tracking-wider">
+              Clinic Contact
+            </h4>
+            <ul className="space-y-2.5 text-xs text-[#faf7f2]/80">
+              <li className="flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 text-[#d97745] shrink-0 mt-0.5" />
+                <span>123 Healthcare Ave, Suite 400, Medical Plaza</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <Phone className="w-4 h-4 text-[#d97745] shrink-0" />
+                <span>(555) 123-4567 (24/7 Urgent Line)</span>
+              </li>
+              <li className="flex items-center gap-2.5">
+                <Mail className="w-4 h-4 text-[#d97745] shrink-0" />
+                <span>contact@doctorwalshclinic.com</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <Clock className="w-4 h-4 text-[#d97745] shrink-0 mt-0.5" />
+                <span>Mon - Fri: 8:00 AM - 6:00 PM<br />Sat: 9:00 AM - 2:00 PM</span>
+              </li>
+            </ul>
+          </div>
+
         </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          viewport={{ once: true }}
-          className="border-t border-border mt-8 pt-8 flex flex-col sm:flex-row justify-between items-center"
-        >
-          <p className="text-muted-foreground text-sm">
-            © {currentYear} {heroData?.name || 'Portfolio'}. All rights reserved.
-          </p>
-          <p className="text-muted-foreground text-sm flex items-center mt-2 sm:mt-0">
-            Made with <Heart className="h-4 w-4 text-red-500 mx-1" /> using Next.js
-          </p>
-        </motion.div>
+        {/* Bottom Bar */}
+        <div className="pt-8 text-center sm:flex sm:justify-between sm:text-left text-xs text-[#faf7f2]/60 font-light">
+          <p>© {new Date().getFullYear()} {doctorName}. All rights reserved.</p>
+          <div className="mt-2 sm:mt-0 space-x-4">
+            <a href="/admin" className="hover:text-[#d97745] transition-colors">Admin Dashboard</a>
+            <span>•</span>
+            <a href="#" className="hover:text-[#d97745] transition-colors">Privacy Policy</a>
+          </div>
+        </div>
       </div>
     </footer>
   )
 }
-
-export default Footer

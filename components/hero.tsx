@@ -1,257 +1,199 @@
 "use client"
 
+import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { ArrowDown, Mail, Download } from 'lucide-react'
-import { FaGithub, FaLinkedin } from 'react-icons/fa'
-import { useHero } from '@/hooks'
+import { PhoneCall, Clock, ShieldCheck, Calendar, ArrowRight } from 'lucide-react'
+import AppointmentModal from './appointment-modal'
 
-const Hero = () => {
-  const { data: heroData, loading, error } = useHero()
+interface HeroData {
+  badge?: string
+  name?: string
+  title?: string
+  subtitle?: string
+  description?: string
+  image?: string
+  emergencyPhone?: string
+  featureCards?: Array<{
+    title: string
+    description: string
+    icon: string
+  }>
+}
 
-  const scrollToSection = (sectionId: string) => {
-    const element = document.querySelector(sectionId)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' })
+export default function Hero() {
+  const [data, setData] = useState<HeroData | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/hero').then(r => r.json()).catch(() => null),
+      fetch('/api/contact-info').then(r => r.json()).catch(() => null)
+    ]).then(([heroData, contactData]) => {
+      let combined = heroData && !heroData.error ? heroData : {}
+      if (contactData && contactData.phone) {
+        combined.emergencyPhone = contactData.phone
+      }
+      if (Object.keys(combined).length > 0) {
+        setData(combined)
+      }
+    })
+  }, [])
+
+  const defaultHero = {
+    badge: "DOCTOR & CLINIC SERVICES",
+    name: "Dr. Jessica Walsh",
+    title: "A dedicated doctor you can trust",
+    description: "Providing compassionate, comprehensive medical healthcare for patients. Dedicated to clinical excellence, preventive care, and holistic wellness.",
+    image: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=600&h=700&fit=crop",
+    emergencyPhone: "(555) 123-4567",
+    featureCards: [
+      {
+        title: "Emergency Call",
+        description: "Immediate emergency assistance and direct telephone support for urgent medical needs.",
+        icon: "PhoneCall"
+      },
+      {
+        title: "24/7 Hours Service",
+        description: "Round the clock patient consultation, emergency booking, and medical advice.",
+        icon: "Clock"
+      },
+      {
+        title: "Personalized Care",
+        description: "Tailored treatment plans focused on individual health goals and sustained recovery.",
+        icon: "ShieldCheck"
+      }
+    ]
+  }
+
+  const hero = data || defaultHero
+  const cards = hero.featureCards && hero.featureCards.length > 0 ? hero.featureCards : defaultHero.featureCards
+
+  const getIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'Clock':
+        return <Clock className="w-6 h-6 text-[#0a382c]" />
+      case 'ShieldCheck':
+        return <ShieldCheck className="w-6 h-6 text-[#0a382c]" />
+      default:
+        return <PhoneCall className="w-6 h-6 text-[#0a382c]" />
     }
   }
 
-  // Show loading state
-  if (loading) {
-    return (
-      <section id="home" className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </section>
-    )
-  }
-
-  // Show error state
-  if (error || !heroData) {
-    return (
-      <section id="home" className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold mb-4">Portfolio</h1>
-          <p className="text-xl text-muted-foreground mb-4">Welcome to my professional space</p>
-          <p className="text-muted-foreground">Unable to load content. Please try again later.</p>
-        </div>
-      </section>
-    )
-  }
-
   return (
-    <section id="home" className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-secondary/20" />
-        <motion.div
-          className="absolute top-1/4 left-1/4 w-72 h-72 bg-primary/30 rounded-full blur-3xl"
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.3, 0.5, 0.3],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        <motion.div
-          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/30 rounded-full blur-3xl"
-          animate={{
-            scale: [1.2, 1, 1.2],
-            opacity: [0.5, 0.3, 0.5],
-          }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-      </div>
+    <section id="hero" className="bg-[#0a382c] pt-28 pb-16 md:pt-36 md:pb-24 text-white relative overflow-hidden">
+      {/* Background Graphic Elements */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-[#d97745]/10 rounded-full filter blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/5 rounded-full filter blur-2xl pointer-events-none" />
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left Side - Image */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          
+          {/* Left Text Column */}
           <motion.div
-            initial={{ opacity: 0, x: -50 }}
+            initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            className="order-2 lg:order-1 flex justify-center lg:justify-start"
+            transition={{ duration: 0.6 }}
+            className="lg:col-span-7 space-y-6"
           >
-            <div className="relative">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="relative w-80 h-80 lg:w-96 lg:h-96 rounded-full overflow-hidden shadow-2xl"
-              >
-                <img
-                  src={heroData.image}
-                  alt={heroData.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-primary/20 to-transparent" />
-              </motion.div>
+            {/* Top Subtitle Badge */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/15 text-[#d97745] text-xs font-semibold uppercase tracking-wider">
+              <span>{hero.badge || "DOCTOR & CLINIC SERVICES"}</span>
+            </div>
 
-              {/* Floating elements */}
-              <motion.div
-                className="absolute -top-4 -right-4 w-20 h-20 bg-primary/20 rounded-full blur-xl"
-                animate={{
-                  scale: [1, 1.2, 1],
-                  opacity: [0.3, 0.6, 0.3],
-                }}
-                transition={{
-                  duration: 3,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-              <motion.div
-                className="absolute -bottom-4 -left-4 w-16 h-16 bg-secondary/20 rounded-full blur-xl"
-                animate={{
-                  scale: [1.2, 1, 1.2],
-                  opacity: [0.6, 0.3, 0.6],
-                }}
-                transition={{
-                  duration: 4,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
+            {/* Main Title */}
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold text-[#faf7f2] leading-tight">
+              A dedicated doctor <br className="hidden sm:inline" />
+              <span className="text-[#d97745]">you can trust</span>
+            </h1>
+
+            {/* Paragraph Bio */}
+            <p className="text-base sm:text-lg text-[#faf7f2]/80 max-w-xl font-light leading-relaxed">
+              {hero.description}
+            </p>
+
+            {/* CTA Buttons */}
+            <div className="flex flex-wrap items-center gap-4 pt-2">
+              <button
+                onClick={() => setModalOpen(true)}
+                className="bg-[#d97745] hover:bg-[#c86030] text-white px-7 py-3.5 rounded-full text-xs sm:text-sm font-semibold uppercase tracking-wider shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Book Appointment</span>
+              </button>
+
+              {hero.emergencyPhone && (
+                <a
+                  href={`tel:${hero.emergencyPhone.replace(/\D/g, '')}`}
+                  className="bg-white/10 hover:bg-white/20 text-[#faf7f2] border border-white/20 px-6 py-3.5 rounded-full text-xs sm:text-sm font-medium transition-all flex items-center gap-2"
+                >
+                  <PhoneCall className="w-4 h-4 text-[#d97745]" />
+                  <span>Call {hero.emergencyPhone}</span>
+                </a>
+              )}
             </div>
           </motion.div>
 
-          {/* Right Side - Content */}
+          {/* Right Doctor Image Column */}
           <motion.div
-            initial={{ opacity: 0, x: 50 }}
+            initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="mt-5 order-1 lg:order-2 text-center lg:text-left"
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="lg:col-span-5 flex justify-center"
           >
-            <motion.h1
-
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-              className="mt-5 text-4xl sm:text-5xl lg:text-6xl font-bold mb-6"
-            >
-              Hi, I'm{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
-                {heroData.name}
-              </span>
-            </motion.h1>
-
-            <motion.h2
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
-              className="text-xl sm:text-2xl lg:text-3xl text-muted-foreground mb-4"
-            >
-              {heroData.title}
-            </motion.h2>
-
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.8 }}
-              className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto lg:mx-0"
-            >
-              {heroData.description}
-            </motion.p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center mb-8"
-            >
-              <Button
-                size="lg"
-                onClick={() => scrollToSection('#projects')}
-                className="text-lg px-8 py-3"
-              >
-                View My Work
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => scrollToSection('#contact')}
-                className="text-lg px-8 py-3"
-              >
-                Get In Touch
-              </Button>
-              <Button
-                variant="secondary"
-                size="lg"
-                asChild
-                className="text-lg px-8 py-3"
-              >
-                <a href={heroData.resumeLink} download>
-                  <Download className="h-5 w-5 mr-2" />
-                  Resume
-                </a>
-              </Button>
-            </motion.div>
-
-            {/* Social Links */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1.2 }}
-              className="flex justify-center lg:justify-start space-x-6"
-            >
-              <motion.a
-                href={heroData.socialLinks.github}
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.1, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-                className="p-3 rounded-full bg-card hover:bg-primary/10 transition-colors"
-              >
-                <FaGithub className="h-6 w-6" />
-              </motion.a>
-              <motion.a
-                href={heroData.socialLinks.linkedin}
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.1, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-                className="p-3 rounded-full bg-card hover:bg-primary/10 transition-colors"
-              >
-                <FaLinkedin className="h-6 w-6" />
-              </motion.a>
-              <motion.a
-                href={heroData.socialLinks.email}
-                whileHover={{ scale: 1.1, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-                className="p-3 rounded-full bg-card hover:bg-primary/10 transition-colors"
-              >
-                <Mail className="h-6 w-6" />
-              </motion.a>
-            </motion.div>
+            <div className="relative w-full max-w-md aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl border-4 border-white/10 bg-[#f4efe6]/10">
+              <img
+                src={hero.image || defaultHero.image}
+                alt={hero.name || "Doctor"}
+                className="w-full h-full object-cover object-center"
+              />
+              {/* Doctor Name Overlay Badge */}
+              <div className="absolute bottom-4 left-4 right-4 bg-[#0a382c]/90 backdrop-blur-md p-4 rounded-2xl border border-white/15 text-center">
+                <span className="text-sm font-bold font-serif text-[#faf7f2] block">
+                  {hero.name || "Dr. Jessica Walsh"}
+                </span>
+                <span className="text-[11px] text-[#d97745] uppercase tracking-wider font-semibold">
+                  Primary Healthcare Practitioner
+                </span>
+              </div>
+            </div>
           </motion.div>
+
         </div>
 
-        {/* Scroll Indicator */}
+        {/* Bottom 3 Feature Cards (Floating / Section Bridge) */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 1.5 }}
-          className="absolute bottom-8 left-1/2 transform -translate-x-1/2"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-14"
         >
-          <motion.div
-            animate={{ y: [0, 10, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="flex flex-col items-center text-muted-foreground"
-          >
-            <span className="text-sm mb-2">Scroll Down</span>
-            <ArrowDown className="h-5 w-5" />
-          </motion.div>
+          {cards.map((card, idx) => (
+            <div
+              key={idx}
+              className="bg-white rounded-2xl p-6 text-slate-800 shadow-xl border border-slate-100 flex items-start gap-4 transform transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
+            >
+              <div className="w-12 h-12 rounded-xl bg-[#0a382c]/10 flex items-center justify-center shrink-0">
+                {getIcon(card.icon)}
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-serif font-bold text-lg text-[#0a382c]">
+                  {card.title}
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {card.description}
+                </p>
+              </div>
+            </div>
+          ))}
         </motion.div>
       </div>
+
+      {/* Appointment Popup Modal */}
+      <AppointmentModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+      />
     </section>
   )
 }
-
-export default Hero

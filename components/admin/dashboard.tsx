@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle, Video, Scissors, Maximize2, FileText } from 'lucide-react'
+import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle, Video, Scissors, Maximize2, FileText, Stethoscope, Star, Award, Calendar, Share2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import ProjectForm from './project-form'
@@ -15,6 +15,11 @@ import HeroForm from './hero-form'
 import AboutForm from './about-form'
 import ContactInfoForm from './contact-info-form'
 import CVParserForm from './cv-parser-form'
+import ServiceForm from './service-form'
+import TestimonialForm from './testimonial-form'
+import QualificationForm from './qualification-form'
+import AppointmentList from './appointment-list'
+import SocialManager from './social-manager'
 import { IProject } from '@/models/Project'
 
 interface Project {
@@ -42,16 +47,26 @@ interface Contact {
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser'>('hero')
+  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'services' | 'testimonials' | 'qualifications' | 'appointments' | 'social' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser'>('hero')
   const [projects, setProjects] = useState<Project[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [chatUsers, setChatUsers] = useState<any[]>([])
   const [settings, setSettings] = useState<any>(null)
+  const [services, setServices] = useState<any[]>([])
+  const [testimonials, setTestimonials] = useState<any[]>([])
+  const [qualifications, setQualifications] = useState<any[]>([])
+  const [appointments, setAppointments] = useState<any[]>([])
+
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [showHeroForm, setShowHeroForm] = useState(false)
   const [showAboutForm, setShowAboutForm] = useState(false)
   const [showContactInfoForm, setShowContactInfoForm] = useState(false)
   const [showCVParser, setShowCVParser] = useState(false)
+  const [showServiceForm, setShowServiceForm] = useState(false)
+  const [showTestimonialForm, setShowTestimonialForm] = useState(false)
+  const [showQualificationForm, setShowQualificationForm] = useState(false)
+  const [showAppointmentList, setShowAppointmentList] = useState(false)
+
   const [editingProject, setEditingProject] = useState<IProject | null>(null)
   const { toast } = useToast()
   const router = useRouter()
@@ -91,11 +106,15 @@ const AdminDashboard = () => {
 
   const fetchData = async () => {
     try {
-      const [projectsRes, contactsRes, chatUsersRes, settingsRes] = await Promise.all([
+      const [projectsRes, contactsRes, chatUsersRes, settingsRes, servicesRes, testimonialsRes, qualificationsRes, appointmentsRes] = await Promise.all([
         fetch('/api/projects'),
         fetch('/api/contacts'),
         fetch('/api/chat/users'),
-        fetch('/api/admin/settings')
+        fetch('/api/admin/settings'),
+        fetch('/api/services'),
+        fetch('/api/testimonials'),
+        fetch('/api/qualifications'),
+        fetch('/api/appointments')
       ])
 
       if (projectsRes.ok) {
@@ -110,7 +129,6 @@ const AdminDashboard = () => {
 
       if (chatUsersRes.ok) {
         const chatUsersData = await chatUsersRes.json()
-        // The API returns users in a 'data' property
         const users = chatUsersData.data || chatUsersData
         setChatUsers(Array.isArray(users) ? users : [])
       }
@@ -120,6 +138,26 @@ const AdminDashboard = () => {
         if (settingsData.success) {
           setSettings(settingsData.data)
         }
+      }
+
+      if (servicesRes.ok) {
+        const data = await servicesRes.json()
+        if (Array.isArray(data)) setServices(data)
+      }
+
+      if (testimonialsRes.ok) {
+        const data = await testimonialsRes.json()
+        if (Array.isArray(data)) setTestimonials(data)
+      }
+
+      if (qualificationsRes.ok) {
+        const data = await qualificationsRes.json()
+        if (Array.isArray(data)) setQualifications(data)
+      }
+
+      if (appointmentsRes.ok) {
+        const data = await appointmentsRes.json()
+        if (Array.isArray(data)) setAppointments(data)
       }
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -338,20 +376,45 @@ const AdminDashboard = () => {
             About Section
           </Button>
           <Button
-            variant={activeTab === 'cv-parser' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('cv-parser')}
+            variant={activeTab === 'services' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('services')}
             size="sm"
           >
-            <FileText className="h-4 w-4 mr-2" />
-            AI CV Parser
+            <Stethoscope className="h-4 w-4 mr-2" />
+            Services ({services.length})
           </Button>
           <Button
-            variant={activeTab === 'projects' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('projects')}
+            variant={activeTab === 'testimonials' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('testimonials')}
             size="sm"
           >
-            <FolderOpen className="h-4 w-4 mr-2" />
-            Projects ({projects.length})
+            <Star className="h-4 w-4 mr-2" />
+            Reviews ({testimonials.length})
+          </Button>
+          <Button
+            variant={activeTab === 'qualifications' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('qualifications')}
+            size="sm"
+          >
+            <Award className="h-4 w-4 mr-2" />
+            Credentials ({qualifications.length})
+          </Button>
+          <Button
+            variant={activeTab === 'appointments' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('appointments')}
+            size="sm"
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Appointments ({appointments.length})
+          </Button>
+          <Button
+            variant={activeTab === 'social' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('social')}
+            size="sm"
+            className="bg-[#d97745] hover:bg-[#c86030] text-white"
+          >
+            <Share2 className="h-4 w-4 mr-2" />
+            Social Media Hub
           </Button>
           <Button
             variant={activeTab === 'contacts' ? 'default' : 'outline'}
@@ -370,12 +433,12 @@ const AdminDashboard = () => {
             Contact Info
           </Button>
           <Button
-            variant={activeTab === 'chat-users' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('chat-users')}
+            variant={activeTab === 'cv-parser' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('cv-parser')}
             size="sm"
           >
-            <Users className="h-4 w-4 mr-2" />
-            Chat Users
+            <FileText className="h-4 w-4 mr-2" />
+            AI CV Parser
           </Button>
           <Button
             variant={activeTab === 'settings' ? 'default' : 'outline'}
@@ -447,6 +510,115 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Services Tab */}
+        {activeTab === 'services' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Medical Services Management</h2>
+              <Button onClick={() => setShowServiceForm(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Manage Medical Services ({services.length})
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Stethoscope className="h-12 w-12 mx-auto mb-4 text-[#0a382c]" />
+                <h3 className="text-xl font-bold mb-2">Manage Medical Services</h3>
+                <p className="text-muted-foreground mb-4">
+                  Add, edit, or remove medical services offered by the clinic displayed on the homepage 2x2 grid.
+                </p>
+                <Button onClick={() => setShowServiceForm(true)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Manage Services
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Testimonials Tab */}
+        {activeTab === 'testimonials' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Patient Reviews & Testimonials</h2>
+              <Button onClick={() => setShowTestimonialForm(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Manage Patient Reviews ({testimonials.length})
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Star className="h-12 w-12 mx-auto mb-4 text-amber-500" />
+                <h3 className="text-xl font-bold mb-2">Manage Patient Testimonials</h3>
+                <p className="text-muted-foreground mb-4">
+                  Add, edit, or remove patient reviews & 5-star ratings.
+                </p>
+                <Button onClick={() => setShowTestimonialForm(true)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Manage Reviews
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Qualifications Tab */}
+        {activeTab === 'qualifications' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Education & Accreditations</h2>
+              <Button onClick={() => setShowQualificationForm(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Manage Credentials ({qualifications.length})
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Award className="h-12 w-12 mx-auto mb-4 text-primary" />
+                <h3 className="text-xl font-bold mb-2">Accreditations & Awards</h3>
+                <p className="text-muted-foreground mb-4">
+                  Manage medical degrees, board certifications, and clinical honors.
+                </p>
+                <Button onClick={() => setShowQualificationForm(true)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Manage Credentials
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Appointments Tab */}
+        {activeTab === 'appointments' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Patient Appointments</h2>
+              <Button onClick={() => setShowAppointmentList(true)}>
+                <Calendar className="h-4 w-4 mr-2" />
+                View All Appointments ({appointments.length})
+              </Button>
+            </div>
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-[#d97745]" />
+                <h3 className="text-xl font-bold mb-2">Booked Patient Appointments</h3>
+                <p className="text-muted-foreground mb-4">
+                  View appointment requests submitted by patients online and change booking statuses.
+                </p>
+                <Button onClick={() => setShowAppointmentList(true)}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  View Appointments
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Social Media Tab */}
+        {activeTab === 'social' && (
+          <SocialManager />
         )}
 
         {/* CV Parser Tab */}
@@ -800,8 +972,45 @@ const AdminDashboard = () => {
           }}
         />
       )}
+
+      {/* Service Form Modal */}
+      {showServiceForm && (
+        <ServiceForm
+          services={services}
+          onRefresh={fetchData}
+          onClose={() => setShowServiceForm(false)}
+        />
+      )}
+
+      {/* Testimonial Form Modal */}
+      {showTestimonialForm && (
+        <TestimonialForm
+          testimonials={testimonials}
+          onRefresh={fetchData}
+          onClose={() => setShowTestimonialForm(false)}
+        />
+      )}
+
+      {/* Qualification Form Modal */}
+      {showQualificationForm && (
+        <QualificationForm
+          qualifications={qualifications}
+          onRefresh={fetchData}
+          onClose={() => setShowQualificationForm(false)}
+        />
+      )}
+
+      {/* Appointment List Modal */}
+      {showAppointmentList && (
+        <AppointmentList
+          appointments={appointments}
+          onRefresh={fetchData}
+          onClose={() => setShowAppointmentList(false)}
+        />
+      )}
     </div>
   )
 }
 
 export default AdminDashboard
+

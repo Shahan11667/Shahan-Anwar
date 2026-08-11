@@ -22,6 +22,7 @@ interface HeroFormData {
   subtitle: string
   description: string
   image: string
+  emergencyPhone?: string
   resumeLink: string
   socialLinks: {
     github: string
@@ -49,6 +50,7 @@ const HeroForm = ({ onSave, onClose }: HeroFormProps) => {
           setValue('subtitle', data.subtitle)
           setValue('description', data.description)
           setValue('image', data.image)
+          if (data.emergencyPhone) setValue('emergencyPhone', data.emergencyPhone)
           setValue('resumeLink', data.resumeLink)
           setValue('socialLinks.github', data.socialLinks.github)
           setValue('socialLinks.linkedin', data.socialLinks.linkedin)
@@ -206,6 +208,17 @@ const HeroForm = ({ onSave, onClose }: HeroFormProps) => {
                         {errors.image.message}
                       </p>
                     )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="emergencyPhone" className="block text-sm font-medium mb-2">
+                      Emergency Call Phone Number
+                    </label>
+                    <Input
+                      id="emergencyPhone"
+                      {...register('emergencyPhone')}
+                      placeholder="(555) 123-4567"
+                    />
                   </div>
 
                   <div>

@@ -2,223 +2,154 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Code, Database, Smartphone, Palette, Server, Globe, User } from 'lucide-react'
-
-const iconMap: Record<string, any> = {
-  Code, Database, Smartphone, Palette, Server, Globe, User
-}
-
-interface Skill {
-  name: string
-  icon: string
-  technologies: string[]
-}
-
-interface Experience {
-  year: string
-  title: string
-  company: string
-  description: string
-}
-
-interface Education {
-  degree: string
-  school: string
-  year: string
-}
+import { Calendar, Download, Award, Users, ShieldCheck, CheckCircle } from 'lucide-react'
+import AppointmentModal from './appointment-modal'
 
 interface AboutData {
-  title: string
-  subtitle: string
-  bioParagraphs: string[]
-  skills: Skill[]
-  experience: Experience[]
-  education: Education[]
+  badge?: string
+  title?: string
+  accentTitle?: string
+  subtitle?: string
+  image?: string
+  bioParagraphs?: string[]
+  stats?: Array<{
+    value: string
+    label: string
+  }>
 }
 
-const About = () => {
+export default function About() {
   const [data, setData] = useState<AboutData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch('/api/about')
-        if (response.ok) {
-          const result = await response.json()
-          setData(result)
-        }
-      } catch (error) {
-        console.error('Error fetching about data:', error)
-      } finally {
-        setLoading(false)
+    Promise.all([
+      fetch('/api/about').then(r => r.json()).catch(() => null),
+      fetch('/api/hero').then(r => r.json()).catch(() => null)
+    ]).then(([aboutData, heroData]) => {
+      let combined = aboutData && !aboutData.error ? aboutData : {}
+      if (!combined.image && heroData && heroData.image) {
+        combined.image = heroData.image
       }
-    }
-
-    fetchData()
+      if (Object.keys(combined).length > 0) {
+        setData(combined)
+      }
+    })
   }, [])
 
-  if (loading) {
-    return (
-      <section id="about" className="py-20 bg-muted/30">
-        <div className="container mx-auto px-4 flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-      </section>
-    )
+  const defaultAbout = {
+    badge: "ABOUT ME",
+    title: "Professional Summary",
+    accentTitle: "Summary",
+    subtitle: "As a dedicated medical practitioner with over 15 years of experience, I specialize in providing compassionate, comprehensive healthcare for patients of all ages.",
+    image: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=600&h=700&fit=crop",
+    bioParagraphs: [
+      "With over 15 years of active clinical practice, I am committed to advancing patient outcomes through evidence-based diagnosis, preventive health strategies, and empathetic bedside care.",
+      "Our clinic provides a welcoming, modern environment equipped with state-of-the-art diagnostic tools to handle everything from routine health checkups to complex specialized treatments.",
+      "We focus on empowering patients with knowledge and tailored wellness plans that foster long-term health, vitality, and peace of mind for you and your family."
+    ],
+    stats: [
+      { value: "15+", label: "Years Experience" },
+      { value: "10k+", label: "Happy Patients" },
+      { value: "100%", label: "Quality Healthcare" }
+    ]
   }
 
-  if (!data) return null
-
-  const getIcon = (iconName: string) => {
-    const IconComponent = iconMap[iconName] || User
-    return <IconComponent className="h-5 w-5 text-primary mr-2" />
-  }
+  const about = data || defaultAbout
+  const stats = about.stats && about.stats.length > 0 ? about.stats : defaultAbout.stats
+  const bios = about.bioParagraphs && about.bioParagraphs.length > 0 ? about.bioParagraphs : defaultAbout.bioParagraphs
 
   return (
-    <section id="about" className="py-20 bg-muted/30">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-          className="text-center mb-16"
-        >
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            {data.title}
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            {data.subtitle}
-          </p>
-        </motion.div>
+    <section id="about" className="py-20 md:py-28 bg-white text-slate-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
 
-        <div className="grid lg:grid-cols-2 gap-12 mb-16">
-          {/* Personal Info */}
+          {/* Left Column: Doctor Photo Card */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
             viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="lg:col-span-5 flex justify-center"
           >
-            <h3 className="text-2xl font-bold mb-6">Personal Bio</h3>
-            <div className="space-y-4 text-muted-foreground">
-              {data.bioParagraphs.map((para, index) => (
-                <p key={index}>{para}</p>
-              ))}
+            <div className="relative w-full max-w-md">
+              {/* Back Accent Container */}
+              <div className="absolute -top-4 -left-4 w-full h-full bg-[#0a382c]/10 rounded-3xl -z-10 transform -rotate-2" />
+              <div className="relative aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl border-4 border-white dark:border-[#0a382c]">
+                <img
+                  src={about.image || defaultAbout.image}
+                  alt="Doctor Professional Profile"
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
           </motion.div>
 
-          {/* Skills */}
+          {/* Right Column: Content */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
             viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="lg:col-span-7 space-y-6"
           >
-            <h3 className="text-2xl font-bold mb-6">Skills & Technologies</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {data.skills.map((skill, index) => (
-                <motion.div
-                  key={skill.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                >
-                  <Card className="h-full">
-                    <CardContent className="p-4">
-                      <div className="flex items-center mb-3">
-                        {getIcon(skill.icon)}
-                        <h4 className="font-semibold">{skill.name}</h4>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {skill.technologies.map((tech) => (
-                          <Badge key={tech} variant="secondary" className="text-xs">
-                            {tech}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+            {/* Section Badge */}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0a382c]/10 text-[#0a382c] text-xs font-semibold uppercase tracking-wider">
+              <span>{about.badge || "ABOUT ME"}</span>
+            </div>
+
+            {/* Heading with Highlighted Accent Word */}
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-[#0a382c]">
+              Professional <span className="text-[#d97745]">Summary</span>
+            </h2>
+
+            {/* Paragraphs */}
+            <div className="space-y-4 text-sm sm:text-base text-[#0a382c]/90 font-medium leading-relaxed">
+              {bios.map((para, idx) => (
+                <p key={idx}>{para}</p>
               ))}
             </div>
-          </motion.div>
-        </div>
 
-        {/* Experience & Education */}
-        <div className="grid lg:grid-cols-2 gap-12">
-          {/* Experience */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-          >
-            <h3 className="text-2xl font-bold mb-6">Experience</h3>
-            <div className="space-y-6">
-              {data.experience.map((exp, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                  className="relative pl-6 border-l-2 border-primary/20"
-                >
-                  <div className="absolute -left-2 top-0 w-4 h-4 bg-primary rounded-full" />
-                  <div className="text-sm text-primary font-medium mb-1">
-                    {exp.year}
-                  </div>
-                  <h4 className="font-semibold text-lg mb-1">{exp.title}</h4>
-                  <div className="text-muted-foreground font-medium mb-2">
-                    {exp.company}
-                  </div>
-                  <p className="text-muted-foreground text-sm">
-                    {exp.description}
-                  </p>
-                </motion.div>
+            {/* 3 Key Stats Box */}
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-b border-slate-200 py-6">
+              {stats.map((stat, idx) => (
+                <div key={idx} className="text-center space-y-1">
+                  <span className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold text-[#d97745] block">
+                    {stat.value}
+                  </span>
+                  <span className="text-xs text-[#0a382c] font-bold block uppercase tracking-wider">
+                    {stat.label}
+                  </span>
+                </div>
               ))}
+            </div>
+
+            {/* CTAs */}
+            <div className="flex flex-wrap items-center gap-4 pt-2">
+              <button
+                onClick={() => setModalOpen(true)}
+                className="bg-[#0a382c] hover:bg-[#072b22] text-[#faf7f2] px-7 py-3.5 rounded-full text-xs sm:text-sm font-semibold uppercase tracking-wider shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2"
+              >
+                <Calendar className="w-4 h-4 text-[#d97745]" />
+                <span>Schedule Appointment</span>
+              </button>
+
+              <a
+                href="#contact"
+                className="bg-[#0a382c] hover:bg-[#072b22] text-[#faf7f2] px-7 py-3.5 rounded-full text-xs sm:text-sm font-semibold uppercase tracking-wider shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2"
+              >
+                Contact Clinic
+              </a>
             </div>
           </motion.div>
 
-          {/* Education */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-          >
-            <h3 className="text-2xl font-bold mb-6">Education</h3>
-            <div className="space-y-6">
-              {data.education.map((edu, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, x: 20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                  className="relative pl-6 border-l-2 border-secondary/20"
-                >
-                  <div className="absolute -left-2 top-0 w-4 h-4 bg-secondary rounded-full" />
-                  <div className="text-sm text-secondary font-medium mb-1">
-                    {edu.year}
-                  </div>
-                  <h4 className="font-semibold text-lg mb-1">{edu.degree}</h4>
-                  <div className="text-muted-foreground font-medium">
-                    {edu.school}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
         </div>
       </div>
+
+      <AppointmentModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+      />
     </section>
   )
 }
-
-export default About

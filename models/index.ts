@@ -18,6 +18,11 @@ import User from './User';
 import ChatUser from './ChatUser';
 import ChatMessage from './ChatMessage';
 import AdminSettings from './AdminSettings';
+import Service from './Service';
+import Testimonial from './Testimonial';
+import PromiseModel from './Promise';
+import Qualification from './Qualification';
+import SocialPost from './SocialPost';
 
 // Export all models
 export {
@@ -37,6 +42,11 @@ export {
   ChatUser,
   ChatMessage,
   AdminSettings,
+  Service,
+  Testimonial,
+  PromiseModel,
+  Qualification,
+  SocialPost,
 };
 
 // This ensures all models are registered when this file is imported
@@ -57,5 +67,12 @@ export default {
   ChatUser,
   ChatMessage,
   AdminSettings,
+  Service,
+  Testimonial,
+  PromiseModel,
+  Qualification,
+  SocialPost,
 };
+
+
 

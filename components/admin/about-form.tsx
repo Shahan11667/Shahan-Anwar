@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
+import ImageUpload from '@/components/ui/image-upload'
 import { X, Save, Eye, Plus, Trash2, Code, Database, Smartphone, Palette, Server, Globe } from 'lucide-react'
 
 interface AboutFormProps {
@@ -37,6 +38,7 @@ interface EducationData {
 interface AboutFormData {
   title: string
   subtitle: string
+  image?: string
   bioParagraphs: { text: string }[]
   skills: SkillData[]
   experience: ExperienceData[]
@@ -89,6 +91,7 @@ const AboutForm = ({ onSave, onClose }: AboutFormProps) => {
           const data = await response.json()
           setValue('title', data.title)
           setValue('subtitle', data.subtitle)
+          if (data.image) setValue('image', data.image)
           
           if (data.bioParagraphs) {
             setValue('bioParagraphs', data.bioParagraphs.map((text: string) => ({ text })))
@@ -226,8 +229,16 @@ const AboutForm = ({ onSave, onClose }: AboutFormProps) => {
               {activeTab === 'basic' && (
                 <div className="space-y-4">
                   <div>
+                    <label className="block text-sm font-medium mb-2">Doctor Profile Image *</label>
+                    <ImageUpload
+                      value={watch('image') || ''}
+                      onChange={(url) => setValue('image', url)}
+                      placeholder="Upload or paste doctor profile photo URL"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium mb-2">Section Title *</label>
-                    <Input {...register('title', { required: 'Title is required' })} placeholder="e.g. About Shahan Anwar" />
+                    <Input {...register('title', { required: 'Title is required' })} placeholder="e.g. Professional Summary" />
                     {errors.title && <p className="text-xs text-destructive mt-1">{errors.title.message}</p>}
                   </div>
                   <div>

@@ -1,9 +1,13 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IAppointment extends Document {
-  patient: mongoose.Types.ObjectId;
-  session: mongoose.Types.ObjectId;
-  doctor: mongoose.Types.ObjectId;
+  patient?: mongoose.Types.ObjectId;
+  session?: mongoose.Types.ObjectId;
+  doctor?: mongoose.Types.ObjectId;
+  patientName: string;
+  patientEmail: string;
+  patientPhone: string;
+  serviceRequested?: string;
   appointmentDate: Date;
   appointmentTime: string;
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
@@ -18,17 +22,34 @@ const AppointmentSchema = new Schema<IAppointment>(
     patient: {
       type: Schema.Types.ObjectId,
       ref: 'Patient',
-      required: [true, 'Patient is required'],
     },
     session: {
       type: Schema.Types.ObjectId,
       ref: 'Session',
-      required: [true, 'Session is required'],
     },
     doctor: {
       type: Schema.Types.ObjectId,
       ref: 'Doctor',
-      required: [true, 'Doctor is required'],
+    },
+    patientName: {
+      type: String,
+      required: [true, 'Patient name is required'],
+      trim: true,
+    },
+    patientEmail: {
+      type: String,
+      required: [true, 'Patient email is required'],
+      trim: true,
+    },
+    patientPhone: {
+      type: String,
+      required: [true, 'Patient phone is required'],
+      trim: true,
+    },
+    serviceRequested: {
+      type: String,
+      trim: true,
+      default: 'General Consultation',
     },
     appointmentDate: {
       type: Date,
@@ -58,10 +79,9 @@ const AppointmentSchema = new Schema<IAppointment>(
 );
 
 // Indexes for better query performance
-AppointmentSchema.index({ patient: 1, status: 1 });
-AppointmentSchema.index({ session: 1 });
-AppointmentSchema.index({ doctor: 1, appointmentDate: 1 });
 AppointmentSchema.index({ appointmentDate: 1, status: 1 });
+AppointmentSchema.index({ patientEmail: 1 });
 
 export default mongoose.models.Appointment || mongoose.model<IAppointment>('Appointment', AppointmentSchema);
+
 

@@ -2,220 +2,131 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { Moon, Sun, Menu, X } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { Stethoscope, Menu, X, Calendar } from 'lucide-react'
+import AppointmentModal from './appointment-modal'
 
 interface NavbarProps {
   userName?: string
 }
 
-const Navbar = ({ userName }: NavbarProps = {}) => {
-  const [isOpen, setIsOpen] = useState(false)
+export default function Navbar({ userName = "Dr. Jessica Walsh" }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false)
-  const [videoEditorEnabled, setVideoEditorEnabled] = useState(false)
-  const [heroName, setHeroName] = useState<string>(userName || 'JD')
-  const { theme, setTheme } = useTheme()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [appointmentModalOpen, setAppointmentModalOpen] = useState(false)
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 50)
+      setScrolled(window.scrollY > 20)
     }
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Fetch hero data if not provided via props (e.g. on client-only pages)
-  useEffect(() => {
-    if (!userName) {
-      const fetchHero = async () => {
-        try {
-          const res = await fetch('/api/hero')
-          if (res.ok) {
-            const data = await res.json()
-            if (data && data.name) {
-              setHeroName(data.name)
-            }
-          }
-        } catch (error) {
-          console.error('Failed to fetch hero for navbar logo:', error)
-        }
-      }
-      fetchHero()
-    }
-  }, [userName])
-
-  // Fetch admin settings to check if video editor is enabled
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const response = await fetch('/api/admin/settings')
-        const data = await response.json()
-        if (data.success) {
-          setVideoEditorEnabled(data.data.videoEditorEnabled || false)
-        }
-      } catch (error) {
-        console.error('Failed to fetch settings:', error)
-      }
-    }
-    fetchSettings()
-  }, [])
-
-  const getInitials = (name: string) => {
-    if (!name || name === 'JD') return 'JD'
-    const words = name.trim().split(/\s+/)
-    if (words.length === 1) {
-      return name.substring(0, 2).toUpperCase()
-    }
-    return words
-      .map((word) => word[0]?.toUpperCase())
-      .join('')
-  }
-
-  const baseNavItems = [
-    { name: 'Home', href: '#home' },
+  const navLinks = [
+    { name: 'Home', href: '#hero' },
     { name: 'About', href: '#about' },
-    { name: 'Projects', href: '#projects' },
+    { name: 'Services', href: '#services' },
+    { name: 'Values', href: '#values' },
+    { name: 'Treatments', href: '#treatments' },
+    { name: 'Credentials', href: '#qualifications' },
+    { name: 'Testimonials', href: '#testimonials' },
     { name: 'Contact', href: '#contact' },
-    { name: 'Video Downloader', href: '/video-downloader', external: true },
-    { name: 'Live Chat', href: '/chat', external: true },
   ]
 
-  // Add video editor to nav items if enabled
-  const navItems = videoEditorEnabled
-    ? [...baseNavItems, { name: '🎬 Video Editor', href: '/video-editor', external: true }]
-    : baseNavItems
-
-  const scrollToSection = (href: string) => {
-    const element = document.querySelector(href)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' })
-    }
-    setIsOpen(false)
-  }
-
   return (
-    <motion.nav
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
-          ? 'bg-background/80 backdrop-blur-md border-b border-border'
-          : 'bg-transparent'
+    <>
+      <header
+        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
+          scrolled
+            ? 'bg-[#0a382c]/95 backdrop-blur-md shadow-lg py-3 border-b border-[#0a382c]/30'
+            : 'bg-[#0a382c] py-4'
         }`}
-    >
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            className="flex-shrink-0"
-          >
-            <Link href="/" className="text-2xl font-bold text-primary">
-              {getInitials(heroName)}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            {/* Brand / Logo */}
+            <Link href="/" className="flex items-center gap-2 group">
+              <div className="w-10 h-10 rounded-full bg-[#d97745] flex items-center justify-center text-white shadow-md transition-transform group-hover:scale-105">
+                <Stethoscope className="w-5 h-5" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-serif font-bold text-lg text-[#faf7f2] leading-tight tracking-wide">
+                  {userName}
+                </span>
+                <span className="text-[10px] text-[#faf7f2]/70 font-sans tracking-wider uppercase">
+                  Doctor & Clinic Services
+                </span>
+              </div>
             </Link>
-          </motion.div>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-8">
-              {navItems.map((item) => (
-                item.external ? (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className="text-foreground hover:text-primary transition-colors duration-200 px-3 py-2 text-sm font-medium"
-                  >
-                    {item.name}
-                  </Link>
-                ) : (
-                  <motion.button
-                    key={item.name}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => scrollToSection(item.href)}
-                    className="text-foreground hover:text-primary transition-colors duration-200 px-3 py-2 text-sm font-medium"
-                  >
-                    {item.name}
-                  </motion.button>
-                )
+            {/* Desktop Navigation Links */}
+            <nav className="hidden lg:flex items-center space-x-6">
+              {navLinks.map((link) => (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  className="text-xs font-medium text-[#faf7f2]/80 hover:text-[#d97745] transition-colors uppercase tracking-wider"
+                >
+                  {link.name}
+                </a>
               ))}
+            </nav>
+
+            {/* CTA Button & Mobile Toggle */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setAppointmentModalOpen(true)}
+                className="hidden sm:inline-flex items-center gap-2 bg-[#d97745] hover:bg-[#c86030] text-white px-5 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Get an Appointment</span>
+              </button>
+
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="lg:hidden p-2 rounded-lg text-[#faf7f2] hover:bg-white/10 transition-colors"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
             </div>
-          </div>
-
-          {/* Theme Toggle & Mobile Menu Button */}
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="hidden sm:inline-flex"
-            >
-              <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">Toggle theme</span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </Button>
           </div>
         </div>
 
-        {/* Mobile Navigation */}
-        <motion.div
-          initial={false}
-          animate={isOpen ? 'open' : 'closed'}
-          variants={{
-            open: { opacity: 1, height: 'auto' },
-            closed: { opacity: 0, height: 0 }
-          }}
-          className="md:hidden overflow-hidden"
-        >
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-background/95 backdrop-blur-md rounded-lg mt-2">
-            {navItems.map((item) => (
-              item.external ? (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className="text-foreground hover:text-primary block px-3 py-2 text-base font-medium w-full text-left transition-colors duration-200"
-                >
-                  {item.name}
-                </Link>
-              ) : (
-                <motion.button
-                  key={item.name}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => scrollToSection(item.href)}
-                  className="text-foreground hover:text-primary block px-3 py-2 text-base font-medium w-full text-left transition-colors duration-200"
-                >
-                  {item.name}
-                </motion.button>
-              )
-            ))}
-            <div className="pt-4 border-t border-border">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="w-full justify-start"
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden bg-[#0a382c] border-t border-white/10 px-4 pt-3 pb-6 space-y-3">
+            {navLinks.map((link) => (
+              <a
+                key={link.name}
+                href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className="block text-sm font-medium text-[#faf7f2]/90 hover:text-[#d97745] py-2 border-b border-white/5"
               >
-                <Sun className="h-4 w-4 mr-2 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                <Moon className="absolute h-4 w-4 mr-2 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                Toggle theme
-              </Button>
+                {link.name}
+              </a>
+            ))}
+            <div className="pt-2">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  setAppointmentModalOpen(true)
+                }}
+                className="w-full flex items-center justify-center gap-2 bg-[#d97745] text-white py-3 rounded-full text-xs font-semibold uppercase tracking-wider shadow-md"
+              >
+                <Calendar className="w-4 h-4" />
+                <span>Get an Appointment</span>
+              </button>
             </div>
           </div>
-        </motion.div>
-      </div>
-    </motion.nav>
+        )}
+      </header>
+
+      {/* Appointment Popup Modal */}
+      <AppointmentModal
+        isOpen={appointmentModalOpen}
+        onClose={() => setAppointmentModalOpen(false)}
+      />
+    </>
   )
 }
-
-export default Navbar

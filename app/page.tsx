@@ -1,7 +1,13 @@
 import Navbar from '@/components/navbar'
 import Hero from '@/components/hero'
 import About from '@/components/about'
-import Projects from '@/components/projects'
+import Services from '@/components/services'
+import Values from '@/components/values'
+import Treatments from '@/components/treatments'
+import Qualifications from '@/components/qualifications'
+import AppointmentBanner from '@/components/appointment-banner'
+import ClinicUpdates from '@/components/clinic-updates'
+import Testimonials from '@/components/testimonials'
 import Contact from '@/components/contact'
 import Footer from '@/components/footer'
 import DynamicTitle from '@/components/dynamic-title'
@@ -11,29 +17,44 @@ import connectDB from '@/lib/mongodb'
 import HeroModel from '@/models/Hero'
 
 export default async function Home() {
-  await connectDB();
-  const heroData = await HeroModel.findOne({ isActive: true });
-  
-  const structData = heroData ? {
-    name: heroData.name,
-    jobTitle: heroData.title,
-    description: heroData.seoDescription || heroData.description,
-    url: "https://shahananwar.vercel.app" // In production this can be dynamic
-  } : undefined;
+  let heroData = null
+  try {
+    await connectDB()
+    heroData = await HeroModel.findOne({ isActive: true })
+  } catch (error) {
+    console.error('Error loading DB in page:', error)
+  }
+
+  const doctorName = heroData?.name || "Dr. Jessica Walsh"
+  const doctorTitle = heroData?.title || "A dedicated doctor you can trust"
+  const doctorDesc = heroData?.seoDescription || heroData?.description || "Providing compassionate, comprehensive healthcare for patients."
+
+  const structData = {
+    name: doctorName,
+    jobTitle: doctorTitle,
+    description: doctorDesc,
+    url: "https://drjessicawalsh.com"
+  }
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-white text-slate-800">
       <StructuredData type="person" data={structData} />
       <DynamicTitle
-        title="Home"
-        description={heroData?.seoDescription || heroData?.description || "Welcome to my portfolio. Explore my projects, skills, and experience as a developer."}
+        title={`${doctorName} | Medical Practice & Doctor Portfolio`}
+        description={doctorDesc}
       />
-      <Navbar userName={heroData?.name} />
+      <Navbar userName={doctorName} />
       <Hero />
       <About />
-      <Projects />
+      <Services />
+      <Values />
+      <Treatments />
+      <Qualifications />
+      <AppointmentBanner />
+      <ClinicUpdates />
+      <Testimonials doctorName={doctorName} />
       <Contact />
-      <Footer />
+      <Footer doctorName={doctorName} />
     </main>
   )
 }

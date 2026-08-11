@@ -1,25 +1,45 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+export interface IHeroFeatureCard {
+  title: string;
+  description: string;
+  icon: string;
+}
+
 export interface IHero extends Document {
+  badge?: string;
   name: string;
   title: string;
   subtitle: string;
   description: string;
   image: string;
-  resumeLink: string;
-  socialLinks: {
-    github: string;
-    linkedin: string;
-    email: string;
+  emergencyPhone?: string;
+  featureCards?: IHeroFeatureCard[];
+  resumeLink?: string;
+  socialLinks?: {
+    github?: string;
+    linkedin?: string;
+    email?: string;
   };
-  seoKeywords: string[];
-  seoDescription: string;
+  seoKeywords?: string[];
+  seoDescription?: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
+const HeroFeatureCardSchema = new Schema<IHeroFeatureCard>({
+  title: { type: String, required: true },
+  description: { type: String, required: true },
+  icon: { type: String, default: 'Phone' },
+});
+
 const HeroSchema = new Schema<IHero>({
+  badge: {
+    type: String,
+    default: 'DOCTOR & CLINIC SERVICES',
+    trim: true,
+  },
   name: {
     type: String,
     required: [true, 'Name is required'],
@@ -45,25 +65,31 @@ const HeroSchema = new Schema<IHero>({
     required: [true, 'Image is required'],
     trim: true,
   },
+  emergencyPhone: {
+    type: String,
+    default: '(555) 123-4567',
+    trim: true,
+  },
+  featureCards: [HeroFeatureCardSchema],
   resumeLink: {
     type: String,
-    required: [true, 'Resume link is required'],
+    default: '#',
     trim: true,
   },
   socialLinks: {
     github: {
       type: String,
-      required: [true, 'GitHub link is required'],
+      default: '',
       trim: true,
     },
     linkedin: {
       type: String,
-      required: [true, 'LinkedIn link is required'],
+      default: '',
       trim: true,
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      default: '',
       trim: true,
     },
   },
@@ -85,3 +111,4 @@ const HeroSchema = new Schema<IHero>({
 });
 
 export default mongoose.models.Hero || mongoose.model<IHero>('Hero', HeroSchema);
+

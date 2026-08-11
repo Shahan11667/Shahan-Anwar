@@ -9,11 +9,11 @@ export async function GET() {
     const contactInfo = await ContactInfo.findOne({ isActive: true })
     
     if (!contactInfo) {
-      // Return default data if no contact info exists
+      // Return default data for doctor portfolio if no contact info exists
       return NextResponse.json({
-        email: "shahananwar39@gmail.com",
-        phone: "+1 (555) 123-4567",
-        location: "San Francisco, CA"
+        email: "contact@doctorwalshclinic.com",
+        phone: "(555) 123-4567",
+        location: "123 Healthcare Ave, Suite 400, Medical Plaza"
       })
     }
     

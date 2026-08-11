@@ -19,10 +19,19 @@ export interface IEducation {
   year: string;
 }
 
+export interface IStat {
+  value: string;
+  label: string;
+}
+
 export interface IAbout extends Document {
+  badge?: string;
   title: string;
+  accentTitle?: string;
   subtitle: string;
+  image?: string;
   bioParagraphs: string[];
+  stats?: IStat[];
   skills: ISkill[];
   experience: IExperience[];
   education: IEducation[];
@@ -31,9 +40,14 @@ export interface IAbout extends Document {
   updatedAt: Date;
 }
 
+const StatSchema = new Schema<IStat>({
+  value: { type: String, required: true },
+  label: { type: String, required: true },
+});
+
 const SkillSchema = new Schema<ISkill>({
   name: { type: String, required: true },
-  icon: { type: String, required: true }, // Store icon name as string (e.g., 'Code', 'Server')
+  icon: { type: String, required: true }, // Store icon name as string
   technologies: [{ type: String }],
 });
 
@@ -52,14 +66,29 @@ const EducationSchema = new Schema<IEducation>({
 
 const AboutSchema = new Schema<IAbout>(
   {
+    badge: {
+      type: String,
+      default: 'ABOUT ME',
+      trim: true,
+    },
     title: {
       type: String,
       required: [true, 'Title is required'],
       trim: true,
     },
+    accentTitle: {
+      type: String,
+      default: 'Summary',
+      trim: true,
+    },
     subtitle: {
       type: String,
-      required: [true, 'Subtitle is required'],
+      default: 'A dedicated healthcare provider committed to clinical excellence and empathetic patient care.',
+      trim: true,
+    },
+    image: {
+      type: String,
+      default: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=600&h=700&fit=crop',
       trim: true,
     },
     bioParagraphs: [
@@ -68,6 +97,7 @@ const AboutSchema = new Schema<IAbout>(
         required: true,
       },
     ],
+    stats: [StatSchema],
     skills: [SkillSchema],
     experience: [ExperienceSchema],
     education: [EducationSchema],
@@ -82,3 +112,4 @@ const AboutSchema = new Schema<IAbout>(
 );
 
 export default mongoose.models.About || mongoose.model<IAbout>('About', AboutSchema);
+
