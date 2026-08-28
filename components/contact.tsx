@@ -18,22 +18,11 @@ interface ContactInfoData {
   location?: string
 }
 
-export default function Contact() {
-  const [contactInfo, setContactInfo] = useState<ContactInfoData | null>(null)
+export default function Contact({ initialData }: { initialData?: ContactInfoData | null }) {
+  const [contactInfo, setContactInfo] = useState<ContactInfoData | null>(initialData || null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ContactForm>()
-
-  useEffect(() => {
-    fetch('/api/contact-info')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && !data.error) {
-          setContactInfo(data)
-        }
-      })
-      .catch((err) => console.error('Error loading contact info:', err))
-  }, [])
 
   const onSubmit = async (data: ContactForm) => {
     setIsSubmitting(true)

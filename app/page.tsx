@@ -14,20 +14,66 @@ import DynamicTitle from '@/components/dynamic-title'
 import StructuredData from '@/components/structured-data'
 
 import connectDB from '@/lib/mongodb'
-import HeroModel from '@/models/Hero'
+import { 
+  Hero as HeroModel,
+  About as AboutModel,
+  Service as ServiceModel,
+  PromiseModel,
+  Qualification as QualificationModel,
+  Testimonial as TestimonialModel,
+  SocialPost as SocialPostModel,
+  ContactInfo as ContactInfoModel
+} from '@/models'
+
+// Ensure dynamically rendered for fresh data
+export const dynamic = 'force-dynamic'
 
 export default async function Home() {
-  let heroData = null
+  let initialData: any = {}
+  
   try {
     await connectDB()
-    heroData = await HeroModel.findOne({ isActive: true })
+    
+    // Fetch all data concurrently
+    const [
+      heroData,
+      aboutData,
+      servicesData,
+      promisesData,
+      qualificationsData,
+      testimonialsData,
+      socialPostsData,
+      contactData
+    ] = await Promise.all([
+      HeroModel.findOne({ isActive: true }).lean(),
+      AboutModel.findOne({ isActive: true }).lean(),
+      ServiceModel.find({ isActive: true }).sort({ order: 1 }).lean(),
+      PromiseModel.find({ isActive: true }).sort({ order: 1 }).lean(),
+      QualificationModel.find({ isActive: true }).sort({ order: 1 }).lean(),
+      TestimonialModel.find({ isActive: true, isApproved: true }).lean(),
+      SocialPostModel.find({ showOnPortfolio: true }).sort({ createdAt: -1 }).lean(),
+      ContactInfoModel.findOne({ isActive: true }).lean()
+    ])
+
+    // Serialize to pass safely to Client Components (handles ObjectIds and Dates)
+    initialData = JSON.parse(JSON.stringify({
+      hero: heroData || null,
+      about: aboutData || null,
+      services: servicesData || [],
+      promises: promisesData || [],
+      qualifications: qualificationsData || [],
+      testimonials: testimonialsData || [],
+      socialPosts: socialPostsData || [],
+      contactInfo: contactData || null
+    }))
+    
   } catch (error) {
     console.error('Error loading DB in page:', error)
   }
 
-  const doctorName = heroData?.name || "Dr. Jessica Walsh"
-  const doctorTitle = heroData?.title || "A dedicated doctor you can trust"
-  const doctorDesc = heroData?.seoDescription || heroData?.description || "Providing compassionate, comprehensive healthcare for patients."
+  const doctorName = initialData.hero?.name || "Dr. Jessica Walsh"
+  const doctorTitle = initialData.hero?.title || "A dedicated doctor you can trust"
+  const doctorDesc = initialData.hero?.seoDescription || initialData.hero?.description || "Providing compassionate, comprehensive healthcare for patients."
 
   const structData = {
     name: doctorName,
@@ -44,16 +90,16 @@ export default async function Home() {
         description={doctorDesc}
       />
       <Navbar userName={doctorName} />
-      <Hero />
-      <About />
-      <Services />
-      <Values />
+      <Hero initialData={initialData.hero} contactInfo={initialData.contactInfo} />
+      <About initialData={initialData.about} heroData={initialData.hero} />
+      <Services initialData={initialData.services} />
+      <Values initialData={initialData.promises} />
       <Treatments />
-      <Qualifications />
+      <Qualifications initialData={initialData.qualifications} />
       <AppointmentBanner />
-      <ClinicUpdates />
-      <Testimonials doctorName={doctorName} />
-      <Contact />
+      <ClinicUpdates initialData={initialData.socialPosts} />
+      <Testimonials initialData={initialData.testimonials} doctorName={doctorName} />
+      <Contact initialData={initialData.contactInfo} />
       <Footer doctorName={doctorName} />
     </main>
   )

@@ -21,24 +21,18 @@ interface HeroData {
   }>
 }
 
-export default function Hero() {
-  const [data, setData] = useState<HeroData | null>(null)
+export default function Hero({ initialData, contactInfo }: { initialData?: HeroData | null, contactInfo?: any }) {
+  const [data, setData] = useState<HeroData | null>(() => {
+    if (initialData) {
+      let combined = { ...initialData }
+      if (contactInfo && contactInfo.phone) {
+        combined.emergencyPhone = contactInfo.phone
+      }
+      return combined
+    }
+    return null
+  })
   const [modalOpen, setModalOpen] = useState(false)
-
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/hero').then(r => r.json()).catch(() => null),
-      fetch('/api/contact-info').then(r => r.json()).catch(() => null)
-    ]).then(([heroData, contactData]) => {
-      let combined = heroData && !heroData.error ? heroData : {}
-      if (contactData && contactData.phone) {
-        combined.emergencyPhone = contactData.phone
-      }
-      if (Object.keys(combined).length > 0) {
-        setData(combined)
-      }
-    })
-  }, [])
 
   const defaultHero = {
     badge: "DOCTOR & CLINIC SERVICES",

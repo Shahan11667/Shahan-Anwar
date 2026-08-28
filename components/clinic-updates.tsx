@@ -18,19 +18,8 @@ interface SocialPostItem {
   }
 }
 
-export default function ClinicUpdates() {
-  const [posts, setPosts] = useState<SocialPostItem[]>([])
-
-  useEffect(() => {
-    fetch('/api/buffer/posts?portfolioOnly=true')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setPosts(data)
-        }
-      })
-      .catch((err) => console.error('Error fetching portfolio updates:', err))
-  }, [])
+export default function ClinicUpdates({ initialData }: { initialData?: SocialPostItem[] }) {
+  const [posts, setPosts] = useState<SocialPostItem[]>(initialData || [])
 
   const defaultUpdates: SocialPostItem[] = [
     {
@@ -113,7 +102,7 @@ export default function ClinicUpdates() {
                     </div>
                     <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
                       <Calendar className="w-3.5 h-3.5 text-[#0a382c]" />
-                      {new Date(post.createdAt).toLocaleDateString()}
+                      {new Date(post.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   </div>
 

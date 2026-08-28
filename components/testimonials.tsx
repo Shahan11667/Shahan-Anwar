@@ -17,19 +17,8 @@ interface TestimonialsProps {
   doctorName?: string
 }
 
-export default function Testimonials({ doctorName = "Dr. Jessica Walsh" }: TestimonialsProps) {
-  const [testimonials, setTestimonials] = useState<TestimonialItem[]>([])
-
-  useEffect(() => {
-    fetch('/api/testimonials')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setTestimonials(data)
-        }
-      })
-      .catch((err) => console.error('Error fetching testimonials:', err))
-  }, [])
+export default function Testimonials({ doctorName = "Dr. Jessica Walsh", initialData }: TestimonialsProps & { initialData?: TestimonialItem[] }) {
+  const [testimonials, setTestimonials] = useState<TestimonialItem[]>(initialData || [])
 
   const defaultTestimonials: TestimonialItem[] = [
     {

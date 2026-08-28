@@ -15,20 +15,9 @@ interface ServiceItem {
   linkText?: string
 }
 
-export default function Services() {
-  const [services, setServices] = useState<ServiceItem[]>([])
+export default function Services({ initialData }: { initialData?: ServiceItem[] }) {
+  const [services, setServices] = useState<ServiceItem[]>(initialData || [])
   const [modalOpen, setModalOpen] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/services')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setServices(data)
-        }
-      })
-      .catch((err) => console.error('Error fetching services:', err))
-  }, [])
 
   const defaultServices = [
     {

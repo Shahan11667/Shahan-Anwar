@@ -18,24 +18,18 @@ interface AboutData {
   }>
 }
 
-export default function About() {
-  const [data, setData] = useState<AboutData | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/about').then(r => r.json()).catch(() => null),
-      fetch('/api/hero').then(r => r.json()).catch(() => null)
-    ]).then(([aboutData, heroData]) => {
-      let combined = aboutData && !aboutData.error ? aboutData : {}
+export default function About({ initialData, heroData }: { initialData?: AboutData | null, heroData?: any }) {
+  const [data, setData] = useState<AboutData | null>(() => {
+    if (initialData) {
+      let combined = { ...initialData }
       if (!combined.image && heroData && heroData.image) {
         combined.image = heroData.image
       }
-      if (Object.keys(combined).length > 0) {
-        setData(combined)
-      }
-    })
-  }, [])
+      return combined
+    }
+    return null
+  })
+  const [modalOpen, setModalOpen] = useState(false)
 
   const defaultAbout = {
     badge: "ABOUT ME",

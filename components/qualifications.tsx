@@ -14,22 +14,11 @@ interface QualificationItem {
   description?: string
 }
 
-export default function Qualifications() {
-  const [qualifications, setQualifications] = useState<QualificationItem[]>([])
+export default function Qualifications({ initialData }: { initialData?: QualificationItem[] }) {
+  const [qualifications, setQualifications] = useState<QualificationItem[]>(initialData || [])
   const [activeTab, setActiveTab] = useState<'all' | 'awards' | 'certifications' | 'qualifications'>('qualifications')
   const [openIndex, setOpenIndex] = useState<number | null>(0)
   const [modalOpen, setModalOpen] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/qualifications')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setQualifications(data)
-        }
-      })
-      .catch((err) => console.error('Error fetching qualifications:', err))
-  }, [])
 
   const defaultQualifications: QualificationItem[] = [
     {

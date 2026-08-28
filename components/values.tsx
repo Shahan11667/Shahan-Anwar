@@ -13,20 +13,9 @@ interface PromiseItem {
   ctaText?: string
 }
 
-export default function Values() {
-  const [promises, setPromises] = useState<PromiseItem[]>([])
+export default function Values({ initialData }: { initialData?: PromiseItem[] }) {
+  const [promises, setPromises] = useState<PromiseItem[]>(initialData || [])
   const [modalOpen, setModalOpen] = useState(false)
-
-  useEffect(() => {
-    fetch('/api/promises')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setPromises(data)
-        }
-      })
-      .catch((err) => console.error('Error fetching promises:', err))
-  }, [])
 
   const defaultPromises: PromiseItem[] = [
     {
