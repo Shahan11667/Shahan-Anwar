@@ -8,16 +8,11 @@ export async function GET() {
     await connectDB()
     const posts = await SocialPost.find({ status: 'published' })
     
-    // Increment demo engagement metrics slightly to demonstrate active insights
     for (const post of posts) {
       if (!post.analytics) {
-        post.analytics = { likes: 5, shares: 1, clicks: 12, reach: 85 }
-      } else {
-        post.analytics.likes += Math.floor(Math.random() * 3)
-        post.analytics.clicks += Math.floor(Math.random() * 5)
-        post.analytics.reach += Math.floor(Math.random() * 10)
+        post.analytics = { likes: 0, shares: 0, clicks: 0, reach: 0 }
+        await post.save()
       }
-      await post.save()
     }
 
     return NextResponse.json({ success: true, updatedCount: posts.length })

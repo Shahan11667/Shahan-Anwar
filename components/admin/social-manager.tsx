@@ -138,25 +138,42 @@ export default function SocialManager() {
         body: JSON.stringify(payload)
       })
 
-      if (res.ok) {
-        toast({
-          title: publishNow ? "Post Dispatched & Published!" : "Post Scheduled!",
-          description: publishNow
-            ? "Your update has been sent via Buffer API and saved to your portfolio feed."
-            : `Scheduled for ${scheduledDate}.`
-        })
+      const data = await res.json()
+
+      if (res.ok && data.success) {
+        const warnings = data.warnings || []
+        if (warnings.length > 0) {
+          const failedDetails = warnings.map((w: any) => `${w.channelName}: ${w.error}`).join('; ')
+          toast({
+            title: "Partial Success with Warnings",
+            description: `Published to some channels, but failed on: ${failedDetails}`,
+            variant: "destructive"
+          })
+        } else {
+          toast({
+            title: publishNow ? "Post Dispatched & Published!" : "Post Scheduled!",
+            description: publishNow
+              ? "Your update was sent to Buffer and published across all selected channels."
+              : `Scheduled for ${scheduledDate}.`
+          })
+        }
 
         // Reset Form
         setCaption('')
         setMediaUrl('')
         fetchInitialData()
       } else {
-        throw new Error('Failed to create post')
+        const errorMsg = data.error || (data.warnings && data.warnings.map((w: any) => `${w.channelName}: ${w.error}`).join('; ')) || 'Failed to dispatch post'
+        toast({
+          title: "Posting Failed",
+          description: errorMsg,
+          variant: "destructive"
+        })
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Posting Error",
-        description: "Failed to dispatch post to Buffer API.",
+        description: error.message || "Failed to dispatch post to Buffer API.",
         variant: "destructive"
       })
     } finally {
