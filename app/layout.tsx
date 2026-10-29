@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
+import AnalyticsTracker from '@/components/analytics-tracker'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -10,30 +11,55 @@ import connectDB from '@/lib/mongodb'
 import Hero from '@/models/Hero'
 
 export async function generateMetadata(): Promise<Metadata> {
+  const baseUrl = 'https://shahananwar.vercel.app';
+  const defaultKeywords = [
+    'Shahan Anwar',
+    'Full Stack Developer',
+    'Next.js Developer',
+    'Free Online Tools',
+    'JPG to PDF Converter',
+    'PDF to JPG Online',
+    'Image Compressor',
+    'Image Resizer',
+    'JSON Formatter',
+    'Word Counter',
+    'Image to Text OCR',
+    'Voice Message to Text',
+    'Merge PDF',
+    'Split PDF',
+  ];
+
   try {
     await connectDB()
     const hero = await Hero.findOne({ isActive: true })
 
     if (hero) {
-      const dynamicTitle = `${hero.name} | ${hero.title}`
-      const dynamicDesc = hero.seoDescription || hero.description
+      const dynamicTitle = `${hero.name} | ${hero.title} & Free Online Tools`
+      const dynamicDesc = hero.seoDescription || hero.description || 'Full stack developer portfolio and free high-performance online productivity tools suite.'
       
       return {
-        title: dynamicTitle,
+        metadataBase: new URL(baseUrl),
+        title: {
+          default: dynamicTitle,
+          template: '%s | Shahan Anwar',
+        },
         description: dynamicDesc,
         keywords: hero.seoKeywords && hero.seoKeywords.length > 0 
-          ? hero.seoKeywords 
-          : ['Portfolio', 'Developer', hero.name],
+          ? [...hero.seoKeywords, ...defaultKeywords] 
+          : defaultKeywords,
         authors: [{ name: hero.name }],
         creator: hero.name,
         publisher: hero.name,
+        alternates: {
+          canonical: baseUrl,
+        },
         openGraph: {
           type: 'website',
           locale: 'en_US',
-          url: 'https://shahananwar.vercel.app',
+          url: baseUrl,
           title: dynamicTitle,
           description: dynamicDesc,
-          siteName: `${hero.name} Portfolio`,
+          siteName: `${hero.name} Portfolio & Tools`,
           images: [
             {
               url: hero.image || 'https://res.cloudinary.com/dbu5uajzc/image/upload/v1/portfolio/og-image.jpg',
@@ -68,8 +94,17 @@ export async function generateMetadata(): Promise<Metadata> {
 
   // Fallback
   return {
-    title: 'Portfolio',
-    description: 'Welcome to my portfolio.',
+    metadataBase: new URL(baseUrl),
+    title: 'Shahan Anwar | Full Stack Developer & Free Online Tools',
+    description: 'Explore full stack web engineering projects and free high-speed productivity utilities: PDF to JPG, Image Compressor, JSON Formatter, and OCR.',
+    keywords: defaultKeywords,
+    alternates: {
+      canonical: baseUrl,
+    },
+    robots: {
+      index: true,
+      follow: true,
+    },
   }
 }
 
@@ -87,6 +122,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <AnalyticsTracker />
           {children}
           <Toaster />
         </ThemeProvider>

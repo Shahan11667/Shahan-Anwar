@@ -1,218 +1,180 @@
-"use client"
+import { Metadata } from 'next';
+import VideoDownloaderClient from '@/components/video-downloader-client';
 
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Download, Link as LinkIcon, Loader2, Play, Clock, User } from 'lucide-react'
-import { FaYoutube, FaFacebook } from 'react-icons/fa'
-import Navbar from '@/components/navbar'
-import Footer from '@/components/footer'
+const siteUrl = 'https://shahananwar.vercel.app';
+const toolUrl = `${siteUrl}/video-downloader`;
 
-interface CobaltResponse {
-  status: 'error' | 'redirect' | 'stream' | 'success' | 'rate-limit' | 'picker'
-  url?: string
-  text?: string
-  picker?: Array<{
-    type: 'video' | 'audio' | 'photo' | 'gif'
-    url: string
-    text: string
-  }>
-}
+export const metadata: Metadata = {
+  title: 'Free Online Video Downloader - YouTube, Facebook & Instagram',
+  description:
+    'Download videos from YouTube, Facebook, Instagram, TikTok, and 1000+ sites for free in HD quality. Paste any video URL and download instantly — no software, no registration needed.',
+  keywords: [
+    'video downloader',
+    'youtube video downloader',
+    'download youtube video free',
+    'facebook video downloader',
+    'instagram video downloader',
+    'online video downloader free',
+    'hd video downloader',
+    'download video from link',
+    'youtube to mp4',
+    'save video online',
+    'tiktok video downloader',
+    'twitter video downloader',
+  ],
+  alternates: {
+    canonical: toolUrl,
+  },
+  openGraph: {
+    title: 'Free Online Video Downloader - YouTube, Facebook & Instagram',
+    description:
+      'Download videos from YouTube, Facebook, Instagram and 1000+ sites for free. HD quality, no registration, instant download.',
+    url: toolUrl,
+    type: 'website',
+    siteName: 'Shahan Free Online Tools',
+    images: [
+      {
+        url: 'https://res.cloudinary.com/dbu5uajzc/image/upload/v1/portfolio/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Free Online Video Downloader',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Free Online Video Downloader - YouTube, Facebook & Instagram',
+    description:
+      'Download YouTube, Facebook, and Instagram videos for free. HD quality, instant download.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+};
 
-interface VideoInfo {
-  title: string
-  url: string
-  status: string
-  picker?: CobaltResponse['picker']
-}
+export default function VideoDownloaderPage() {
+  const webAppSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'Free Online Video Downloader',
+    url: toolUrl,
+    description:
+      'Download videos from YouTube, Facebook, Instagram, and 1000+ supported websites for free in HD quality.',
+    applicationCategory: 'UtilitiesApplication',
+    operatingSystem: 'All',
+    browserRequirements: 'Requires JavaScript',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+    },
+  };
 
-const VideoDownloader = () => {
-  const [url, setUrl] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const howToSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: 'How to download a video online for free',
+    description:
+      'Download any video from YouTube, Facebook, Instagram, or TikTok using this free online video downloader.',
+    totalTime: 'PT1M',
+    step: [
+      {
+        '@type': 'HowToStep',
+        position: 1,
+        name: 'Copy the video URL',
+        text: 'Go to YouTube, Facebook, or Instagram and copy the URL of the video from your browser address bar.',
+      },
+      {
+        '@type': 'HowToStep',
+        position: 2,
+        name: 'Paste the URL into the downloader',
+        text: 'Paste the copied video URL into the input field on this page and click "Fetch Video".',
+      },
+      {
+        '@type': 'HowToStep',
+        position: 3,
+        name: 'Download the video in HD',
+        text: 'Click "Download Now" to save the video in high definition quality directly to your device.',
+      },
+    ],
+  };
 
-  const handleFetchInfo = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!url) return
-
-    setLoading(true)
-    setError(null)
-    setVideoInfo(null)
-
-    try {
-      // Call our internal Next.js Middleman API
-      // This fixes CORS errors and allows the server to retry different engines
-      const response = await fetch('/api/download/fetch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'Which sites does this video downloader support?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'This video downloader supports YouTube, Facebook, Instagram, Twitter/X, TikTok, Vimeo, Dailymotion, and 1000+ other video platforms.',
         },
-        body: JSON.stringify({
-          url: url
-        })
-      })
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.text || `Server error (${response.status})`);
-      }
+      },
+      {
+        '@type': 'Question',
+        name: 'Is this video downloader free to use?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes, this online video downloader is completely free. No registration, no subscription, and no software installation is required.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Can I download YouTube videos in HD quality?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes, you can download YouTube videos in HD quality. Simply paste the YouTube video URL and click Download Now.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Is it safe to use this online video downloader?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes, completely safe. We do not store your videos and the download happens directly between you and the video platform.',
+        },
+      },
+    ],
+  };
 
-      const data: CobaltResponse = await response.json()
-
-      if (data.status === 'stream' || data.status === 'redirect') {
-        setVideoInfo({
-          title: data.text || 'Ready to download',
-          url: data.url!,
-          status: data.status
-        })
-      } else if (data.status === 'picker') {
-        setVideoInfo({
-          title: 'Multiple files found. Please select one.',
-          url: '',
-          status: 'picker',
-          picker: data.picker
-        })
-      } else {
-        setError(data.text || 'The extraction engine could not process this link. It may be restricted or private.')
-      }
-    } catch (err: any) {
-      console.error('Download error:', err)
-      setError(err.message || 'Could not connect to the download service. Please try again later.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const formatSize = (bytes: number) => {
-    if (!bytes) return 'Unknown size'
-    const mb = bytes / (1024 * 1024)
-    return `${mb.toFixed(1)} MB`
-  }
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+      { '@type': 'ListItem', position: 2, name: 'Tools', item: `${siteUrl}/tools` },
+      { '@type': 'ListItem', position: 3, name: 'Video Downloader', item: toolUrl },
+    ],
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      
-      <main className="container mx-auto px-4 pt-32 pb-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-4xl mx-auto text-center mb-12"
-        >
-          <h1 className="text-4xl sm:text-5xl font-bold mb-6">
-            Video <span className="text-primary">Downloader</span>
-          </h1>
-          <p className="text-lg text-muted-foreground mb-8">
-            Download your favorite videos from YouTube, Facebook, and more using yt-dlp.
-          </p>
-
-          <form onSubmit={handleFetchInfo} className="flex flex-col sm:flex-row gap-4 mb-8">
-            <div className="relative flex-1">
-              <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                placeholder="Paste video URL (YouTube, Facebook, etc.)"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="pl-10 h-12 text-lg"
-              />
-            </div>
-            <Button type="submit" size="lg" disabled={loading} className="h-12 px-8">
-              {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Download className="h-5 w-5 mr-2" />}
-              Fetch Video
-            </Button>
-          </form>
-
-          <div className="flex justify-center gap-6 text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <FaYoutube className="h-5 w-5" />
-              <span>YouTube</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <FaFacebook className="h-5 w-5" />
-              <span>Facebook</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Play className="h-5 w-5" />
-              <span>& More</span>
-            </div>
-          </div>
-        </motion.div>
-
-        {error && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="max-w-4xl mx-auto p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-center mb-8"
-          >
-            {error}
-          </motion.div>
-        )}
-
-        {videoInfo && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="max-w-5xl mx-auto"
-          >
-            <Card className="overflow-hidden border-2 border-primary/20 p-6">
-              <div className="flex flex-col items-center gap-6">
-                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
-                  <Play className="h-10 w-10 text-primary" />
-                </div>
-                
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold mb-2">{videoInfo.title}</h2>
-                  <p className="text-muted-foreground mb-6">
-                    Your download link is ready! Click the button below to start the transfer.
-                  </p>
-                  
-                  {videoInfo.status !== 'picker' ? (
-                    <Button size="lg" className="w-full sm:w-auto px-12" asChild>
-                      <a 
-                        href={`/api/download/stream?url=${encodeURIComponent(videoInfo.url)}&filename=${encodeURIComponent(videoInfo.title)}.mp4`} 
-                        download
-                      >
-                        <Download className="h-5 w-5 mr-2" />
-                        Download Now
-                      </a>
-                    </Button>
-                  ) : (
-                    <div className="grid gap-3 w-full">
-                      {videoInfo.picker?.map((item, idx) => (
-                        <Button key={idx} variant="outline" className="w-full justify-between" asChild>
-                          <a 
-                            href={`/api/download/stream?url=${encodeURIComponent(item.url)}&filename=${encodeURIComponent(item.text || 'video')}.mp4`} 
-                            download
-                          >
-                            <span className="flex items-center">
-                              <Play className="h-4 w-4 mr-2" />
-                              {item.text || `${item.type} ${idx + 1}`}
-                            </span>
-                            <Download className="h-4 w-4" />
-                          </a>
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-        )}
-      </main>
-
-      <Footer />
-    </div>
-  )
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(howToSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <VideoDownloaderClient />
+    </>
+  );
 }
-
-export default VideoDownloader

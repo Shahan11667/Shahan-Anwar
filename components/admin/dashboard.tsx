@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle, Video, Scissors, Maximize2, FileText } from 'lucide-react'
+import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle, Video, Scissors, Maximize2, FileText, BarChart2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import ProjectForm from './project-form'
@@ -15,6 +15,7 @@ import HeroForm from './hero-form'
 import AboutForm from './about-form'
 import ContactInfoForm from './contact-info-form'
 import CVParserForm from './cv-parser-form'
+import AnalyticsDashboard from './analytics-dashboard'
 import { IProject } from '@/models/Project'
 
 interface Project {
@@ -42,7 +43,7 @@ interface Contact {
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser'>('hero')
+  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser' | 'analytics'>('hero')
   const [projects, setProjects] = useState<Project[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [chatUsers, setChatUsers] = useState<any[]>([])
@@ -384,6 +385,14 @@ const AdminDashboard = () => {
           >
             <Settings className="h-4 w-4 mr-2" />
             Settings
+          </Button>
+          <Button
+            variant={activeTab === 'analytics' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('analytics')}
+            size="sm"
+          >
+            <BarChart2 className="h-4 w-4 mr-2" />
+            Analytics
           </Button>
         </div>
 
@@ -740,6 +749,13 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+          </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div>
+            <AnalyticsDashboard />
           </div>
         )}
       </div>
