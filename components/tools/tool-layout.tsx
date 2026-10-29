@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -72,7 +72,7 @@ export default function ToolLayout({ tool, children }: ToolLayoutProps) {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
     name: tool.title,
-    url: `https://shahananwar.vercel.app/tools/${tool.slug}`,
+    url: `https://www.shahananwar.tech/tools/${tool.slug}`,
     operatingSystem: 'All',
     applicationCategory: 'UtilitiesApplication',
     browserRequirements: 'Requires JavaScript. Requires HTML5.',
@@ -92,25 +92,25 @@ export default function ToolLayout({ tool, children }: ToolLayoutProps) {
         '@type': 'ListItem',
         position: 1,
         name: 'Home',
-        item: 'https://shahananwar.vercel.app',
+        item: 'https://www.shahananwar.tech',
       },
       {
         '@type': 'ListItem',
         position: 2,
         name: 'Tools',
-        item: 'https://shahananwar.vercel.app/tools',
+        item: 'https://www.shahananwar.tech/tools',
       },
       {
         '@type': 'ListItem',
         position: 3,
         name: tool.categoryName,
-        item: 'https://shahananwar.vercel.app/tools',
+        item: 'https://www.shahananwar.tech/tools',
       },
       {
         '@type': 'ListItem',
         position: 4,
         name: tool.shortTitle,
-        item: `https://shahananwar.vercel.app/tools/${tool.slug}`,
+        item: `https://www.shahananwar.tech/tools/${tool.slug}`,
       },
     ],
   };

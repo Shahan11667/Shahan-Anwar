@@ -1,7 +1,7 @@
-import { Metadata } from 'next';
+﻿import { Metadata } from 'next';
 import VideoEditorClient from '@/components/video-editor-client';
 
-const siteUrl = 'https://shahananwar.vercel.app';
+const siteUrl = 'https://www.shahananwar.tech';
 const toolUrl = `${siteUrl}/video-editor`;
 
 export const metadata: Metadata = {

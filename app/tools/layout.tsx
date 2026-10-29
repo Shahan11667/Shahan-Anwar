@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Metadata } from 'next';
 import { ALL_TOOLS_LIST } from '@/lib/tools-data';
 
@@ -21,13 +21,13 @@ export const metadata: Metadata = {
     'private online converters'
   ],
   alternates: {
-    canonical: 'https://shahananwar.vercel.app/tools',
+    canonical: 'https://www.shahananwar.tech/tools',
   },
   openGraph: {
     title: 'Free Online Tools - PDF, Image, OCR, Audio & Developer Utilities',
     description:
       'Explore 16+ free, fast, and 100% in-browser productivity tools. 100% private, zero server uploads.',
-    url: 'https://shahananwar.vercel.app/tools',
+    url: 'https://www.shahananwar.tech/tools',
     siteName: 'Shahan Free Online Tools',
     type: 'website',
   },
@@ -61,14 +61,14 @@ export default function ToolsLayout({
     name: 'Free Online Tools Hub',
     description:
       'Collection of 16+ client-side productivity utilities including PDF converters, image tools, AI OCR, and code formatters.',
-    url: 'https://shahananwar.vercel.app/tools',
+    url: 'https://www.shahananwar.tech/tools',
     mainEntity: {
       '@type': 'ItemList',
       itemListElement: ALL_TOOLS_LIST.map((tool, index) => ({
         '@type': 'ListItem',
         position: index + 1,
         name: tool.title,
-        url: `https://shahananwar.vercel.app/tools/${tool.slug}`,
+        url: `https://www.shahananwar.tech/tools/${tool.slug}`,
       })),
     },
   };

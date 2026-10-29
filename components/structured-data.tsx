@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect } from 'react'
 
@@ -22,7 +22,7 @@ const StructuredData = ({ type = 'person', data }: StructuredDataProps) => {
         alternateName: data?.name,
         jobTitle: data?.jobTitle || "Developer",
         description: data?.description || "Professional portfolio.",
-        url: data?.url || "https://shahananwar.vercel.app",
+        url: data?.url || "https://www.shahananwar.tech",
         image: "https://res.cloudinary.com/dbu5uajzc/image/upload/v1/portfolio/profile.jpg",
         sameAs: [
           "https://github.com/shahananwar39",
@@ -55,7 +55,7 @@ const StructuredData = ({ type = 'person', data }: StructuredDataProps) => {
       }),
       ...(type === 'website' && {
         name: "Shahan Anwar Portfolio",
-        url: "https://shahananwar.vercel.app",
+        url: "https://www.shahananwar.tech",
         description: "Professional portfolio showcasing web development and mobile app projects",
         author: {
           "@type": "Person",

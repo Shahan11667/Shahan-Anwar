@@ -1,8 +1,8 @@
-import { MetadataRoute } from 'next';
+﻿import { MetadataRoute } from 'next';
 import { ALL_TOOLS_LIST } from '@/lib/tools-data';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://shahananwar.vercel.app';
+  const baseUrl = 'https://www.shahananwar.tech';
   const currentDate = new Date();
 
   // Core static pages

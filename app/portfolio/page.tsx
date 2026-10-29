@@ -1,4 +1,4 @@
-import Navbar from '@/components/navbar'
+﻿import Navbar from '@/components/navbar'
 import Hero from '@/components/hero'
 import FeaturedTools from '@/components/featured-tools'
 import About from '@/components/about'
@@ -19,7 +19,7 @@ export default async function PortfolioPage() {
     name: heroData.name,
     jobTitle: heroData.title,
     description: heroData.seoDescription || heroData.description,
-    url: "https://shahananwar.vercel.app/portfolio"
+    url: "https://www.shahananwar.tech/portfolio"
   } : undefined;
 
   return (

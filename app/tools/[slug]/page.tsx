@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: ToolPageProps): Promise<Metad
     };
   }
 
-  const siteUrl = 'https://shahananwar.vercel.app';
+  const siteUrl = 'https://www.shahananwar.tech';
   const toolUrl = `${siteUrl}/tools/${tool.slug}`;
 
   return {

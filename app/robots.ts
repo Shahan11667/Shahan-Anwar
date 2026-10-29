@@ -1,7 +1,7 @@
-import { MetadataRoute } from 'next';
+﻿import { MetadataRoute } from 'next';
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = 'https://shahananwar.vercel.app';
+  const baseUrl = 'https://www.shahananwar.tech';
 
   return {
     rules: [

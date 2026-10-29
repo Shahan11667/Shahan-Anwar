@@ -11,7 +11,7 @@ import connectDB from '@/lib/mongodb'
 import Hero from '@/models/Hero'
 
 export async function generateMetadata(): Promise<Metadata> {
-  const baseUrl = 'https://shahananwar.vercel.app';
+  const baseUrl = 'https://www.shahananwar.tech';
   const defaultKeywords = [
     'Shahan Anwar',
     'Full Stack Developer',
