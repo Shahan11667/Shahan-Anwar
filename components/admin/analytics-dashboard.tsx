@@ -180,7 +180,7 @@ export default function AnalyticsDashboard() {
               <span className="text-xs text-slate-400">Top Country</span>
             </div>
             <div className="text-2xl font-bold text-white">
-              {data.countryBreakdown[0]?._id || data.countryBreakdown[0]?.country || '—'}
+              {data.countryBreakdown[0]?.country || '—'}
             </div>
             <div className="text-xs text-slate-500 mt-1">
               {data.countryBreakdown[0]?.count ?? 0} visits

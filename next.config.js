@@ -3,9 +3,26 @@ const nextConfig = {
   turbopack: {},
   images: {
     domains: ['images.unsplash.com', 'via.placeholder.com'],
-    unoptimized: true, // For uploaded images
+    unoptimized: true,
   },
-  // Enable static file serving for uploads
+  // Prevent @xenova/transformers from being bundled on the server
+  serverExternalPackages: ['@xenova/transformers'],
+  webpack(config) {
+    // Required for @xenova/transformers WASM files
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+      layers: true,
+    };
+    // Prevent Node built-ins from breaking client bundle
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
+    };
+    return config;
+  },
   async rewrites() {
     return [
       {
