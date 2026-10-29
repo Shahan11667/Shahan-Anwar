@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import ActivityLog from '@/models/ActivityLog';
-import { cookies } from 'next/headers';
+import jwt from 'jsonwebtoken';
 
 export async function GET(req: NextRequest) {
-  // Simple admin auth check
-  const cookieStore = await cookies();
-  const adminToken = cookieStore.get('admin_token');
-  if (!adminToken) {
+  // Use the same auth-token cookie the admin login sets
+  const token = req.cookies.get('auth-token')?.value;
+  if (!token) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
+    jwt.verify(token, process.env.NEXTAUTH_SECRET || 'fallback-secret');
+  } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
