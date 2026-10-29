@@ -44,12 +44,15 @@ export async function generateMetadata(): Promise<Metadata> {
           template: '%s | Shahan Anwar',
         },
         description: dynamicDesc,
-        keywords: hero.seoKeywords && hero.seoKeywords.length > 0 
-          ? [...hero.seoKeywords, ...defaultKeywords] 
+        keywords: hero.seoKeywords && hero.seoKeywords.length > 0
+          ? [...hero.seoKeywords, ...defaultKeywords]
           : defaultKeywords,
         authors: [{ name: hero.name }],
         creator: hero.name,
         publisher: hero.name,
+        verification: {
+          google: 'lZIPAPPVyPjtt2YdR9nUrRBrLyrbfEoJ-KTGYl6MYbI',
+        },
         alternates: {
           canonical: baseUrl,
         },
@@ -98,6 +101,9 @@ export async function generateMetadata(): Promise<Metadata> {
     title: 'Shahan Anwar | Full Stack Developer & Free Online Tools',
     description: 'Explore full stack web engineering projects and free high-speed productivity utilities: PDF to JPG, Image Compressor, JSON Formatter, and OCR.',
     keywords: defaultKeywords,
+    verification: {
+      google: 'lZIPAPPVyPjtt2YdR9nUrRBrLyrbfEoJ-KTGYl6MYbI',
+    },
     alternates: {
       canonical: baseUrl,
     },
