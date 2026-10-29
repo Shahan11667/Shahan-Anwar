@@ -1,39 +1,83 @@
-import Navbar from '@/components/navbar'
-import Hero from '@/components/hero'
-import About from '@/components/about'
-import Projects from '@/components/projects'
-import Contact from '@/components/contact'
-import Footer from '@/components/footer'
-import DynamicTitle from '@/components/dynamic-title'
-import StructuredData from '@/components/structured-data'
+import React from 'react';
+import { Metadata } from 'next';
+import ToolsHubView from '@/components/tools-hub-view';
+import { ALL_TOOLS_LIST } from '@/lib/tools-data';
 
-import connectDB from '@/lib/mongodb'
-import HeroModel from '@/models/Hero'
+export const metadata: Metadata = {
+  title: 'Free Online Tools - PDF, Image, OCR, Audio & Developer Utilities',
+  description:
+    'Free high-performance online tools suite. Convert PDF to JPG, compress images, extract text with AI OCR, format JSON, and transcribe voice notes with 100% in-browser privacy.',
+  keywords: [
+    'free online tools',
+    'pdf to jpg converter',
+    'jpg to pdf',
+    'image compressor online',
+    'word counter free',
+    'json formatter',
+    'image to text ocr',
+    'voice message to text',
+    'split pdf online',
+    'merge pdf free',
+    'online utilities',
+    'private online converters'
+  ],
+  alternates: {
+    canonical: 'https://shahananwar.vercel.app',
+  },
+  openGraph: {
+    title: 'Free Online Tools - PDF, Image, OCR, Audio & Developer Utilities',
+    description:
+      'Free high-performance online tools suite. 100% private in-browser conversions with zero server uploads.',
+    url: 'https://shahananwar.vercel.app',
+    siteName: 'Shahan Free Online Tools',
+    type: 'website',
+  },
+};
 
-export default async function Home() {
-  await connectDB();
-  const heroData = await HeroModel.findOne({ isActive: true });
-  
-  const structData = heroData ? {
-    name: heroData.name,
-    jobTitle: heroData.title,
-    description: heroData.seoDescription || heroData.description,
-    url: "https://shahananwar.vercel.app" // In production this can be dynamic
-  } : undefined;
+export default function Home() {
+  const websiteSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Shahan Free Online Tools',
+    url: 'https://shahananwar.vercel.app',
+    description:
+      '16+ free in-browser productivity utilities including PDF converters, image tools, AI OCR, and code formatters.',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: 'https://shahananwar.vercel.app/?q={search_term_string}',
+      'query-input': 'required name=search_term_string',
+    },
+  };
+
+  const collectionSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Free Online Tools Hub',
+    description:
+      'Collection of 16+ client-side productivity utilities including PDF converters, image tools, AI OCR, and code formatters.',
+    url: 'https://shahananwar.vercel.app',
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: ALL_TOOLS_LIST.map((tool, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: tool.title,
+        url: `https://shahananwar.vercel.app/tools/${tool.slug}`,
+      })),
+    },
+  };
 
   return (
-    <main className="min-h-screen">
-      <StructuredData type="person" data={structData} />
-      <DynamicTitle
-        title="Home"
-        description={heroData?.seoDescription || heroData?.description || "Welcome to my portfolio. Explore my projects, skills, and experience as a developer."}
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
       />
-      <Navbar userName={heroData?.name} />
-      <Hero />
-      <About />
-      <Projects />
-      <Contact />
-      <Footer />
-    </main>
-  )
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionSchema) }}
+      />
+      <ToolsHubView />
+    </>
+  );
 }

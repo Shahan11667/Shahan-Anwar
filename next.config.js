@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  turbopack: {},
   images: {
     domains: ['images.unsplash.com', 'via.placeholder.com'],
     unoptimized: true, // For uploaded images

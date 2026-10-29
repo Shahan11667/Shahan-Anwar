@@ -74,10 +74,8 @@ const Navbar = ({ userName }: NavbarProps = {}) => {
   }
 
   const baseNavItems = [
-    { name: 'Home', href: '#home' },
-    { name: 'About', href: '#about' },
-    { name: 'Projects', href: '#projects' },
-    { name: 'Contact', href: '#contact' },
+    { name: '🛠️ Free Tools', href: '/', external: true },
+    { name: '👨‍💻 Portfolio', href: '/portfolio', external: true },
     { name: 'Video Downloader', href: '/video-downloader', external: true },
     { name: 'Live Chat', href: '/chat', external: true },
   ]
