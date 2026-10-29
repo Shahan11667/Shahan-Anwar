@@ -51,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
         creator: hero.name,
         publisher: hero.name,
         verification: {
-          google: 'lZIPAPPVyPjtt2YdR9nUrRBrLyrbfEoJ-KTGYl6MYbI',
+          google: 'AuzaZYmbsJms04EuGA7HSkok8JR7Xnx9dTtczQSdOKo',
         },
         alternates: {
           canonical: baseUrl,
@@ -102,7 +102,7 @@ export async function generateMetadata(): Promise<Metadata> {
     description: 'Explore full stack web engineering projects and free high-speed productivity utilities: PDF to JPG, Image Compressor, JSON Formatter, and OCR.',
     keywords: defaultKeywords,
     verification: {
-      google: 'lZIPAPPVyPjtt2YdR9nUrRBrLyrbfEoJ-KTGYl6MYbI',
+      google: 'AuzaZYmbsJms04EuGA7HSkok8JR7Xnx9dTtczQSdOKo',
     },
     alternates: {
       canonical: baseUrl,
