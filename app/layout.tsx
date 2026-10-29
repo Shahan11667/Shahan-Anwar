@@ -52,6 +52,9 @@ export async function generateMetadata(): Promise<Metadata> {
         publisher: hero.name,
         verification: {
           google: 'AuzaZYmbsJms04EuGA7HSkok8JR7Xnx9dTtczQSdOKo',
+          other: {
+            'msvalidate.01': '31E99C252C72BCFB2CFA6E5E9844484B',
+          },
         },
         alternates: {
           canonical: baseUrl,
