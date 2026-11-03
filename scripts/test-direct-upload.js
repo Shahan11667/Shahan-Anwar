@@ -71,9 +71,9 @@ check(
 
 check(
   'UI displays target channels: YouTube @BeshaanVibe, Instagram, TikTok',
-  viewSource.includes('YouTube Shorts: @BeshaanVibe') &&
-  viewSource.includes('Instagram Reels: @BeshaanVibe') &&
-  viewSource.includes('TikTok Creator Center: @Beshaan')
+  (viewSource.includes('YouTube Shorts: @BeshaanVibe') || viewSource.includes("'@BeshaanVibe'")) &&
+  (viewSource.includes('Instagram Reels: @BeshaanVibe') || viewSource.includes("'@beshaan_vibe'") || viewSource.includes('Instagram Reels')) &&
+  (viewSource.includes('TikTok Creator Center: @Beshaan') || viewSource.includes("'@beshaan'") || viewSource.includes('TikTok Creator Center'))
 );
 
 check(

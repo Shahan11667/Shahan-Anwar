@@ -36,7 +36,15 @@ import {
   TrendingUp,
   Bookmark,
   Hash,
-  Tv
+  Tv,
+  Check,
+  Globe,
+  LogIn,
+  LogOut,
+  Link2,
+  Unlink,
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
@@ -57,6 +65,29 @@ const Instagram = (props: React.SVGProps<SVGSVGElement>) => (
     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
   </svg>
 );
+
+const Facebook = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+  </svg>
+);
+
+const TikTok = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+  </svg>
+);
+
+interface SocialAccountItem {
+  platform: 'youtube' | 'instagram' | 'tiktok' | 'facebook';
+  accountHandle: string;
+  accountName: string;
+  channelId?: string;
+  isConnected: boolean;
+  hasToken?: boolean;
+  avatarUrl?: string;
+  updatedAt?: string;
+}
 
 interface SceneItem {
   sceneNumber: number;
@@ -241,6 +272,85 @@ export default function YoutubeAutomationView() {
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const [isTestingWebhook, setIsTestingWebhook] = useState<boolean>(false);
   const [publishedStatus, setPublishedStatus] = useState<any>(null);
+
+  // Connected Social Accounts & Channel Sign-In Hub State
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccountItem[]>([
+    { platform: 'youtube', accountHandle: '@BeshaanVibe', accountName: 'Beshaan (YouTube Shorts)', isConnected: false },
+    { platform: 'instagram', accountHandle: '@beshaan_vibe', accountName: 'Beshaan (Instagram Reels)', isConnected: false },
+    { platform: 'tiktok', accountHandle: '@beshaan', accountName: 'Beshaan (TikTok)', isConnected: false },
+    { platform: 'facebook', accountHandle: '@beshaan', accountName: 'Beshaan (Facebook Reels)', isConnected: false },
+  ]);
+  const [isFetchingSocial, setIsFetchingSocial] = useState<boolean>(false);
+  const [editingSocialPlatform, setEditingSocialPlatform] = useState<string | null>(null);
+  const [connectHandleInput, setConnectHandleInput] = useState<string>('');
+  const [connectTokenInput, setConnectTokenInput] = useState<string>('');
+  const [isSavingSocial, setIsSavingSocial] = useState<boolean>(false);
+
+  // Fetch Connected Accounts from MongoDB
+  const fetchSocialAccounts = useCallback(async () => {
+    setIsFetchingSocial(true);
+    try {
+      const res = await fetch('/api/admin/social/accounts');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.accounts)) {
+        setSocialAccounts(data.accounts);
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      setIsFetchingSocial(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSocialAccounts();
+  }, [fetchSocialAccounts]);
+
+  const handleConnectSocialAccount = async (platform: string, handle: string, token?: string) => {
+    setIsSavingSocial(true);
+    try {
+      const res = await fetch('/api/admin/social/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform,
+          accountHandle: handle,
+          accountName: platform === 'youtube' ? 'Beshaan Official' : 'Beshaan Trio',
+          accessToken: token || '',
+          channelId: platform === 'youtube' ? '@BeshaanVibe' : undefined
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || `Connected ${platform}!`, { icon: '🟢' });
+        await fetchSocialAccounts();
+        setEditingSocialPlatform(null);
+        setConnectHandleInput('');
+        setConnectTokenInput('');
+      } else {
+        toast.error(data.error || 'Failed to connect');
+      }
+    } catch (err: any) {
+      toast.error('Connection failed: ' + err.message);
+    } finally {
+      setIsSavingSocial(false);
+    }
+  };
+
+  const handleDisconnectSocialAccount = async (platform: string) => {
+    try {
+      const res = await fetch(`/api/admin/social/accounts?platform=${platform}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || `Disconnected ${platform}`, { icon: '⚪' });
+        await fetchSocialAccounts();
+      }
+    } catch (err: any) {
+      toast.error('Disconnect failed: ' + err.message);
+    }
+  };
 
   // Restore saved webhook URL, provider, and direct tokens from localStorage
   useEffect(() => {
@@ -833,9 +943,14 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
           // Auto-copy full Roman Urdu package to clipboard
           copyToClipboard(`${selectedTitle}\n\n${description}\n\n${hashtags.join(' ')}`, 'Full YouTube Metadata Package');
           
-          if (selectedPlatforms.includes('youtube') && !directYouTubeToken) {
+          const ytAccount = socialAccounts.find(a => a.platform === 'youtube');
+          const hasYtToken = Boolean(directYouTubeToken || ytAccount?.hasToken);
+
+          if (selectedPlatforms.includes('youtube') && !hasYtToken) {
             window.open('https://studio.youtube.com/channel/videos/upload', '_blank');
-            toast.success('YouTube Studio opened! Roman Urdu title & description copied to clipboard.', { icon: '▶️', duration: 5000 });
+            toast.success('YouTube Studio opened! Roman Urdu title & description copied to clipboard.', { icon: '▶️', duration: 6000 });
+          } else if (hasYtToken) {
+            toast.success(`Directly uploaded to YouTube channel via YouTube Data API!`, { icon: '🚀' });
           } else {
             toast.success(`Directly uploaded to ${selectedPlatforms.length} platforms!`, { icon: '🚀' });
           }
@@ -1485,6 +1600,277 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
             </div>
           </div>
 
+          {/* ========================================================================= */}
+          {/* CONNECTED SOCIAL ACCOUNTS & CHANNEL SIGN-IN HUB                           */}
+          {/* ========================================================================= */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/20 border border-amber-500/30 space-y-4 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-amber-400" />
+                  <h4 className="text-sm font-bold text-white">Connected Social Accounts (Yahan Sign-In / Connect Karein)</h4>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono font-bold">
+                    DATABASE LINKED
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Aapka YouTube (<span className="text-amber-300 font-mono font-semibold">@BeshaanVibe</span>), Instagram aur doosre accounts yahan sign-in hotay hain. Jab channel connect ho jata hai, tabhi videos seedha aapke account par upload hongi.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchSocialAccounts}
+                disabled={isFetchingSocial}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1.5 cursor-pointer border border-slate-700 disabled:opacity-40"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isFetchingSocial ? 'animate-spin' : ''}`} />
+                <span>Sync Accounts</span>
+              </button>
+            </div>
+
+            {/* 4 Social Account Connection Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { 
+                  id: 'youtube', 
+                  name: 'YouTube Channel', 
+                  defaultHandle: '@BeshaanVibe',
+                  icon: Youtube, 
+                  color: 'text-red-500', 
+                  border: 'border-red-500/30',
+                  bg: 'bg-red-500/10'
+                },
+                { 
+                  id: 'instagram', 
+                  name: 'Instagram Reels', 
+                  defaultHandle: '@beshaan_vibe',
+                  icon: Instagram, 
+                  color: 'text-pink-500', 
+                  border: 'border-pink-500/30',
+                  bg: 'bg-pink-500/10'
+                },
+                { 
+                  id: 'tiktok', 
+                  name: 'TikTok Creator', 
+                  defaultHandle: '@beshaan',
+                  icon: TikTok, 
+                  color: 'text-cyan-400', 
+                  border: 'border-cyan-500/30',
+                  bg: 'bg-cyan-500/10'
+                },
+                { 
+                  id: 'facebook', 
+                  name: 'Facebook Page', 
+                  defaultHandle: 'Beshaan Family',
+                  icon: Facebook, 
+                  color: 'text-blue-500', 
+                  border: 'border-blue-500/30',
+                  bg: 'bg-blue-500/10'
+                },
+              ].map(item => {
+                const acc = socialAccounts.find(a => a.platform === item.id);
+                const isConnected = acc?.isConnected;
+                const currentHandle = acc?.accountHandle || item.defaultHandle;
+                const hasToken = acc?.hasToken;
+                const Icon = item.icon;
+
+                return (
+                  <div 
+                    key={item.id}
+                    className={`p-3.5 rounded-xl border bg-slate-950/80 flex flex-col justify-between space-y-3 transition-all ${
+                      isConnected ? 'border-emerald-500/40 shadow-sm' : 'border-slate-800'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-lg ${item.bg} flex items-center justify-center ${item.color}`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-bold text-white">{item.name}</span>
+                        </div>
+                        {isConnected ? (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                            <Check className="w-2.5 h-2.5 text-emerald-400" /> CONNECTED
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-slate-900 text-slate-500 border border-slate-800">
+                            NOT SIGNED IN
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="bg-slate-900/90 rounded-lg p-2 border border-slate-800/80">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400 font-mono truncate">{currentHandle}</span>
+                          {hasToken && (
+                            <span className="text-[9px] text-amber-300 font-bold bg-amber-500/20 px-1 rounded">API KEY ACTIVE</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 pt-1 border-t border-slate-900">
+                      {isConnected ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSocialPlatform(item.id);
+                              setConnectHandleInput(currentHandle);
+                              setConnectTokenInput('');
+                            }}
+                            className="flex-1 py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold cursor-pointer text-center"
+                          >
+                            Edit / Re-auth
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDisconnectSocialAccount(item.id)}
+                            className="py-1 px-2 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-300 text-[10px] border border-red-800/40 cursor-pointer"
+                            title="Disconnect channel"
+                          >
+                            Unlink
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingSocialPlatform(item.id);
+                            setConnectHandleInput(currentHandle);
+                            setConnectTokenInput('');
+                          }}
+                          className={`w-full py-1.5 px-2.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow transition-all ${
+                            item.id === 'youtube'
+                              ? 'bg-red-600 hover:bg-red-500 text-white'
+                              : item.id === 'instagram'
+                              ? 'bg-pink-600 hover:bg-pink-500 text-white'
+                              : 'bg-amber-600 hover:bg-amber-500 text-white'
+                          }`}
+                        >
+                          <LogIn className="w-3 h-3" />
+                          <span>Sign In / Connect {item.id === 'youtube' ? 'YouTube' : item.id === 'instagram' ? 'Instagram' : item.name}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Clear Explanation of Upload Mechanism */}
+            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/90 text-xs space-y-2">
+              <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5 uppercase font-mono">
+                <Zap className="w-3.5 h-3.5" />
+                <span>Upload Kaisy Hoga? (2 Real Methods - No Bullshit):</span>
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-slate-300">
+                <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                  <strong className="text-white block mb-0.5">Method 1: Direct 1-Click Studio Bridge (Sab Se Asaan & Free)</strong>
+                  <p className="text-slate-400 leading-relaxed">
+                    Aapke Chrome browser mein YouTube (<span className="text-amber-300 font-medium">@BeshaanVibe</span>) pehle se logged-in hota hai. Jab aap "Upload Directly" dabate hain, app Roman Urdu Title, Description aur Tags clipboard par copy karke seedha aapke YouTube Studio upload page par le jata hai. Aap bas video drop karte hain aur 5 second mein publish! Zero API hassle.
+                  </p>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                  <strong className="text-white block mb-0.5">Method 2: Google / Meta OAuth Token (100% Background Silent Upload)</strong>
+                  <p className="text-slate-400 leading-relaxed">
+                    Agar aap Google Cloud Console ya Meta Developer se API token lekar yahan "Sign In / Connect" mein daal detay hain, toh MongoDB mein save ho jayega aur background server bina browser khole YouTube Data API v3 aur Instagram Reels Graph API ke zariye video live post kar dega.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Modal / Dialog for Signing In & Connecting Channel */}
+          {editingSocialPlatform && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+              <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl animate-in fade-in">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    {editingSocialPlatform === 'youtube' && <Youtube className="w-5 h-5 text-red-500" />}
+                    {editingSocialPlatform === 'instagram' && <Instagram className="w-5 h-5 text-pink-500" />}
+                    {editingSocialPlatform === 'tiktok' && <TikTok className="w-5 h-5 text-cyan-400" />}
+                    {editingSocialPlatform === 'facebook' && <Facebook className="w-5 h-5 text-blue-500" />}
+                    <h3 className="text-sm font-bold text-white uppercase">
+                      Connect {editingSocialPlatform} Channel
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setEditingSocialPlatform(null)}
+                    className="text-slate-400 hover:text-white text-xs cursor-pointer px-2 py-1"
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-slate-300 font-semibold block mb-1">
+                      Channel / Account Handle
+                    </label>
+                    <input
+                      type="text"
+                      value={connectHandleInput}
+                      onChange={e => setConnectHandleInput(e.target.value)}
+                      placeholder={editingSocialPlatform === 'youtube' ? '@BeshaanVibe' : '@beshaan'}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                    />
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="text-[10px] text-slate-500">Quick preset:</span>
+                      <button
+                        type="button"
+                        onClick={() => setConnectHandleInput(editingSocialPlatform === 'youtube' ? '@BeshaanVibe' : '@beshaan_vibe')}
+                        className="text-[10px] text-amber-400 hover:underline cursor-pointer font-medium"
+                      >
+                        Set as @{editingSocialPlatform === 'youtube' ? 'BeshaanVibe' : 'beshaan_vibe'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs text-slate-300 font-semibold">
+                        OAuth / API Access Token <span className="text-slate-500 font-normal">(Optional)</span>
+                      </label>
+                      <span className="text-[10px] text-emerald-400 font-medium">Bina token bhi bridge ready hai</span>
+                    </div>
+                    <input
+                      type="password"
+                      value={connectTokenInput}
+                      onChange={e => setConnectTokenInput(e.target.value)}
+                      placeholder={editingSocialPlatform === 'youtube' ? 'ya29.a0AfH6SM...' : 'EAA...'}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                      Agar Google Cloud ya Meta Developer app se access token generate kiya hai toh yahan paste karein (100% autonomous background server upload ke liye). Agar nahi hai toh sirf handle save karein, hamara 1-Click Studio Bridge aapke logged-in browser se direct upload karwayega!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSocialPlatform(null)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs hover:bg-slate-700 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleConnectSocialAccount(editingSocialPlatform, connectHandleInput, connectTokenInput)}
+                    disabled={isSavingSocial || !connectHandleInput}
+                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shadow"
+                  >
+                    {isSavingSocial ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    <span>Save & Authorize Channel</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { id: 'youtube', name: 'YouTube Shorts', icon: Youtube, color: 'text-red-500', desc: 'YouTube @BeshaanVibe' },
@@ -1572,38 +1958,82 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
                   </p>
 
                   <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                      <div className="flex items-center gap-2">
-                        <Youtube className="w-4 h-4 text-red-500" />
-                        <div>
-                          <strong className="text-white block">YouTube Shorts: @BeshaanVibe</strong>
-                          <span className="text-[10px] text-slate-400">1-Click Direct Studio Upload Bridge</span>
+                    {/* YouTube Channel Status */}
+                    {(() => {
+                      const yt = socialAccounts.find(a => a.platform === 'youtube');
+                      return (
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <Youtube className="w-4 h-4 text-red-500" />
+                            <div>
+                              <strong className="text-white block">YouTube Shorts: {yt?.accountHandle || '@BeshaanVibe'}</strong>
+                              <span className="text-[10px] text-slate-400">
+                                {yt?.hasToken 
+                                  ? 'Direct Google API Connected (Silent Background Upload)' 
+                                  : '1-Click Direct Studio Upload Bridge (Zero Keys Needed)'}
+                              </span>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                            yt?.isConnected 
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          }`}>
+                            {yt?.isConnected ? 'CONNECTED' : 'STUDIO BRIDGE'}
+                          </span>
                         </div>
-                      </div>
-                      <span className="text-[11px] text-emerald-400 font-mono font-bold">READY</span>
-                    </div>
+                      );
+                    })()}
 
-                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                      <div className="flex items-center gap-2">
-                        <Instagram className="w-4 h-4 text-pink-500" />
-                        <div>
-                          <strong className="text-white block">Instagram Reels: @BeshaanVibe</strong>
-                          <span className="text-[10px] text-slate-400">Auto-formatted for 9:16 Reels</span>
+                    {/* Instagram Reels Status */}
+                    {(() => {
+                      const ig = socialAccounts.find(a => a.platform === 'instagram');
+                      return (
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <Instagram className="w-4 h-4 text-pink-500" />
+                            <div>
+                              <strong className="text-white block">Instagram Reels: {ig?.accountHandle || '@beshaan_vibe'}</strong>
+                              <span className="text-[10px] text-slate-400">
+                                {ig?.hasToken 
+                                  ? 'Meta Graph API Connected' 
+                                  : 'Auto-formatted 9:16 Reels Bridge'}
+                              </span>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                            ig?.isConnected 
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          }`}>
+                            {ig?.isConnected ? 'CONNECTED' : 'REELS BRIDGE'}
+                          </span>
                         </div>
-                      </div>
-                      <span className="text-[11px] text-emerald-400 font-mono font-bold">READY</span>
-                    </div>
+                      );
+                    })()}
 
-                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                      <div className="flex items-center gap-2">
-                        <Film className="w-4 h-4 text-cyan-400" />
-                        <div>
-                          <strong className="text-white block">TikTok Creator Center: @Beshaan</strong>
-                          <span className="text-[10px] text-slate-400">Direct Creator Dispatch</span>
+                    {/* TikTok Creator Status */}
+                    {(() => {
+                      const tt = socialAccounts.find(a => a.platform === 'tiktok');
+                      return (
+                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <TikTok className="w-4 h-4 text-cyan-400" />
+                            <div>
+                              <strong className="text-white block">TikTok Creator Center: {tt?.accountHandle || '@beshaan'}</strong>
+                              <span className="text-[10px] text-slate-400">Direct Creator Dispatch</span>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                            tt?.isConnected 
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
+                              : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                          }`}>
+                            {tt?.isConnected ? 'CONNECTED' : 'CREATOR READY'}
+                          </span>
                         </div>
-                      </div>
-                      <span className="text-[11px] text-emerald-400 font-mono font-bold">READY</span>
-                    </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Optional Background API Keys */}
@@ -1774,6 +2204,21 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
                       <Copy className="w-3 h-3 text-amber-400" />
                       <span>Copy JSON</span>
                     </button>
+                  </div>
+
+                  {/* Make.com 5-Step Quick Setup Guide */}
+                  <div className="p-3 rounded-lg bg-indigo-950/20 border border-indigo-500/20 space-y-1.5 text-[11px] text-slate-300">
+                    <span className="font-bold text-indigo-300 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                      <span>Make.com Setup Guide (1,000 Free Tasks/Month):</span>
+                    </span>
+                    <ol className="list-decimal list-inside space-y-1 text-slate-400 text-[10px]">
+                      <li>Make.com par free account banayein aur naya Scenario create karein.</li>
+                      <li>First trigger module mein <strong className="text-white">Custom Webhook</strong> add karke webhook URL yahan paste karein.</li>
+                      <li>"Send Test Ping" dabayein taake Make.com JSON structure automatically detect kar le.</li>
+                      <li>Next step mein YouTube Data API v3 ya Instagram Reels module connect karein.</li>
+                      <li>Scenario ko <strong className="text-emerald-400">ON</strong> kar dein! Har dafa video khud upload hogi.</li>
+                    </ol>
                   </div>
                 </div>
 

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import connectDB from '@/lib/mongodb';
+import SocialAccount from '@/models/SocialAccount';
 
 // Direct YouTube Data API v3 Upload Handler
 async function uploadToYouTubeDirectly({
@@ -169,12 +171,26 @@ export async function POST(req: NextRequest) {
 
     const timestamp = new Date().toISOString();
 
-    // Environment variable token fallbacks
-    const youtubeToken = userYouTubeToken || process.env.YOUTUBE_ACCESS_TOKEN || process.env.YOUTUBE_OAUTH_TOKEN;
-    const instagramToken = userInstagramToken || process.env.INSTAGRAM_ACCESS_TOKEN;
-    const instagramUserId = userInstagramUserId || process.env.INSTAGRAM_USER_ID;
-    const tiktokToken = userTikTokToken || process.env.TIKTOK_ACCESS_TOKEN;
-    const twitterToken = userTwitterToken || process.env.TWITTER_ACCESS_TOKEN;
+    // Fetch connected accounts from MongoDB if tokens not supplied in request
+    let dbAccounts: any[] = [];
+    try {
+      await connectDB();
+      dbAccounts = await SocialAccount.find({ isConnected: true }).lean();
+    } catch {
+      // Offline fallback: continue with env or request tokens
+    }
+
+    const ytAcc = dbAccounts.find((a: any) => a.platform === 'youtube');
+    const igAcc = dbAccounts.find((a: any) => a.platform === 'instagram');
+    const ttAcc = dbAccounts.find((a: any) => a.platform === 'tiktok');
+    const twAcc = dbAccounts.find((a: any) => a.platform === 'twitter');
+
+    // Token resolution priority: Request > MongoDB Saved Account > Process Env
+    const youtubeToken = userYouTubeToken || ytAcc?.accessToken || process.env.YOUTUBE_ACCESS_TOKEN || process.env.YOUTUBE_OAUTH_TOKEN;
+    const instagramToken = userInstagramToken || igAcc?.accessToken || process.env.INSTAGRAM_ACCESS_TOKEN;
+    const instagramUserId = userInstagramUserId || igAcc?.channelId || process.env.INSTAGRAM_USER_ID;
+    const tiktokToken = userTikTokToken || ttAcc?.accessToken || process.env.TIKTOK_ACCESS_TOKEN;
+    const twitterToken = userTwitterToken || twAcc?.accessToken || process.env.TWITTER_ACCESS_TOKEN;
 
     // =========================================================================
     // ACTION 1: TEST PING FOR MAKE.COM / ZAPIER WEBHOOK DISCOVERY
