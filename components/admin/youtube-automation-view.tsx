@@ -215,6 +215,9 @@ export default function YoutubeAutomationView() {
   const [thumbnailHeadline, setThumbnailHeadline] = useState<string>('DON\'T CODE ALONE');
   const [thumbnailBadge, setThumbnailBadge] = useState<string>('10X AI VELOCITY');
 
+  // Script & Voiceover Language Selection (Roman Urdu Default for Pakistani Creators)
+  const [scriptLanguage, setScriptLanguage] = useState<'roman_urdu' | 'english' | 'urdu'>('roman_urdu');
+
   // Video Player / Canvas Simulation State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -249,7 +252,14 @@ export default function YoutubeAutomationView() {
       try {
         const signed = await isPuterSignedIn();
         if (signed) {
+          const langPrompt = scriptLanguage === 'roman_urdu'
+            ? 'LANGUAGE REQUIREMENT: Generate all topic titles and hooks in conversational ROMAN URDU (Urdu written in Latin/English alphabets, popular with Pakistani vloggers and YouTube creators, e.g. "Ek Outfit Ko 3 Alag Tareeqon Se Style Kiya", "Larke Ne Hamara Makeup Kiya", etc.).'
+            : scriptLanguage === 'urdu'
+            ? 'LANGUAGE REQUIREMENT: Generate all topic titles and hooks in authentic Urdu script (اردو).'
+            : 'LANGUAGE: English.';
+
           const systemPrompt = `You are an elite viral YouTube Shorts & Reels strategist.
+${langPrompt}
 Return ONLY valid JSON array with 8 unique objects (no markdown, no backticks, no code fence):
 [
   {
@@ -263,6 +273,7 @@ Return ONLY valid JSON array with 8 unique objects (no markdown, no backticks, n
           const prompt = `Channel Name: "${channelName}"
 Niche: "${targetNiche}"
 Tone: "${channelTone}"
+Language: ${scriptLanguage}
 Generate 8 completely unique, viral video ideas.`;
 
           const result = await puterChatWithDetails(prompt, { 
@@ -306,6 +317,7 @@ Generate 8 completely unique, viral video ideas.`;
           niche: targetNiche,
           channelName,
           channelTone,
+          language: scriptLanguage,
           count: 8,
           apiKey: apiKey || undefined
         })
@@ -320,7 +332,7 @@ Generate 8 completely unique, viral video ideas.`;
     } finally {
       setIsLoadingTopics(false);
     }
-  }, [selectedNiche, channelName, channelTone, apiKey, usePuterAi, selectedPuterModel]);
+  }, [selectedNiche, channelName, channelTone, apiKey, usePuterAi, selectedPuterModel, scriptLanguage]);
 
   // Initial Load: Fetch Topics & Generate Baseline Video
   useEffect(() => {
@@ -348,7 +360,21 @@ Generate 8 completely unique, viral video ideas.`;
       try {
         const signed = await isPuterSignedIn();
         if (signed) {
+          const langInstruction = scriptLanguage === 'roman_urdu'
+            ? `CRITICAL LANGUAGE REQUIREMENT:
+- Write ALL "voiceoverText" in high-energy, authentic, conversational ROMAN URDU (Urdu written in Latin/English alphabets, exactly how Pakistani YouTube creators and youth speak, e.g., "Arey yaar welcome back to Beshaan!", "Dekho bhai twist kya aya...", "Jaldi se comment me ja ke vote karo!").
+- Write "onScreenCaption" in bold Roman Urdu or mixed Roman Urdu/English pop words (e.g., "ASLI TWIST DEKHO 😱", "WAIT FOR THE END 🔥", "YE KYA HO GAYA ⚡").
+- Write "titleOptions" and "selectedTitle" in catchy Roman Urdu with emojis.
+- Write "description" in Roman Urdu with relevant channel hashtags.
+- Keep "visualPrompt" and "brollKeyword" in clear descriptive English for image/video generation.`
+            : scriptLanguage === 'urdu'
+            ? `CRITICAL LANGUAGE REQUIREMENT:
+- Write ALL "voiceoverText", "onScreenCaption", "titleOptions", and "description" in authentic Urdu script (اردو).
+- Keep "visualPrompt" and "brollKeyword" in clear descriptive English.`
+            : `Write all voiceoverText and captions in high-retention English.`;
+
           const systemPrompt = `You are a world-class viral short-form video producer.
+${langInstruction}
 Return ONLY valid raw JSON with no markdown formatting and no code fences matching this schema:
 {
   "titleOptions": ["title 1", "title 2", "title 3"],
@@ -376,6 +402,7 @@ Return ONLY valid raw JSON with no markdown formatting and no code fences matchi
 Channel Name: "${channelName}"
 Niche: "${nicheToUse}"
 Tone: "${channelTone}"
+Language: ${scriptLanguage}
 Format: ${targetFormat === 'shorts_9_16' ? 'Vertical 9:16 Shorts/Reels' : 'Horizontal 16:9'}
 Duration: ${targetDuration} seconds.
 Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
@@ -405,7 +432,8 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
             setCurrentSceneIdx(0);
             confetti({ particleCount: 50, spread: 60 });
             const modelUsedName = result.modelUsed.split('/')[1] || result.modelUsed;
-            toast.success(`Generated 5-scene viral video script via Puter (${modelUsedName})!`, { icon: '🎬' });
+            const langLabel = scriptLanguage === 'roman_urdu' ? 'Roman Urdu' : scriptLanguage === 'urdu' ? 'Urdu' : 'English';
+            toast.success(`Generated 5-scene ${langLabel} video script via Puter (${modelUsedName})!`, { icon: '🎬' });
             setActiveTab('flow');
             setIsGenerating(false);
             return;
@@ -428,6 +456,7 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
           channelTone,
           targetFormat,
           duration: targetDuration,
+          language: scriptLanguage,
           apiKey: apiKey || undefined,
         })
       });
@@ -636,7 +665,7 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
     renderCanvasFrame();
   }, [currentSceneIdx, scenes]);
 
-  // Voiceover Speech Synthesis
+  // Voiceover Speech Synthesis with Roman Urdu & Desi Accent Engine
   const playSceneVoiceover = (text: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       toast.error('Text-to-speech not supported in this browser.');
@@ -644,13 +673,37 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
     }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.05;
+    utterance.rate = 1.02;
     utterance.pitch = 1.0;
     const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('David')));
-    if (preferredVoice) utterance.voice = preferredVoice;
+
+    if (scriptLanguage === 'roman_urdu' || scriptLanguage === 'urdu') {
+      // Look for Urdu, Hindi, or South Asian English voice engines for natural phonetics
+      const desiVoice = voices.find(v => 
+        v.lang.startsWith('ur') || 
+        v.lang.startsWith('hi') || 
+        v.lang.startsWith('pa') ||
+        v.lang === 'en-IN' ||
+        v.name.toLowerCase().includes('hindi') ||
+        v.name.toLowerCase().includes('urdu') ||
+        v.name.toLowerCase().includes('india') ||
+        v.name.toLowerCase().includes('pakistan')
+      );
+      if (desiVoice) {
+        utterance.voice = desiVoice;
+        toast.success(`Voiceover preview using ${desiVoice.name} (Desi / Roman Urdu)...`, { icon: '🎙️' });
+      } else {
+        const generalVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('David')));
+        if (generalVoice) utterance.voice = generalVoice;
+        toast.success('Playing Roman Urdu voiceover narration...', { icon: '🎙️' });
+      }
+    } else {
+      const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('David')));
+      if (preferredVoice) utterance.voice = preferredVoice;
+      toast.success('Playing voiceover narration preview...', { icon: '🎙️' });
+    }
+
     window.speechSynthesis.speak(utterance);
-    toast.success('Playing voiceover narration preview...', { icon: '🎙️' });
   };
 
   // Multi-Platform Publisher
@@ -929,7 +982,7 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
         <div className="space-y-6">
           {/* Quick Generator Controls Card */}
           <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Niche Curriculum</label>
                 <select
@@ -939,8 +992,9 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
                     setSelectedNiche(n);
                     fetchChannelTopics(n);
                   }}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
                 >
+                  <option value="beshaan_trio">🎀 Beshaan (Fashion, Lifestyle, Gaming)</option>
                   <option value="ai_tech">🤖 AI & Developer Engineering</option>
                   <option value="wealth_business">💰 High-Income Wealth & Micro-SaaS</option>
                   <option value="dark_psychology">🧠 Dark Psychology & Influence</option>
@@ -951,14 +1005,27 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
               </div>
 
               <div>
+                <label className="text-xs text-slate-400 block mb-1">Voiceover Language</label>
+                <select
+                  value={scriptLanguage}
+                  onChange={e => setScriptLanguage(e.target.value as any)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-500"
+                >
+                  <option value="roman_urdu">🇵🇰 Roman Urdu (رومن اردو - Voiceover)</option>
+                  <option value="english">🌐 English (Global US/UK)</option>
+                  <option value="urdu">🇵🇰 Urdu Script (اردو رسم الخط)</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="text-xs text-slate-400 block mb-1">Target Format</label>
                 <select
                   value={targetFormat}
                   onChange={e => setTargetFormat(e.target.value as any)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
                 >
-                  <option value="shorts_9_16">📱 Vertical 9:16 (Shorts, Reels, TikTok)</option>
-                  <option value="video_16_9">🖥️ Horizontal 16:9 (YouTube Widescreen)</option>
+                  <option value="shorts_9_16">📱 Vertical 9:16 (Shorts/Reels)</option>
+                  <option value="video_16_9">🖥️ Horizontal 16:9 (YouTube Video)</option>
                 </select>
               </div>
 
@@ -1073,11 +1140,11 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => playSceneVoiceover(sc.voiceoverText)}
-                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs flex items-center gap-1 cursor-pointer border border-slate-800"
+                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 font-medium text-xs flex items-center gap-1 cursor-pointer border border-slate-800 hover:border-amber-500/40"
                         title="Preview Speech Narration"
                       >
                         <Volume2 className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Narration</span>
+                        <span>{scriptLanguage === 'roman_urdu' ? 'Roman Urdu VO' : scriptLanguage === 'urdu' ? 'Urdu VO' : 'Narration'}</span>
                       </button>
 
                       <button
@@ -1106,7 +1173,12 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
                     </div>
 
                     <div>
-                      <label className="text-[11px] text-slate-500 block mb-1">Voiceover Narration Script</label>
+                      <label className="text-[11px] text-slate-500 block mb-1 flex items-center justify-between">
+                        <span>Voiceover Narration Script</span>
+                        <span className="text-[10px] text-amber-400 font-mono">
+                          {scriptLanguage === 'roman_urdu' ? '🇵🇰 Roman Urdu' : scriptLanguage === 'urdu' ? '🇵🇰 Urdu' : '🌐 English'}
+                        </span>
+                      </label>
                       <textarea
                         rows={3}
                         value={sc.voiceoverText}

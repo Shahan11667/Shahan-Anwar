@@ -205,6 +205,28 @@ const INITIAL_TRANSCRIPT: TranscriptSentence[] = [
   { id: 's8', start: 26.5, duration: 3.5, speaker: 'Host', text: 'Let us dive straight into the timeline and begin our master edit.', active: true }
 ];
 
+const ROMAN_URDU_TRANSCRIPT: Record<string, string> = {
+  s1: 'Studio me aap sab ka welcome hai! Aaj hum professional video editing seekhenge.',
+  s2: 'Premiere Pro aur DaVinci Resolve jaise tools creators ko poori azaadi dete hain.',
+  s3: 'Non-linear editing se aap original footage ko kharab kiye baghair cuts laga sakte hain.',
+  s4: 'Text-based editing me aap transcript se sentence delete karke video direct cut kar sakte hain.',
+  s5: 'Professional waveform aur vectorscopes perfect broadcast colors guarantee karte hain.',
+  s6: 'Sony aur Canon Log transforms se full dynamic range restore ho jati hai.',
+  s7: 'Submixes aur AI audio ducking se dialogue crystal-clear sunai deta hai.',
+  s8: 'Chalein timeline me chalte hain aur master edit shuru karte hain.'
+};
+
+const URDU_SCRIPT_TRANSCRIPT: Record<string, string> = {
+  s1: 'اسٹوڈیو میں خوش آمدید! آج ہم پروفیشنل ویڈیو ایڈیٹنگ سیکھیں گے۔',
+  s2: 'پریمیئر پرو اور ڈی ونچی جیسے ٹولز کریئیٹرز کو مکمل آزادی دیتے ہیں۔',
+  s3: 'نان لینیر ایڈیٹنگ سے آپ ماسٹر فائلز کو چھیڑے بغیر کٹس لگا سکتے ہیں۔',
+  s4: 'ٹیکسٹ بیسڈ ایڈیٹنگ میں آپ ٹرانسکرپٹ سے جملے ہٹا کر ویڈیو کٹ کر سکتے ہیں۔',
+  s5: 'پروفیشنل اسکوپس بہترین کلر بیلنس کی ضمانت دیتے ہیں۔',
+  s6: 'لاگ ٹرانسفارمز مکمل ڈائنامک رینج بحال کر دیتے ہیں۔',
+  s7: 'آڈیو ڈکنگ اور اے آئی کلیئرٹی سے آواز صاف رہتی ہے۔',
+  s8: 'آئیے ٹائم لائن میں چلتے ہیں اور ایڈیٹنگ شروع کرتے ہیں۔'
+};
+
 const INITIAL_REVIEW_COMMENTS: ReviewComment[] = [
   { id: 'c1', timestamp: 3.5, author: 'Alex Reed (Lead Client)', avatar: 'AR', text: 'Can we tighten the cut here by about 0.5s before the close-up starts?', status: 'revision', date: 'Today 10:14 AM' },
   { id: 'c2', timestamp: 14.2, author: 'Sarah Jenkins (Producer)', avatar: 'SJ', text: 'Love the color grade on this shot! The Rec.709 transform looks clean.', status: 'approved', date: 'Today 10:25 AM' },
@@ -416,7 +438,12 @@ export default function VideoEditorStudio() {
         ctx.font = 'bold 20px Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(sentence.text, w / 2, capY);
+        const displayCaption = (selectedLanguage === 'roman_urdu' && ROMAN_URDU_TRANSCRIPT[sentence.id])
+          ? ROMAN_URDU_TRANSCRIPT[sentence.id]
+          : (selectedLanguage === 'ur' && URDU_SCRIPT_TRANSCRIPT[sentence.id])
+          ? URDU_SCRIPT_TRANSCRIPT[sentence.id]
+          : sentence.text;
+        ctx.fillText(displayCaption, w / 2, capY);
         ctx.restore();
       }
 
@@ -1541,6 +1568,8 @@ export default function VideoEditorStudio() {
                 onChange={(e) => setSelectedLanguage(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
               >
+                <option value="roman_urdu">🇵🇰 Roman Urdu (رومن اردو)</option>
+                <option value="ur">🇵🇰 Urdu Script (اردو رسم الخط)</option>
                 <option value="en">English (Master Original)</option>
                 <option value="es">Spanish (Español)</option>
                 <option value="fr">French (Français)</option>
