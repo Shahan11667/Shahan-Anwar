@@ -180,6 +180,8 @@ export async function POST(req: NextRequest) {
 
     const rawNumParts = Number(rawSeriesParts);
     const seriesParts = (rawNumParts === 5 || rawNumParts === 10) ? rawNumParts : 1;
+    const rawSceneCount = Number(body?.sceneCount);
+    const targetSceneCount = (!isNaN(rawSceneCount) && rawSceneCount >= 1 && rawSceneCount <= 30) ? Math.floor(rawSceneCount) : 5;
     const visualStyle = typeof userVisualStyle === 'string' && userVisualStyle.trim() 
       ? userVisualStyle.trim() 
       : (niche === 'romantic_anime' ? 'cinematic anime-style' : 'cinematic photorealistic 8k');
@@ -376,7 +378,8 @@ Topic: ${safePrompt || 'Viral contrarian insight for fast growth'}
 Tone: ${channelTone}
 Format: ${targetFormat === 'shorts_9_16' ? 'Vertical 9:16 Shorts/Reels' : 'Horizontal 16:9'}
 Duration: ${safeDuration} seconds.
-Series Mode: ${seriesParts > 1 ? `${seriesParts}-Part Story Arc (${seriesParts} parts with progressive narrative)` : 'Single Episode (5 scenes)'}
+Series Mode: ${seriesParts > 1 ? `${seriesParts}-Part Story Arc (${seriesParts} parts with progressive narrative)` : `Single Episode (${targetSceneCount} scenes)`}
+Scene Count: Generate exactly ${seriesParts > 1 ? seriesParts * 5 : targetSceneCount} scenes.
 Visual Style: ${visualStyle}
 ${scriptLangInstruction}
 
@@ -473,7 +476,8 @@ For EVERY scene, generate "aiVideoPrompt" formatted as a 10-second production pr
       safeDuration, 
       safeLanguage,
       seriesParts,
-      visualStyle
+      visualStyle,
+      targetSceneCount
     );
 
     return NextResponse.json({
@@ -498,7 +502,8 @@ function buildRomanticAnimeSeries(
   duration: number,
   language: 'roman_urdu' | 'english' | 'urdu',
   seriesParts: number = 5,
-  visualStyle: string = 'cinematic anime-style'
+  visualStyle: string = 'cinematic anime-style',
+  targetSceneCount: number = 5
 ): VideoAutomationResult {
   const partsData = [
     {
@@ -878,15 +883,31 @@ function buildRomanticAnimeSeries(
   ];
 
   // Select 1, 5, or 10 parts
-  const selectedParts = seriesParts === 5 
+  let selectedParts = seriesParts === 5 
     ? partsData 
     : seriesParts === 10 
     ? [...partsData, ...partsData.map((p, i) => ({ 
         ...p, 
         partNumber: p.partNumber + 5, 
-        partTitle: `Part ${p.partNumber + 5}: Chapter ${p.partNumber + 5} (The Journey Continues)` 
+        partTitle: `Part ${p.partNumber + 5}: Chapter ${p.partNumber + 5} (The Journey Continues)`,
+        scenes: p.scenes.map(s => ({ ...s, sceneNumber: s.sceneNumber + 25 }))
       }))] 
     : [partsData[0]];
+
+  // If single clip mode and user requested specific count like 7 scenes:
+  if (seriesParts <= 1 && targetSceneCount > 5) {
+    const extraScenesNeeded = targetSceneCount - 5;
+    const extraFromPart2 = partsData[1].scenes.slice(0, extraScenesNeeded).map((s, i) => ({
+      ...s,
+      sceneNumber: 5 + i + 1,
+      partNumber: 1,
+      partTitle: partsData[0].partTitle
+    }));
+    selectedParts = [{
+      ...partsData[0],
+      scenes: [...partsData[0].scenes, ...extraFromPart2]
+    }];
+  }
 
   // Flatten scenes and build production AI Video Prompts
   const allScenes: SceneItem[] = [];
@@ -1000,7 +1021,8 @@ function buildDynamicNicheScript(
   duration: number,
   language: 'roman_urdu' | 'english' | 'urdu' = 'roman_urdu',
   seriesParts: number = 1,
-  visualStyle: string = 'cinematic anime-style'
+  visualStyle: string = 'cinematic anime-style',
+  targetSceneCount: number = 5
 ): VideoAutomationResult {
   const isCustom = Boolean(customPrompt && customPrompt.trim());
   const topicTitle = isCustom ? customPrompt.trim() : getDefaultTopicForNiche(niche);
@@ -1016,7 +1038,7 @@ function buildDynamicNicheScript(
     seriesParts > 1;
 
   if (isAnimeOrStory && (niche === 'romantic_anime' || customPrompt.toLowerCase().includes('anime') || customPrompt.toLowerCase().includes('lavender') || seriesParts > 1)) {
-    return buildRomanticAnimeSeries(topicTitle, targetFormat, duration, language, seriesParts, visualStyle);
+    return buildRomanticAnimeSeries(topicTitle, targetFormat, duration, language, seriesParts, visualStyle, targetSceneCount);
   }
 
   const rawResult = getRawNicheScript(niche, topicTitle, channelName, targetFormat, duration, language, isCustom);

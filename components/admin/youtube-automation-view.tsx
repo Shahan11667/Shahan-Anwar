@@ -269,6 +269,7 @@ export default function YoutubeAutomationView() {
 
   // Multi-Part Story Arc & AI Video Engine State (Bisma Style ❤️)
   const [seriesParts, setSeriesParts] = useState<1 | 5 | 10>(1);
+  const [sceneCountChoice, setSceneCountChoice] = useState<number>(5);
   const [activePartTab, setActivePartTab] = useState<number>(1);
   const [visualStyle, setVisualStyle] = useState<string>('cinematic anime-style');
   const [storyParts, setStoryParts] = useState<StoryPart[]>([]);
@@ -640,6 +641,7 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
           duration: targetDuration,
           language: scriptLanguage,
           seriesParts,
+          sceneCount: sceneCountChoice,
           visualStyle,
           apiKey: apiKey || undefined,
         })
@@ -1250,7 +1252,7 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
         <div className="space-y-6">
           {/* Quick Generator Controls Card */}
           <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3">
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Series Arc Mode</label>
                 <select
@@ -1262,9 +1264,31 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
                   }}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-pink-400 font-bold focus:outline-none focus:border-pink-500"
                 >
-                  <option value={1}>🎬 Single Clip (5 Scenes)</option>
-                  <option value={5}>💖 5-Part Story Series (25 Scenes - Bisma)</option>
+                  <option value={1}>🎬 Single Clip</option>
+                  <option value={5}>💖 5-Part Story Series (25 Scenes)</option>
                   <option value={10}>🔥 10-Part Epic Story (50 Scenes)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Scenes / Prompts</label>
+                <select
+                  value={seriesParts > 1 ? seriesParts * 5 : sceneCountChoice}
+                  disabled={seriesParts > 1}
+                  onChange={e => setSceneCountChoice(parseInt(e.target.value))}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-cyan-300 font-bold focus:outline-none focus:border-cyan-500 disabled:opacity-75"
+                >
+                  {seriesParts > 1 ? (
+                    <option value={seriesParts * 5}>{seriesParts * 5} Prompts ({seriesParts} Parts x 5)</option>
+                  ) : (
+                    <>
+                      <option value={5}>5 Scenes (5 Prompts)</option>
+                      <option value={6}>6 Scenes (6 Prompts)</option>
+                      <option value={7}>7 Scenes (7 Prompts 🌟)</option>
+                      <option value={8}>8 Scenes (8 Prompts)</option>
+                      <option value={10}>10 Scenes (10 Prompts)</option>
+                    </>
+                  )}
                 </select>
               </div>
 
