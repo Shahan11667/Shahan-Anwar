@@ -223,7 +223,7 @@ export default function VideoEditorClient() {
         {/* MODE 1: PROFESSIONAL NLE STUDIO */}
         {editorMode === 'studio' ? (
           <div>
-            <VideoEditorStudio />
+            <VideoEditorStudio initialFile={file} initialVideoUrl={originalUrl} />
           </div>
         ) : (
           /* MODE 2: QUICK CONVERTER & TRIMMER */

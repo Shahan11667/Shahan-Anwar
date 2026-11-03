@@ -47,7 +47,9 @@ import {
   Compass,
   Check,
   Search,
-  Radio
+  Radio,
+  Upload,
+  FolderOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -105,6 +107,8 @@ export interface VideoClip {
   start: number; // timeline seconds
   duration: number; // seconds
   sourceUrl?: string;
+  thumbnailUrl?: string;
+  isVideoElement?: boolean;
   color: string;
   speed: number;
   zoom: number;
@@ -233,7 +237,12 @@ const INITIAL_REVIEW_COMMENTS: ReviewComment[] = [
   { id: 'c3', timestamp: 24.0, author: 'Michael Chen (Sound Lead)', avatar: 'MC', text: 'Applied -14dB audio ducking here so background music leaves room for the voiceover.', status: 'in_review', date: 'Today 10:40 AM' }
 ];
 
-export default function VideoEditorStudio() {
+export interface VideoEditorStudioProps {
+  initialFile?: File | null;
+  initialVideoUrl?: string | null;
+}
+
+export default function VideoEditorStudio({ initialFile, initialVideoUrl }: VideoEditorStudioProps = {}) {
   // Master Studio Mode Tabs
   const [studioMode, setStudioMode] = useState<'edit' | 'transcript' | 'color' | 'audio' | 'review' | 'export'>('edit');
 
@@ -299,6 +308,10 @@ export default function VideoEditorStudio() {
   const animFrameRef = useRef<number | null>(null);
   const lastPlayTimeRef = useRef<number>(0);
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const videoElementsMapRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingClip, setIsUploadingClip] = useState<boolean>(false);
+  const [uploadFeedback, setUploadFeedback] = useState<string | null>(null);
 
   // Active Aspect Ratio Spec
   const activeAspect = useMemo(() => {
@@ -309,6 +322,82 @@ export default function VideoEditorStudio() {
   const activeLog = useMemo(() => {
     return CAMERA_LOG_PROFILES.find((l) => l.id === selectedLogProfile) || CAMERA_LOG_PROFILES[0];
   }, [selectedLogProfile]);
+
+  // Auto-import initialFile or initialVideoUrl if passed from parent page
+  useEffect(() => {
+    if (initialFile) {
+      const blobUrl = URL.createObjectURL(initialFile);
+      const vEl = document.createElement('video');
+      vEl.preload = 'auto';
+      vEl.src = blobUrl;
+      vEl.muted = true;
+      vEl.playsInline = true;
+
+      vEl.onloadedmetadata = () => {
+        const duration = Math.max(1, Math.round((vEl.duration || 10) * 10) / 10);
+        if (vEl.videoHeight > vEl.videoWidth) setAspectRatio('9:16');
+        videoElementsMapRef.current.set(blobUrl, vEl);
+
+        const newClipId = `init_v_${Date.now()}`;
+        setVideoClips([
+          {
+            id: newClipId,
+            track: 'video',
+            title: initialFile.name.replace(/\.[^/.]+$/, '').slice(0, 32),
+            start: 0,
+            duration,
+            sourceUrl: blobUrl,
+            thumbnailUrl: blobUrl,
+            isVideoElement: true,
+            color: '#6366F1',
+            speed: 1,
+            zoom: 1.0,
+            pan: { x: 0, y: 0 },
+            angleId: 1
+          }
+        ]);
+        setTotalDuration(duration);
+        setSelectedClipId(newClipId);
+        setSourceInPoint(0);
+        setSourceOutPoint(Math.min(duration, 5));
+        setUploadFeedback(`Imported ${initialFile.name} (${duration}s) into timeline.`);
+      };
+    } else if (initialVideoUrl) {
+      const vEl = document.createElement('video');
+      vEl.preload = 'auto';
+      vEl.src = initialVideoUrl;
+      vEl.muted = true;
+      vEl.playsInline = true;
+
+      vEl.onloadedmetadata = () => {
+        const duration = Math.max(1, Math.round((vEl.duration || 10) * 10) / 10);
+        videoElementsMapRef.current.set(initialVideoUrl, vEl);
+
+        const newClipId = `init_url_${Date.now()}`;
+        setVideoClips([
+          {
+            id: newClipId,
+            track: 'video',
+            title: 'Imported Master Video',
+            start: 0,
+            duration,
+            sourceUrl: initialVideoUrl,
+            thumbnailUrl: initialVideoUrl,
+            isVideoElement: true,
+            color: '#6366F1',
+            speed: 1,
+            zoom: 1.0,
+            pan: { x: 0, y: 0 },
+            angleId: 1
+          }
+        ]);
+        setTotalDuration(duration);
+        setSelectedClipId(newClipId);
+        setSourceInPoint(0);
+        setSourceOutPoint(Math.min(duration, 5));
+      };
+    }
+  }, [initialFile, initialVideoUrl]);
 
   // Preload Clip Images for Canvas
   useEffect(() => {
@@ -357,8 +446,11 @@ export default function VideoEditorStudio() {
 
       // 2. Render Active Clip
       const clip = videoClips.find((c) => timeSec >= c.start && timeSec < c.start + c.duration) || videoClips[0];
-      if (clip && clip.sourceUrl && imageCacheRef.current.has(clip.sourceUrl)) {
-        const img = imageCacheRef.current.get(clip.sourceUrl)!;
+      const videoEl = clip?.sourceUrl ? videoElementsMapRef.current.get(clip.sourceUrl) : null;
+      const img = clip?.sourceUrl ? imageCacheRef.current.get(clip.sourceUrl) : null;
+      const drawable = (videoEl && videoEl.readyState >= 2) ? videoEl : img;
+
+      if (clip && clip.sourceUrl && drawable) {
         ctx.save();
 
         // Apply Color Space Transform (CST) curve
@@ -372,7 +464,7 @@ export default function VideoEditorStudio() {
           cropFactor = 1.0 + (stabilizerAmount / 100) * 0.12; // 0-12% smooth zoom
         }
 
-        // Ken Burns motion
+        // Ken Burns motion (for images) or natural playback sync
         const progressInClip = (timeSec - clip.start) / Math.max(0.1, clip.duration);
         const currentScale = (1.0 + (clip.zoom - 1.0) * progressInClip) * cropFactor;
         const panX = (clip.pan?.x || 0) * progressInClip * (w * 0.05);
@@ -382,7 +474,9 @@ export default function VideoEditorStudio() {
         ctx.scale(currentScale, currentScale);
 
         // Aspect fit cover
-        const imgRatio = img.width / img.height;
+        const mediaWidth = (drawable as HTMLVideoElement).videoWidth || (drawable as HTMLImageElement).width || w;
+        const mediaHeight = (drawable as HTMLVideoElement).videoHeight || (drawable as HTMLImageElement).height || h;
+        const imgRatio = mediaWidth / Math.max(1, mediaHeight);
         const canvasRatio = w / h;
         let dw = w;
         let dh = h;
@@ -394,7 +488,7 @@ export default function VideoEditorStudio() {
           dh = w / imgRatio;
         }
 
-        ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+        ctx.drawImage(drawable as CanvasImageSource, -dw / 2, -dh / 2, dw, dh);
         ctx.restore();
 
         // AI Object Masking Effects
@@ -577,6 +671,29 @@ export default function VideoEditorStudio() {
     }
   }, [scopeType, currentTime]);
 
+  // Sync Video Elements with Current Playhead Time
+  useEffect(() => {
+    videoClips.forEach((clip) => {
+      if (!clip.sourceUrl) return;
+      const el = videoElementsMapRef.current.get(clip.sourceUrl);
+      if (el) {
+        if (currentTime >= clip.start && currentTime < clip.start + clip.duration) {
+          const clipTime = (currentTime - clip.start) * (clip.speed || 1);
+          if (Math.abs(el.currentTime - clipTime) > 0.25) {
+            el.currentTime = clipTime;
+          }
+          if (isPlaying && el.paused) {
+            el.play().catch(() => {});
+          } else if (!isPlaying && !el.paused) {
+            el.pause();
+          }
+        } else {
+          if (!el.paused) el.pause();
+        }
+      }
+    });
+  }, [currentTime, isPlaying, videoClips]);
+
   // Main Realtime Animation Loop
   useEffect(() => {
     if (isPlaying) {
@@ -611,6 +728,128 @@ export default function VideoEditorStudio() {
     }
     renderScopes();
   }, [currentTime, renderProgramFrame, renderScopes]);
+
+  // Handle Uploading Local Video / Audio / Footage Files
+  const handleUploadLocalVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+
+    setIsUploadingClip(true);
+    setUploadFeedback(`Importing ${file.name}...`);
+
+    try {
+      const blobUrl = URL.createObjectURL(file);
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv|m4v)$/i.test(file.name);
+      const isAudio = file.type.startsWith('audio/') || /\.(mp3|wav|ogg|aac|m4a|flac)$/i.test(file.name);
+
+      if (isVideo) {
+        // Create an invisible video element to inspect duration, width, height, and extract thumbnail
+        const vEl = document.createElement('video');
+        vEl.preload = 'auto';
+        vEl.src = blobUrl;
+        vEl.muted = true;
+        vEl.playsInline = true;
+
+        await new Promise<void>((resolve, reject) => {
+          vEl.onloadedmetadata = () => resolve();
+          vEl.onerror = () => reject(new Error('Failed to load video metadata. Format may not be supported by this browser.'));
+          setTimeout(() => resolve(), 4000); // safety fallback
+        });
+
+        const duration = Math.max(1, Math.round((vEl.duration || 10) * 10) / 10);
+        const vidWidth = vEl.videoWidth || 1280;
+        const vidHeight = vEl.videoHeight || 720;
+
+        // Auto-suggest aspect ratio based on uploaded footage
+        if (vidHeight > vidWidth && aspectRatio !== '9:16') {
+          setAspectRatio('9:16');
+        } else if (vidWidth > vidHeight && aspectRatio !== '16:9') {
+          setAspectRatio('16:9');
+        }
+
+        // Capture a clean thumbnail from the first second
+        let thumbUrl = '';
+        try {
+          vEl.currentTime = Math.min(1.0, duration * 0.1);
+          await new Promise<void>((r) => {
+            vEl.onseeked = () => r();
+            setTimeout(r, 600);
+          });
+          const snapCanvas = document.createElement('canvas');
+          snapCanvas.width = 320;
+          snapCanvas.height = Math.round((320 * vidHeight) / vidWidth);
+          const snapCtx = snapCanvas.getContext('2d');
+          if (snapCtx) {
+            snapCtx.drawImage(vEl, 0, 0, snapCanvas.width, snapCanvas.height);
+            thumbUrl = snapCanvas.toDataURL('image/jpeg', 0.85);
+          }
+        } catch {
+          // ignore thumbnail capture failures
+        }
+
+        // Cache video element for realtime canvas drawing
+        videoElementsMapRef.current.set(blobUrl, vEl);
+
+        const newClipId = `user_v_${Date.now()}`;
+        const newClip: VideoClip = {
+          id: newClipId,
+          track: 'video',
+          title: file.name.replace(/\.[^/.]+$/, '').slice(0, 32),
+          start: 0,
+          duration,
+          sourceUrl: blobUrl,
+          thumbnailUrl: thumbUrl || blobUrl,
+          isVideoElement: true,
+          color: '#6366F1',
+          speed: 1,
+          zoom: 1.0,
+          pan: { x: 0, y: 0 },
+          angleId: 1
+        };
+
+        // Replace default sample timeline with user's uploaded master footage
+        setVideoClips([newClip]);
+        setTotalDuration(duration);
+        setCurrentTime(0);
+        setSelectedClipId(newClipId);
+        setSourceInPoint(0);
+        setSourceOutPoint(Math.min(duration, 5));
+
+        // Create initial matching transcript placeholder
+        setTranscript([
+          {
+            id: `ts_${Date.now()}`,
+            start: 0,
+            duration,
+            speaker: 'User Footage',
+            text: `[Video: ${file.name}] Clip imported. Playhead scrub and text cuts active.`,
+            active: true
+          }
+        ]);
+
+        setUploadFeedback(`Successfully loaded "${file.name}" (${duration}s, ${vidWidth}x${vidHeight}) into timeline!`);
+        setTimeout(() => setUploadFeedback(null), 5000);
+      } else if (isAudio) {
+        // Audio file upload
+        const aEl = document.createElement('audio');
+        aEl.src = blobUrl;
+        await new Promise<void>((resolve) => {
+          aEl.onloadedmetadata = () => resolve();
+          setTimeout(resolve, 2000);
+        });
+        const duration = Math.max(1, Math.round(aEl.duration || 15));
+        setUploadFeedback(`Loaded audio track "${file.name}" (${duration}s)!`);
+        setTimeout(() => setUploadFeedback(null), 5000);
+      } else {
+        alert('Please select a valid video or audio file (MP4, MOV, WebM, AVI, MKV, MP3, WAV).');
+      }
+    } catch (err: any) {
+      alert('Error importing file: ' + err.message);
+    } finally {
+      setIsUploadingClip(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   // Three-Point Editing Operations: Insert / Overwrite
   const handleThreePointInsert = () => {
@@ -788,8 +1027,28 @@ export default function VideoEditorStudio() {
           })}
         </div>
 
-        {/* Proxy Mode Toggle, Aspect Ratio & Puter AI */}
+        {/* Proxy Mode Toggle, Aspect Ratio, Upload Button & Puter AI */}
         <div className="flex items-center gap-2">
+          {/* Hidden File Input for Real Local Video/Audio Upload */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/*,audio/*"
+            onChange={handleUploadLocalVideo}
+            className="hidden"
+          />
+
+          {/* Prominent Upload Video / Footage Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingClip}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-md cursor-pointer transition disabled:opacity-50"
+            title="Upload and edit your own local video or audio file"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            <span>{isUploadingClip ? 'Importing...' : 'Upload Video'}</span>
+          </button>
+
           <PuterAuthBadge compact />
 
           {/* Proxy Workflow Switcher */}
@@ -821,6 +1080,22 @@ export default function VideoEditorStudio() {
         </div>
       </div>
 
+      {/* Upload Feedback Toast Notification Banner */}
+      {uploadFeedback && (
+        <div className="bg-emerald-950/80 border-b border-emerald-500/40 px-5 py-2 text-xs text-emerald-300 font-medium flex items-center justify-between animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            <span>{uploadFeedback}</span>
+          </div>
+          <button
+            onClick={() => setUploadFeedback(null)}
+            className="text-emerald-400/70 hover:text-emerald-200 text-[11px]"
+          >
+            ✕ Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Main Studio Center Workspace */}
       <div className="flex-1 flex min-h-0">
         {/* ========================================================================= */}
@@ -843,12 +1118,24 @@ export default function VideoEditorStudio() {
                 </div>
 
                 <div className="flex-1 flex items-center justify-center bg-black rounded-lg overflow-hidden relative my-1">
-                  {activeClip?.sourceUrl && (
-                    <img
+                  {activeClip?.isVideoElement && activeClip?.sourceUrl ? (
+                    <video
                       src={activeClip.sourceUrl}
+                      className="w-full h-full object-contain"
+                      muted
+                      playsInline
+                    />
+                  ) : activeClip?.sourceUrl ? (
+                    <img
+                      src={activeClip.thumbnailUrl || activeClip.sourceUrl}
                       alt="Source Monitor"
                       className="w-full h-full object-contain opacity-85"
                     />
+                  ) : (
+                    <div className="text-center p-4 text-slate-500 text-xs">
+                      <Upload className="h-8 w-8 mx-auto mb-2 text-slate-600" />
+                      <span>No clip selected. Click "Upload Video" to load local footage.</span>
+                    </div>
                   )}
                   {/* Three-Point In/Out Overlay Badges */}
                   <div className="absolute bottom-2 left-2 flex gap-1">
@@ -1000,6 +1287,14 @@ export default function VideoEditorStudio() {
               {/* Timeline Toolbar */}
               <div className="flex items-center justify-between px-4 py-1.5 border-b border-slate-800 bg-slate-900/60">
                 <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-6 text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 shadow-sm"
+                  >
+                    <Upload className="h-3 w-3 mr-1" /> Import Footage
+                  </Button>
+
                   <Button
                     size="sm"
                     variant="outline"
