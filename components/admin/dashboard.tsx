@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
-import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle, Video, Scissors, Maximize2, FileText, BarChart2, PenTool, Sparkles, Highlighter, GitBranch, Bookmark, Image as ImageIcon, Sliders, Type, Grid, Camera, DollarSign, Calculator, Code2, Clock, Music, Home, Box, Layers, Minimize2, Presentation, Table, Stamp, Lock, Bot } from 'lucide-react'
+import { LogOut, Plus, Eye, Edit, Trash2, Mail, FolderOpen, User, Settings, Users, CheckCircle, XCircle, Video, Scissors, Maximize2, FileText, BarChart2, PenTool, Sparkles, Highlighter, GitBranch, Bookmark, Image as ImageIcon, Sliders, Type, Grid, Camera, DollarSign, Calculator, Code2, Clock, Music, Home, Box, Layers, Minimize2, Presentation, Table, Stamp, Lock, Bot, Film } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import ProjectForm from './project-form'
@@ -16,6 +16,8 @@ import AboutForm from './about-form'
 import ContactInfoForm from './contact-info-form'
 import CVParserForm from './cv-parser-form'
 import AnalyticsDashboard from './analytics-dashboard'
+import YoutubeAutomationView from './youtube-automation-view'
+import VideoEditorStudio from './video-editor-studio'
 import { IProject } from '@/models/Project'
 
 interface Project {
@@ -43,7 +45,7 @@ interface Contact {
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser' | 'analytics'>('hero')
+  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser' | 'analytics' | 'automation' | 'video-studio'>('hero')
   const [projects, setProjects] = useState<Project[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [chatUsers, setChatUsers] = useState<any[]>([])
@@ -393,6 +395,24 @@ const AdminDashboard = () => {
           >
             <BarChart2 className="h-4 w-4 mr-2" />
             Analytics
+          </Button>
+          <Button
+            variant={activeTab === 'automation' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('automation')}
+            size="sm"
+            className={activeTab === 'automation' ? 'bg-gradient-to-r from-red-600 to-amber-600 text-white border-0 shadow-md shadow-red-500/20' : ''}
+          >
+            <Bot className="h-4 w-4 mr-2 text-red-400" />
+            AI Video Automation
+          </Button>
+          <Button
+            variant={activeTab === 'video-studio' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('video-studio')}
+            size="sm"
+            className={activeTab === 'video-studio' ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white border-0 shadow-md shadow-violet-500/20' : ''}
+          >
+            <Film className="h-4 w-4 mr-2 text-violet-400" />
+            CapCut Studio Pro
           </Button>
         </div>
 
@@ -1461,6 +1481,20 @@ const AdminDashboard = () => {
         {activeTab === 'analytics' && (
           <div>
             <AnalyticsDashboard />
+          </div>
+        )}
+
+        {/* AI Video Automation Tab */}
+        {activeTab === 'automation' && (
+          <div>
+            <YoutubeAutomationView />
+          </div>
+        )}
+
+        {/* CapCut Studio Pro Tab */}
+        {activeTab === 'video-studio' && (
+          <div>
+            <VideoEditorStudio />
           </div>
         )}
       </div>

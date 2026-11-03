@@ -10,6 +10,14 @@ cloudinary.config({
 
 export async function POST(request: NextRequest) {
   try {
+    const contentType = request.headers.get('content-type') || '';
+    if (!contentType.includes('multipart/form-data')) {
+      return NextResponse.json(
+        { success: false, error: 'Request must be multipart/form-data with video file and start/end timestamps' },
+        { status: 400 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const startTime = formData.get('startTime') as string;
@@ -17,7 +25,16 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json(
-        { success: false, error: 'No file provided' },
+        { success: false, error: 'No video file provided' },
+        { status: 400 }
+      );
+    }
+
+    const startNum = parseFloat(startTime);
+    const endNum = parseFloat(endTime);
+    if (isNaN(startNum) || isNaN(endNum) || startNum < 0 || endNum <= startNum) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid time bounds: endTime must be greater than startTime (and both non-negative)' },
         { status: 400 }
       );
     }
@@ -47,14 +64,12 @@ export async function POST(request: NextRequest) {
     console.log('Uploaded to Cloudinary:', uploadResult.public_id);
 
     // Generate trimmed video URL using Cloudinary transformations
-    const duration = parseFloat(endTime) - parseFloat(startTime);
-    
     const trimmedUrl = cloudinary.url(uploadResult.public_id, {
       resource_type: 'video',
       transformation: [
         {
-          start_offset: parseFloat(startTime),
-          end_offset: parseFloat(endTime),
+          start_offset: startNum,
+          end_offset: endNum,
         }
       ],
       format: 'mp4',
@@ -107,5 +122,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-

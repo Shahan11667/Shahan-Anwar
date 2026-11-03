@@ -10,15 +10,27 @@ const execFileAsync = promisify(execFile);
 export async function POST(req: NextRequest) {
   let tempFilePath: string | null = null;
   try {
+    const contentType = req.headers.get('content-type') || '';
+    if (!contentType.includes('multipart/form-data')) {
+      return NextResponse.json(
+        { success: false, error: 'Request must be multipart/form-data containing an audio file' },
+        { status: 400 }
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get('audio') as File | null;
     const requestedLanguage = (formData.get('language') as string) || 'auto';
 
-    if (!file) {
+    if (!file || typeof file === 'string' || !(file instanceof Blob)) {
       return NextResponse.json({ success: false, error: 'No audio file provided' }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
+    if (arrayBuffer.byteLength === 0) {
+      return NextResponse.json({ success: false, error: 'Provided audio file is 0 bytes' }, { status: 400 });
+    }
+
     const buffer = Buffer.from(arrayBuffer);
 
     // Save to temp file
@@ -75,4 +87,3 @@ export async function POST(req: NextRequest) {
     }
   }
 }
-

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Script from 'next/script'
 // Offline font
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -135,6 +136,8 @@ export default function RootLayout({
           {children}
           <Toaster />
         </ThemeProvider>
+        {/* Puter.js SDK for 400+ unlimited AI models & serverless user-pays authentication */}
+        <Script src="https://js.puter.com/v2/" strategy="lazyOnload" />
       </body>
     </html>
   )

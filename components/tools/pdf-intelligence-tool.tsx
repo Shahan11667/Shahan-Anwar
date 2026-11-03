@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import confetti from 'canvas-confetti';
+import PuterAuthBadge from '@/components/puter-auth-badge';
+import { puterChat, puterChatWithDetails, isPuterSignedIn } from '@/lib/puter';
 
 type IntelTab = 'summarizer' | 'translate' | 'markdown';
 
@@ -25,6 +27,7 @@ export default function PdfIntelligenceTool() {
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [selectedPuterModel, setSelectedPuterModel] = useState<string>('openai/gpt-4o');
 
   // Summarizer Output
   const [summary, setSummary] = useState<{
@@ -68,6 +71,50 @@ export default function PdfIntelligenceTool() {
 
     setIsProcessing(true);
     try {
+      // Check if Puter AI is connected
+      const puterActive = await isPuterSignedIn();
+      if (puterActive) {
+        try {
+          const systemPrompt = `You are a world-class executive research assistant. Return ONLY valid raw JSON with no markdown formatting:
+{
+  "executive": "Concise 2-3 sentence executive summary of the document",
+  "takeaways": [
+    "Key takeaway 1 with specific insight",
+    "Key takeaway 2 with architectural detail",
+    "Key takeaway 3 on performance or implementation",
+    "Key takeaway 4 on impact"
+  ],
+  "actionItems": [
+    "Action item 1",
+    "Action item 2",
+    "Action item 3"
+  ]
+}`;
+          const prompt = `Document Title: "${fileName}". Provide an executive summary, key findings, and action items.`;
+          const result = await puterChatWithDetails(prompt, { 
+            model: selectedPuterModel, 
+            systemPrompt,
+            autoFallback: true,
+            onModelFallback: (fromM, toM) => {
+              toast(`AI Model ${fromM.split('/')[1] || fromM} busy. Switched to ${toM.split('/')[1] || toM}...`, { icon: '🔄' });
+            }
+          });
+          const raw = result.text;
+          const clean = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(clean);
+          if (parsed.executive && parsed.takeaways) {
+            setSummary(parsed);
+            confetti({ particleCount: 50, spread: 60 });
+            const modelName = result.modelUsed.split('/')[1] || result.modelUsed;
+            toast.success(`Executive summary generated via Puter (${modelName})!`, { icon: '✨' });
+            setIsProcessing(false);
+            return;
+          }
+        } catch (e: any) {
+          console.warn('Puter summary fallback:', e.message);
+        }
+      }
+
       // Analyze PDF metadata and generate structured summary
       await new Promise(r => setTimeout(r, 600));
 
@@ -104,6 +151,33 @@ export default function PdfIntelligenceTool() {
 
     setIsProcessing(true);
     try {
+      // Check if Puter AI is connected
+      const puterActive = await isPuterSignedIn();
+      if (puterActive) {
+        try {
+          const langNames: Record<string, string> = { es: 'Spanish', fr: 'French', de: 'German', ur: 'Urdu', ar: 'Arabic' };
+          const lang = langNames[targetLang] || 'Spanish';
+          const prompt = `Translate the essence of document "${fileName}" into fluent ${lang}. Provide an Executive Summary, Key Objectives, and Structural Overview.`;
+          const res = await puterChatWithDetails(prompt, { 
+            model: selectedPuterModel,
+            autoFallback: true,
+            onModelFallback: (fromM, toM) => {
+              toast(`AI Model ${fromM.split('/')[1] || fromM} busy. Switched to ${toM.split('/')[1] || toM}...`, { icon: '🔄' });
+            }
+          });
+          if (res.text && res.text.length > 20) {
+            setTranslatedText(res.text);
+            confetti({ particleCount: 45, spread: 60 });
+            const modelName = res.modelUsed.split('/')[1] || res.modelUsed;
+            toast.success(`Translated via Puter (${modelName})!`, { icon: '🌐' });
+            setIsProcessing(false);
+            return;
+          }
+        } catch (e: any) {
+          console.warn('Puter translation fallback:', e.message);
+        }
+      }
+
       await new Promise(r => setTimeout(r, 700));
 
       const langMap: Record<string, string> = {
@@ -133,6 +207,31 @@ export default function PdfIntelligenceTool() {
 
     setIsProcessing(true);
     try {
+      // Check if Puter AI is connected
+      const puterActive = await isPuterSignedIn();
+      if (puterActive) {
+        try {
+          const prompt = `Convert document "${fileName}" into clean, GitHub-flavored Markdown. Include an abstract, key metric comparison table, and structured headings.`;
+          const res = await puterChatWithDetails(prompt, { 
+            model: selectedPuterModel,
+            autoFallback: true,
+            onModelFallback: (fromM, toM) => {
+              toast(`AI Model ${fromM.split('/')[1] || fromM} busy. Switched to ${toM.split('/')[1] || toM}...`, { icon: '🔄' });
+            }
+          });
+          if (res.text && res.text.length > 20) {
+            setMarkdownText(res.text);
+            confetti({ particleCount: 50, spread: 60 });
+            const modelName = res.modelUsed.split('/')[1] || res.modelUsed;
+            toast.success(`Converted to Markdown via Puter (${modelName})!`, { icon: '📝' });
+            setIsProcessing(false);
+            return;
+          }
+        } catch (e: any) {
+          console.warn('Puter markdown fallback:', e.message);
+        }
+      }
+
       await new Promise(r => setTimeout(r, 500));
 
       const md = `# Document: ${fileName}\n\n` +
@@ -162,6 +261,16 @@ export default function PdfIntelligenceTool() {
 
   return (
     <div className="space-y-6">
+      {/* Puter AI Engine Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-900 border border-slate-800">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-cyan-400" />
+          <span className="text-xs font-semibold text-white">Puter.js Frontier AI Engine:</span>
+          <span className="text-[11px] text-slate-400">400+ Models (GPT-4o, Claude 3.5, Gemini 1.5) with zero server fees</span>
+        </div>
+        <PuterAuthBadge selectedModel={selectedPuterModel} onModelSelect={setSelectedPuterModel} />
+      </div>
+
       {/* Sub Tabs */}
       <div className="flex items-center p-1.5 rounded-xl bg-slate-900 border border-slate-800 max-w-lg mx-auto">
         <button

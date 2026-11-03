@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Upload, Download, Loader2, Video, AlertCircle, Scissors, Maximize2 } from 'lucide-react';
+import { Upload, Download, Loader2, Video, AlertCircle, Scissors, Maximize2, Sparkles, Film } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import Navbar from '@/components/navbar';
 import Footer from '@/components/footer';
+import VideoEditorStudio from '@/components/admin/video-editor-studio';
 
 export default function VideoEditorClient() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function VideoEditorClient() {
   const [videoDuration, setVideoDuration] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
+  const [editorMode, setEditorMode] = useState<'studio' | 'quick'>('studio');
 
   useEffect(() => {
     const checkSettings = async () => {
@@ -168,17 +170,69 @@ export default function VideoEditorClient() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
       <Navbar />
 
-      <div className="py-12 px-4 sm:px-6 lg:px-8 pt-28">
-        <div className="max-w-7xl mx-auto">
+      <div className="py-8 px-4 sm:px-6 lg:px-8 pt-24 max-w-7xl mx-auto space-y-6">
+        {/* Top Studio Switcher Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-600 via-violet-600 to-pink-500 flex items-center justify-center shadow-lg">
+              <Film className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-white flex items-center gap-2">
+                <span>DaVinci &amp; Premiere Pro Video Studio</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold uppercase">
+                  ENTERPRISE NLE
+                </span>
+              </h1>
+              <p className="text-xs text-slate-400">
+                Non-linear timeline, three-point editing, multicam, camera Log transforms, broadcast scopes &amp; Frame.io review.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+            <button
+              onClick={() => setEditorMode('studio')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                editorMode === 'studio'
+                  ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Full NLE Pro Studio</span>
+            </button>
+
+            <button
+              onClick={() => setEditorMode('quick')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                editorMode === 'quick'
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Scissors className="h-3.5 w-3.5" />
+              <span>Quick 9:16 &amp; Trim</span>
+            </button>
+          </div>
+        </div>
+
+        {/* MODE 1: PROFESSIONAL NLE STUDIO */}
+        {editorMode === 'studio' ? (
+          <div>
+            <VideoEditorStudio />
+          </div>
+        ) : (
+          /* MODE 2: QUICK CONVERTER & TRIMMER */
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <Card className="shadow-2xl">
+            <Card className="shadow-2xl border-slate-800 bg-slate-900 text-slate-100">
               <CardHeader className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
                 <CardTitle className="text-3xl font-bold text-center flex items-center justify-center gap-3">
                   <Video className="w-8 h-8" />
@@ -416,7 +470,7 @@ export default function VideoEditorClient() {
               </CardContent>
             </Card>
           </motion.div>
-        </div>
+        )}
       </div>
 
       <Footer />
