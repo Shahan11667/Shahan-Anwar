@@ -1,23 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
-interface SceneItem {
+export interface CharacterDialogue {
+  character: string;
+  emotion: string;
+  text: string;
+}
+
+export interface SceneItem {
   sceneNumber: number;
+  partNumber?: number;
+  partTitle?: string;
   durationSeconds: number;
   visualPrompt: string;
   voiceoverText: string;
   onScreenCaption: string;
   soundEffect: string;
   brollKeyword: string;
+  aiVideoPrompt?: string;
+  dialogues?: CharacterDialogue[];
+  actionSummary?: string;
 }
 
-interface VideoAutomationResult {
+export interface StoryPart {
+  partNumber: number;
+  partTitle: string;
+  hook?: string;
+  scenes: SceneItem[];
+}
+
+export interface VideoAutomationResult {
   titleOptions: string[];
   selectedTitle: string;
   niche: string;
   channelName?: string;
   targetFormat: 'shorts_9_16' | 'video_16_9';
   totalDurationSeconds: number;
+  seriesParts?: number;
+  storyParts?: StoryPart[];
   scenes: SceneItem[];
   description: string;
   hashtags: string[];
@@ -27,6 +47,40 @@ interface VideoAutomationResult {
     badgeText: string;
     bgColor: string;
   };
+}
+
+// Bisma Reference AI Video Prompt Builder (10 Seconds Kling/Runway Format)
+export function buildProductionAiVideoPrompt({
+  style = 'cinematic anime-style',
+  sceneDescription,
+  dialogues = [],
+  actionSummary,
+  aspectRatio = '9:16',
+  durationSeconds = 10,
+  referenceImageNote = 'based on the reference image'
+}: {
+  style?: string;
+  sceneDescription: string;
+  dialogues?: CharacterDialogue[];
+  actionSummary?: string;
+  aspectRatio?: string;
+  durationSeconds?: number;
+  referenceImageNote?: string;
+}): string {
+  let prompt = `AI Video Prompt (${durationSeconds} Seconds) ❤️🥹\n\n`;
+  prompt += `Create a beautiful, emotional, ${style} AI video ${referenceImageNote}. ${sceneDescription.trim()}\n\n`;
+
+  if (dialogues && dialogues.length > 0) {
+    prompt += `Dialogue:\n\n`;
+    dialogues.forEach(d => {
+      prompt += `${d.character} (${d.emotion}): “${d.text}”\n\n`;
+    });
+  }
+
+  const ending = actionSummary || 'The girl blushes and smiles, and the boy gently holds her hand. End with both smiling at each other.';
+  prompt += `${ending} Soft romantic background music, natural facial expressions, smooth animation, warm golden lighting, vertical ${aspectRatio} format, high-quality visuals, ${durationSeconds} seconds long. Keep the characters consistent with the reference image. Ensure both dialogues are spoken clearly with accurate lip-sync.`;
+
+  return prompt;
 }
 
 export interface GeneratedTopicItem {
@@ -42,6 +96,12 @@ export interface GeneratedTopicItem {
 
 // Multi-Niche Topic Banks for Autonomous Topic Self-Generation
 const NICHE_TOPIC_BANKS: Record<string, Array<{ title: string; hook: string; badge: string }>> = {
+  romantic_anime: [
+    { title: 'University Floor Promise: The 10-Second Anime Love Story ❤️', hook: 'A cute girl in lavender looks shyly into his eyes on the floor: "Agar hum dur ho gaye toh bhool toh nahi jaoge?"', badge: 'ANIME ROMANCE' },
+    { title: 'The Lavender Ribbon: A Promise Across 5 Years 🎀', hook: 'She tied her lavender ribbon on his wrist before leaving. 5 years later, he is still wearing it.', badge: 'ETERNAL LOVE' },
+    { title: 'Rainy Umbrella Confession Under the Thunderstorm 🌧️', hook: 'Standing at the bus stop, he quietly tilts his umbrella over her shoulder with a gentle smile.', badge: 'HEART TOUCHING' },
+    { title: 'Golden Hour Classroom Confession (3-Year Secret) 🌅', hook: 'Warm golden rays stream through the windows as he whispers what he kept hidden in his diary.', badge: 'SWEET EMOTIONS' },
+  ],
   beshaan_trio: [
     { title: 'Ek Outfit Ko 3 Alag Tareeqon Se Style Kiya! (Two Girls vs One Boy Challenge) 🎀', hook: 'Kiska style sabse best hai? Aap heran reh jaoge is larke ne oversized blazer kaise pehna!', badge: 'FASHION BATTLE' },
     { title: 'Sasti Street Shopping: Luxury Looks Under 5,000 PKR 🛍️', hook: 'Kya hum teeno 5000 rupay ke budget me luxury model ban sakte hain? Transformation dekho!', badge: 'BUDGET STYLE' },
@@ -113,8 +173,16 @@ export async function POST(req: NextRequest) {
       targetFormat = 'shorts_9_16', 
       duration = 35,
       language = 'roman_urdu',
+      seriesParts: rawSeriesParts,
+      visualStyle: userVisualStyle,
       apiKey: userApiKey
     } = body || {};
+
+    const rawNumParts = Number(rawSeriesParts);
+    const seriesParts = (rawNumParts === 5 || rawNumParts === 10) ? rawNumParts : 1;
+    const visualStyle = typeof userVisualStyle === 'string' && userVisualStyle.trim() 
+      ? userVisualStyle.trim() 
+      : (niche === 'romantic_anime' ? 'cinematic anime-style' : 'cinematic photorealistic 8k');
 
     // Defensive Sanitization for Worst-Case Inputs
     const safeDuration = (typeof duration === 'number' && !isNaN(duration) && duration >= 10 && duration <= 600) ? Math.round(duration) : 35;
@@ -251,12 +319,15 @@ Avoid generic cliches. Focus on controversial, curiosity-inducing, contrarian, o
                       type: SchemaType.OBJECT,
                       properties: {
                         sceneNumber: { type: SchemaType.NUMBER },
+                        partNumber: { type: SchemaType.NUMBER },
+                        partTitle: { type: SchemaType.STRING },
                         durationSeconds: { type: SchemaType.NUMBER },
                         visualPrompt: { type: SchemaType.STRING, description: 'Visual prompt for image/video generation' },
                         voiceoverText: { type: SchemaType.STRING, description: 'Spoken narration script' },
                         onScreenCaption: { type: SchemaType.STRING, description: 'Punchy 3-5 word on-screen caption' },
                         soundEffect: { type: SchemaType.STRING, description: 'SFX cue like Whoosh, Boom, Ding' },
-                        brollKeyword: { type: SchemaType.STRING, description: 'Stock footage search keyword' }
+                        brollKeyword: { type: SchemaType.STRING, description: 'Stock footage search keyword' },
+                        aiVideoPrompt: { type: SchemaType.STRING, description: 'Complete 10-second AI Video Prompt with character dialogues and lip sync' }
                       },
                       required: ['sceneNumber', 'durationSeconds', 'visualPrompt', 'voiceoverText', 'onScreenCaption', 'soundEffect', 'brollKeyword']
                     }
@@ -287,8 +358,8 @@ Avoid generic cliches. Focus on controversial, curiosity-inducing, contrarian, o
 
           const scriptLangInstruction = safeLanguage === 'roman_urdu'
             ? `CRITICAL LANGUAGE REQUIREMENT:
-- Write ALL "voiceoverText" in high-energy, authentic, conversational ROMAN URDU (Urdu written in Latin/English alphabets as spoken by Pakistani YouTube creators and vloggers, e.g. "Arey yaar welcome back...", "Dekho bhai kya twist aya...", "Comments me zaroor batao kisne jeeta!").
-- Write "onScreenCaption" in punchy Roman Urdu or mixed Roman Urdu/English pop buzzwords (e.g. "ASLI TWIST DEKHO 😱", "WAIT FOR THE END 🔥", "YE KYA HO GAYA ⚡").
+- Write ALL "voiceoverText" in authentic, conversational ROMAN URDU (Urdu written in Latin/English alphabets, e.g. "Agar hum kabhi kisi waja sy dur ho gay, toh kya tum mujhe bhool toh nahi jao ge?", "Kabhi nahi! Tum meri zindagi ki woh pyari si yaad ho...").
+- Write "onScreenCaption" in punchy Roman Urdu or mixed Roman Urdu pop buzzwords (e.g. "KABHI NAHI BHOOLUNGA 🥹❤️", "HAMARA WADA 🎀", "ASLI TWIST DEKHO 😱").
 - Write "titleOptions" and "selectedTitle" in catchy Roman Urdu with emojis.
 - Write "description" in Roman Urdu with relevant channel hashtags.
 - Keep "visualPrompt" and "brollKeyword" in clear descriptive English for image/video generation.`
@@ -298,18 +369,79 @@ Avoid generic cliches. Focus on controversial, curiosity-inducing, contrarian, o
 - Keep "visualPrompt" and "brollKeyword" in clear descriptive English.`
             : `Write all voiceoverText and captions in high-retention English.`;
 
-          const prompt = `You are an elite short-form video creator.
+          const prompt = `You are an elite AI Video Creator & Story Arc Director.
 Channel: "${safeChannelName}"
 Niche: ${safeNiche}
-Video Topic: ${safePrompt || 'Viral contrarian insight for fast growth'}
+Topic: ${safePrompt || 'Viral contrarian insight for fast growth'}
 Tone: ${channelTone}
 Format: ${targetFormat === 'shorts_9_16' ? 'Vertical 9:16 Shorts/Reels' : 'Horizontal 16:9'}
 Duration: ${safeDuration} seconds.
+Series Mode: ${seriesParts > 1 ? `${seriesParts}-Part Story Arc (${seriesParts} parts with progressive narrative)` : 'Single Episode (5 scenes)'}
+Visual Style: ${visualStyle}
 ${scriptLangInstruction}
-Make exactly 5 scenes with progressive narrative hooks, fast pacing, visual prompts, SFX cues, and Hormozi-style bold pop captions.`;
+
+CRITICAL AI VIDEO GENERATOR PROMPT FORMAT:
+For EVERY scene, generate "aiVideoPrompt" formatted as a 10-second production prompt for video generators like Kling AI / Runway Gen-3 / Luma Dream Machine:
+"AI Video Prompt (10 Seconds) ❤️🥹\n\nCreate a beautiful, emotional, ${visualStyle} AI video based on the reference image. [Visual scene & character descriptions]. [Action & lighting details]...\n\nDialogue:\n👧 Girl (emotion): “...”\n👦 Boy (emotion): “...”\n\n[Ending action]... Soft romantic background music, natural facial expressions, smooth animation, warm golden lighting, vertical 9:16 format, high-quality visuals, 10 seconds long. Keep the characters consistent with the reference image. Ensure both dialogues are spoken clearly with accurate lip-sync."`;
 
           const result = await model.generateContent(prompt);
           const parsed = JSON.parse(result.response.text());
+
+          // Post-process to guarantee every scene has full production AI Video Prompt
+          const enrichedScenes = (parsed.scenes || []).map((sc: any, idx: number) => {
+            const sceneNum = sc.sceneNumber || idx + 1;
+            const partNum = sc.partNumber || (seriesParts > 1 ? Math.floor(idx / 5) + 1 : 1);
+            const partTitle = sc.partTitle || `Part ${partNum}`;
+
+            const dialogues: CharacterDialogue[] = Array.isArray(sc.dialogues) && sc.dialogues.length > 0
+              ? sc.dialogues
+              : [
+                  {
+                    character: '👧 Girl',
+                    emotion: 'shyly, with a sweet smile',
+                    text: sc.voiceoverText || 'Agar hum kabhi kisi waja sy dur ho gay, toh kya tum mujhe bhool toh nahi jao ge? 🥹❤️'
+                  },
+                  {
+                    character: '👦 Boy',
+                    emotion: 'looking into her eyes lovingly',
+                    text: 'Kabhi nahi! Tum meri zindagi ki woh pyari si yaad ho, jise main kabhi khona nahi chahta. 💗✨'
+                  }
+                ];
+
+            const aiVideoPrompt = (sc.aiVideoPrompt && sc.aiVideoPrompt.includes('AI Video Prompt'))
+              ? sc.aiVideoPrompt
+              : buildProductionAiVideoPrompt({
+                  style: visualStyle,
+                  sceneDescription: sc.visualPrompt || 'Cinematic aesthetic scene with characters in warm lighting.',
+                  dialogues,
+                  aspectRatio: targetFormat === 'shorts_9_16' ? '9:16' : '16:9',
+                  durationSeconds: sc.durationSeconds || 10
+                });
+
+            return {
+              ...sc,
+              sceneNumber: sceneNum,
+              partNumber: partNum,
+              partTitle,
+              durationSeconds: sc.durationSeconds || 10,
+              dialogues,
+              aiVideoPrompt
+            };
+          });
+
+          let storyParts: StoryPart[] | undefined = undefined;
+          if (seriesParts > 1) {
+            storyParts = [];
+            for (let p = 1; p <= seriesParts; p++) {
+              const pScenes = enrichedScenes.filter((s: any) => s.partNumber === p);
+              storyParts.push({
+                partNumber: p,
+                partTitle: pScenes[0]?.partTitle || `Part ${p}`,
+                hook: pScenes[0]?.onScreenCaption || `Part ${p} Hook`,
+                scenes: pScenes.length > 0 ? pScenes : enrichedScenes.slice((p - 1) * 5, p * 5)
+              });
+            }
+          }
 
           return NextResponse.json({
             success: true,
@@ -317,10 +449,13 @@ Make exactly 5 scenes with progressive narrative hooks, fast pacing, visual prom
             modelUsed: modelName,
             data: {
               ...parsed,
+              seriesParts,
+              storyParts,
+              scenes: enrichedScenes,
               niche: safeNiche,
               channelName: safeChannelName,
               targetFormat,
-              totalDurationSeconds: safeDuration
+              totalDurationSeconds: enrichedScenes.length * 10
             }
           });
         } catch (geminiError: any) {
@@ -330,7 +465,16 @@ Make exactly 5 scenes with progressive narrative hooks, fast pacing, visual prom
     }
 
     // Dynamic Multi-Niche Procedural Generator (Zero-fail guarantee)
-    const fallbackData = buildDynamicNicheScript(safeNiche, safePrompt, safeChannelName, targetFormat, safeDuration, safeLanguage);
+    const fallbackData = buildDynamicNicheScript(
+      safeNiche, 
+      safePrompt, 
+      safeChannelName, 
+      targetFormat, 
+      safeDuration, 
+      safeLanguage,
+      seriesParts,
+      visualStyle
+    );
 
     return NextResponse.json({
       success: true,
@@ -347,6 +491,506 @@ Make exactly 5 scenes with progressive narrative hooks, fast pacing, visual prom
   }
 }
 
+// Procedural Romantic Anime Multi-Part Story Arc Generator (Bisma Dengue Engine)
+function buildRomanticAnimeSeries(
+  topicTitle: string,
+  targetFormat: 'shorts_9_16' | 'video_16_9',
+  duration: number,
+  language: 'roman_urdu' | 'english' | 'urdu',
+  seriesParts: number = 5,
+  visualStyle: string = 'cinematic anime-style'
+): VideoAutomationResult {
+  const partsData = [
+    {
+      partNumber: 1,
+      partTitle: 'Part 1: The University Floor Promise (Pehli Nazar & Lavender Glow)',
+      hook: 'KABHI NAHI BHOOLUNGA 🥹❤️',
+      scenes: [
+        {
+          sceneNumber: 1,
+          durationSeconds: 10,
+          visualPrompt: 'A cute little girl wearing lavender clothes sits on the university floor, looking shyly into the eyes of a little boy dressed in black. The boy kneels in front of her and smiles gently. Warm sunlight falls on them through the glass windows. Their eyes sparkle with innocence and affection.',
+          voiceoverText: 'Agar hum kabhi kisi waja sy dur ho gay, toh kya tum mujhe bhool toh nahi jao ge?',
+          onScreenCaption: 'KABHI NAHI BHOOLUNGA 🥹❤️',
+          soundEffect: 'Warm Piano Sparkle & Sunlight Shimmer',
+          brollKeyword: 'anime boy and girl golden hour university floor',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'shyly, with a sweet smile', text: 'Agar hum kabhi Kisi Waja sy dur ho gay , toh kya tum mujhe bhool toh nahi jao ge? 🥹❤️' },
+            { character: '👦 Boy', emotion: 'looking into her eyes lovingly', text: 'Kabhi nahi! Tum meri zindagi ki woh pyari si yaad ho, jise main kabhi khona nahi chahta. 💗✨' }
+          ],
+          actionSummary: 'The girl blushes and smiles, and the boy gently holds her hand. End with both smiling at each other.'
+        },
+        {
+          sceneNumber: 2,
+          durationSeconds: 10,
+          visualPrompt: 'The boy takes out a delicate lavender silk ribbon and gently ties it around the girl’s wrist. Golden dust particles float in the sunbeams between the high wooden bookshelves of the university library.',
+          voiceoverText: 'Ye ribbon hamara pakka wada hai. Jab tak ye tumhare paas hai, faaslay humein juda nahi kar saktay.',
+          onScreenCaption: 'HAMARA WADA 🎀✨',
+          soundEffect: 'Soft Cello Swell & Heartbeat Thud',
+          brollKeyword: 'anime hands tying ribbon golden hour',
+          dialogues: [
+            { character: '👦 Boy', emotion: 'tying the ribbon with gentle devotion', text: 'Ye ribbon sirf ek kapra nahi hai... ye hamari dosti aur mohabbat ki pehchan hai. 🎀' },
+            { character: '👧 Girl', emotion: 'touching the ribbon, eyes shining with tears', text: 'Main isay apni saans ki tarah sambhal ke rakhungi... hamesha ke liye. 🌸🥹' }
+          ],
+          actionSummary: 'He places his fingers over her wrist, and she blushes warmly looking down with a heartfelt smile.'
+        },
+        {
+          sceneNumber: 3,
+          durationSeconds: 10,
+          visualPrompt: 'Walking side by side down the grand campus corridor, their shadows stretching on the polished floor. Outside, cherry blossom petals drift past the tall glass windows in the breeze.',
+          voiceoverText: 'Har din university ka ye rasta unke hansi mazaak aur be-parwah baaton se goonjta tha.',
+          onScreenCaption: 'BE-PARWAH MUSKURAHAT 🌸',
+          soundEffect: 'Breeze & Soft Acoustic Strum',
+          brollKeyword: 'anime students walking hallway cherry blossom',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'laughing playfully, turning to him', text: 'Acha suno, kal bhi tum mujhe yahan floor par milo ge na? 🌸' },
+            { character: '👦 Boy', emotion: 'chuckle softly, walking closer', text: 'Chahe duniya idhar ki udhar ho jaye, tumhara intezaar hamesha rahega.' }
+          ],
+          actionSummary: 'They exchange joyful smiles as the camera slowly dollies back through the sunlit archway.'
+        },
+        {
+          sceneNumber: 4,
+          durationSeconds: 10,
+          visualPrompt: 'Sitting on the rooftop stairs as sunset paints the sky in shades of violet and peach. The boy shares one side of his wired earphones with the girl while they gaze at the horizon.',
+          voiceoverText: 'Waqt ka pata hi nahi chala... unki dosti kab zindagi ka sabse ahem hissa ban gayi.',
+          onScreenCaption: 'DIL KI DHADKAN 🎧',
+          soundEffect: 'Low Lo-Fi Melody & Wind Chime',
+          brollKeyword: 'anime rooftop sunset earphones couple',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'head resting gently near his shoulder', text: 'Ye gana kitna pyara hai na... bilkul hamari kahani jaisa.' },
+            { character: '👦 Boy', emotion: 'whispering softly while gazing at the stars', text: 'Kash ye waqt yahin ruk jaye, aur hum hamesha aise hi rahein. 🌌✨' }
+          ],
+          actionSummary: 'Both look out at the glowing city lights with serene, loving expressions.'
+        },
+        {
+          sceneNumber: 5,
+          durationSeconds: 10,
+          visualPrompt: 'At the university iron gate under the evening streetlamp. The girl turns back one last time to wave, her lavender scarf fluttering, while he stands watching with a protective, fond gaze.',
+          voiceoverText: 'Lekin taqdeer ne unke liye ek aazmaish likh di thi... Jo unki mohabbat ka sabse bada imtehaan tha.',
+          onScreenCaption: 'AGLE PART ME DEKHO 💔',
+          soundEffect: 'Cinematic Sub-Drop & Bell Tone',
+          brollKeyword: 'anime waving goodbye night street lamp',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'waving with a gentle wistful smile', text: 'Kal subah time par aana, ek zaroori baat karni hai!' },
+            { character: '👦 Boy', emotion: 'nodding, raising hand with warm smile', text: 'Pehli ghanti bajne se pehle wahan hounga. Apna khayal rakhna!' }
+          ],
+          actionSummary: 'Screen softly fades into cinematic blur with notification for Part 2.'
+        }
+      ]
+    },
+    {
+      partNumber: 2,
+      partTitle: 'Part 2: The Rainy Day Confessions (Barish aur Khamoshi)',
+      hook: 'FAASLAY DILON KO NAHI TORTE 🌧️💔',
+      scenes: [
+        {
+          sceneNumber: 6,
+          durationSeconds: 10,
+          visualPrompt: 'Heavy rain pouring over the city bus stop. The girl stands alone drenched in sadness, holding a letter. The boy arrives running with a black umbrella, breathing heavily.',
+          voiceoverText: 'Achanak aane wali khabar ne sab kuch badal diya tha.',
+          onScreenCaption: 'ACHANAK JUDAI 🌧️',
+          soundEffect: 'Thunder Rumble & Rain Ambience',
+          brollKeyword: 'anime rain bus stop umbrella running',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'tears mixing with raindrops on cheeks', text: 'Mere parents shehar chhor kar hamesha ke liye ja rahe hain... aaj aakhri din hai.' },
+            { character: '👦 Boy', emotion: 'holding umbrella over her, voice cracking', text: 'Nahi... ye nahi ho sakta! Tum mujhe aise chhor kar nahi ja sakti!' }
+          ],
+          actionSummary: 'He shields her from the pouring rain, looking desperately into her eyes.'
+        },
+        {
+          sceneNumber: 7,
+          durationSeconds: 10,
+          visualPrompt: 'Under the umbrella, water droplets dripping from the edges in slow motion. The boy firmly holds both of her shivering hands to give her warmth.',
+          voiceoverText: 'Dono ke dilon me dukh tha, lekin mohabbat us se bhi gehri thi.',
+          onScreenCaption: 'MAIN INTEZAAR KARUNGA 💔',
+          soundEffect: 'Emotional Cello & Rain Drops',
+          brollKeyword: 'anime umbrella close up holding hands rain',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'crying softly, head down', text: 'Faaslay bohot zyada hain... log kehte hain doori sab kuch mita deti hai.' },
+            { character: '👦 Boy', emotion: 'lifting her chin gently, eyes burning with resolve', text: 'Log galat kehte hain! Zameen badal sakti hai, mera wada kabhi nahi badal sakta.' }
+          ],
+          actionSummary: 'He gently wipes a tear from her cheek as her eyes widen with emotional warmth.'
+        },
+        {
+          sceneNumber: 8,
+          durationSeconds: 10,
+          visualPrompt: 'The departure train slowly approaching the station platform, headlights cutting through the foggy misty evening rain.',
+          voiceoverText: 'Train ki aawaz unke judai ke lamhon ka elaan kar rahi thi.',
+          onScreenCaption: 'AAKHRI LAMHA 🚂',
+          soundEffect: 'Train Horn Echo & Steam Hiss',
+          brollKeyword: 'anime train station platform mist rain',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'stepping onto the train footboard', text: 'Mujhe bhoolna mat... please.' },
+            { character: '👦 Boy', emotion: 'standing at the platform edge, voice firm', text: 'Jab tak ye lavender ribbon mere paas hai, har saans tumhari amanat hai.' }
+          ],
+          actionSummary: 'Train door closes and she presses her hand against the wet glass window.'
+        },
+        {
+          sceneNumber: 9,
+          durationSeconds: 10,
+          visualPrompt: 'The train accelerates away into the dark rainy horizon. The boy stands motionless in the downpour, staring at the empty tracks.',
+          voiceoverText: 'Ek pal me university ka woh roshan aangan veeran ho gaya tha.',
+          onScreenCaption: 'KHAMOSH TERA 🖤',
+          soundEffect: 'Distant Thunder & Heartbeat Fade',
+          brollKeyword: 'anime train moving away dark rain lonely boy',
+          dialogues: [
+            { character: '👦 Boy', emotion: 'whispering to the empty air', text: 'Chahe saalon lag jayein... main wapis aane tak yahin tumhara intezaar karunga.' }
+          ],
+          actionSummary: 'Camera pulls up to high angle showing the lone boy standing under the streetlamp.'
+        },
+        {
+          sceneNumber: 10,
+          durationSeconds: 10,
+          visualPrompt: 'Inside the train, the girl looks down at her wrist where the lavender ribbon is tied, pressing it gently against her heart.',
+          voiceoverText: 'Faaslay shuru ho chuke thay, lekin kahani abhi khatam nahi hui thi.',
+          onScreenCaption: 'INTEZAAR KI DASTAAN 🎀',
+          soundEffect: 'Warm Melancholy Piano Chime',
+          brollKeyword: 'anime train interior girl holding ribbon',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'whispering into the night', text: 'Main wapis aaungi... apna wada nibhane.' }
+          ],
+          actionSummary: 'Close up on the glowing ribbon with text for Part 3.'
+        }
+      ]
+    },
+    {
+      partNumber: 3,
+      partTitle: 'Part 3: Years of Longing (5 Saal Ka Intezaar)',
+      hook: '5 SAAL GUZAR GAYE ⏳',
+      scenes: [
+        {
+          sceneNumber: 11,
+          durationSeconds: 10,
+          visualPrompt: 'Montage of passing seasons: Autumn leaves falling on the campus floor, followed by winter snow melting into spring blossoms.',
+          voiceoverText: 'Panch saal guzar gaye... Mausam badal gaye, log badal gaye, lekin woh university ka floor waisa hi tha.',
+          onScreenCaption: '5 SAAL KA SAFAR 🍂',
+          soundEffect: 'Wind Sweeping & Clock Ticking',
+          brollKeyword: 'anime seasons changing university tree leaves',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'monologue in foreign university', text: 'Panch saal ho gaye... kya tum aaj bhi wahan aate ho?' },
+            { character: '👦 Boy', emotion: 'monologue studying late night', text: 'Har shaam usi floor par baithta hoon, jahan tum pehli bar mili theen.' }
+          ],
+          actionSummary: 'Split screen of both writing in their journals at midnight.'
+        },
+        {
+          sceneNumber: 12,
+          durationSeconds: 10,
+          visualPrompt: 'The grown-up boy, now tall and elegant in a tailored black blazer, walking through the same glass hallway of the university.',
+          voiceoverText: 'Woh ab ek kamyab shaks ban chuka tha, lekin uski kalai par wahi purana lavender ribbon tha.',
+          onScreenCaption: 'RIBBON AAJ BHI HAI 🖤',
+          soundEffect: 'Confident Footsteps & Gentle Strings',
+          brollKeyword: 'anime handsome boy suit walking university',
+          dialogues: [
+            { character: '👦 Boy', emotion: 'looking down at the worn-out ribbon on his wrist', text: 'Main ne apna wada nahi toora... aaj bhi tumhara intezaar hai.' }
+          ],
+          actionSummary: 'He smiles faintly as golden sunlight reflects in his eyes.'
+        },
+        {
+          sceneNumber: 13,
+          durationSeconds: 10,
+          visualPrompt: 'Airport arrival terminal: Flight from abroad lands. A graceful girl in an elegant lavender trench coat steps through the sliding glass gates.',
+          voiceoverText: 'Usi din, barson baad, woh shehar me wapis qadam rakh chuki thi.',
+          onScreenCaption: 'SHEHAR ME WAPSI ✈️',
+          soundEffect: 'Airport Chime & Rolling Suitcase',
+          brollKeyword: 'anime airport arrival girl trench coat lavender',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'taking a deep breath of familiar air', text: 'Main wapis aa gayi hoon... Apne shehar, apni yaadon ke paas.' }
+          ],
+          actionSummary: 'She looks at the clock, adjusting her bag with excited anticipation.'
+        },
+        {
+          sceneNumber: 14,
+          durationSeconds: 10,
+          visualPrompt: 'Taxi driving through the rain-washed city streets past familiar landmarks towards the old university campus.',
+          voiceoverText: 'Bina kisi ko bataye, uske qadam seedha usi purani jagah ki taraf mud gaye.',
+          onScreenCaption: 'PURANI YAADEIN 🚕',
+          soundEffect: 'Car Engine & Rain Wipers',
+          brollKeyword: 'anime taxi window rain city view',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'looking eagerly out the window', text: 'Kya tum aaj bhi wahan hoge? Ya main bohot late ho gayi?' }
+          ],
+          actionSummary: 'She clutches her purse where the matching ribbon charm hangs.'
+        },
+        {
+          sceneNumber: 15,
+          durationSeconds: 10,
+          visualPrompt: 'The university gates open wide. She enters the main courtyard under the bright afternoon sun, heart beating fast.',
+          voiceoverText: 'Manzil samne thi... aur taqdeer ek bar phir unhe aamne saamne khada karne wali thi.',
+          onScreenCaption: 'MANZIL SAMNE HAI ❤️',
+          soundEffect: 'Swell of Violin & Rising Heartbeat',
+          brollKeyword: 'anime university courtyard entrance girl sunlight',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'whispering to her beating heart', text: 'Sirf kuch lamhay aur... bus kuch qadam.' }
+          ],
+          actionSummary: 'She begins running towards the main glass window building.'
+        }
+      ]
+    },
+    {
+      partNumber: 4,
+      partTitle: 'Part 4: The University Floor Promise Kept (Wapis Wahi Jagah)',
+      hook: 'KYA WOH WAHAIN HOGA? 🥹',
+      scenes: [
+        {
+          sceneNumber: 16,
+          durationSeconds: 10,
+          visualPrompt: 'The girl rushes into the glass hallway. Golden sunlight pours through the large panes, exactly like five years ago.',
+          voiceoverText: 'Hallway me wahi dhoop thi, wahi khamoshi... aur door floor par ek saya nazar aaya.',
+          onScreenCaption: 'DHOOP KI KIRAN ✨',
+          soundEffect: 'Fast Footsteps & Echoing Hallway',
+          brollKeyword: 'anime hallway running girl golden sunlight',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'gasping for breath, eyes widening', text: 'Woh... woh wahan khada hai?!' }
+          ],
+          actionSummary: 'She stops dead in her tracks, clutching her chest in disbelief.'
+        },
+        {
+          sceneNumber: 17,
+          durationSeconds: 10,
+          visualPrompt: 'Sitting on the university floor near the glass window, the boy in black is looking out at the sky, holding a small lavender sketch book.',
+          voiceoverText: 'Woh waqai wahan tha... Har din ki tarah, aaj bhi uske intezaar me baitha hua.',
+          onScreenCaption: 'INTEZAAR KHTM HUA 🥹',
+          soundEffect: 'Deep Piano Chord & Soft Gasp',
+          brollKeyword: 'anime boy sitting university floor looking window',
+          dialogues: [
+            { character: '👦 Boy', emotion: 'speaking softly to himself while sketching', text: 'Agar tum samne aa jao... toh main sab se pehle tumhara haath thaam loonga.' }
+          ],
+          actionSummary: 'He traces the silhouette of a girl with lavender clothes on the page.'
+        },
+        {
+          sceneNumber: 18,
+          durationSeconds: 10,
+          visualPrompt: 'The girl slowly walks towards him, tears freely streaming down her smiling cheeks. Her shadow falls across his sketchbook.',
+          voiceoverText: 'Uski aahat sun kar larke ka dil zoor se dhadka.',
+          onScreenCaption: 'PEHLI AAHAT 🌸',
+          soundEffect: 'Slow Footsteps on Wood & Soft Chime',
+          brollKeyword: 'anime girl shadow falling on boy floor',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'voice trembling with boundless love', text: 'Agar hum kabhi kisi waja sy dur ho gaye... toh kya tum mujhe bhool toh nahi gaye? 🥹❤️' }
+          ],
+          actionSummary: 'He freezes completely, his hand stopping mid-air over the sketchbook.'
+        },
+        {
+          sceneNumber: 19,
+          durationSeconds: 10,
+          visualPrompt: 'The boy slowly turns around and looks up. His eyes widen in utter shock, quickly melting into sheer, overwhelming emotional joy.',
+          voiceoverText: 'Paanch saal ka intezaar ek lamhe me khushi ke aanso ban kar beh nikla.',
+          onScreenCaption: 'TUM WAPIS AA GAYI! 😭❤️',
+          soundEffect: 'Triumphant Orchestral Strings & Chime',
+          brollKeyword: 'anime boy turning around crying smiling love',
+          dialogues: [
+            { character: '👦 Boy', emotion: 'standing up instantly, voice full of emotion', text: 'Main ne kaha tha na... Tum meri zindagi ki woh yaad ho jise main marte dam tak nahi kho sakta! 💗✨' }
+          ],
+          actionSummary: 'He drops the sketchbook and rushes forward, tears in his eyes.'
+        },
+        {
+          sceneNumber: 20,
+          durationSeconds: 10,
+          visualPrompt: 'Both standing inches apart in the golden sunbeams, staring into each other’s eyes with disbelief and pure affection.',
+          voiceoverText: 'Woh pal hamesha ke liye amar ho chuka tha.',
+          onScreenCaption: 'DIL KI RAAHAT 🌸',
+          soundEffect: 'Soft Romantic Melody',
+          brollKeyword: 'anime couple close up staring eyes golden hour',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'smiling through endless tears', text: 'Tumne sach me intezaar kiya...' },
+            { character: '👦 Boy', emotion: 'holding up his wrist with the ribbon', text: 'Har ek din, har ek pal.' }
+          ],
+          actionSummary: 'Both smile through tears with their hands reaching toward one another.'
+        }
+      ]
+    },
+    {
+      partNumber: 5,
+      partTitle: 'Part 5: Hamesha Ka Saath (The Eternal Embrace & Future)',
+      hook: 'HAMESHA KA SAATH ❤️💍',
+      scenes: [
+        {
+          sceneNumber: 21,
+          durationSeconds: 10,
+          visualPrompt: 'He pulls her into a tight, warm, protective embrace as golden sunbeams wrap around them like a halo. Her face rests gently against his chest.',
+          voiceoverText: 'Unki mohabbat ne faaslon ko hara diya tha.',
+          onScreenCaption: 'HAMESHA KA SAATH ❤️',
+          soundEffect: 'Emotional Cello & Warm Ambient Swell',
+          brollKeyword: 'anime tight hug reunion golden light emotional',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'sobbing tears of relief against his chest', text: 'Ab main tumhe kabhi chhor kar nahi jaungi.' },
+            { character: '👦 Boy', emotion: 'holding her tighter, kissing her hair softly', text: 'Ab main tumhe kabhi door jane bhi nahi doonga. 💍' }
+          ],
+          actionSummary: 'Both hold each other tightly as golden light fills the entire screen.'
+        },
+        {
+          sceneNumber: 22,
+          durationSeconds: 10,
+          visualPrompt: 'They sit together on the university floor once again, side by side, their hands tightly intertwined with matching ribbons.',
+          voiceoverText: 'Wahi floor, wahi dhoop, aur wahi do dil jo hamesha ek doosre ke thay.',
+          onScreenCaption: 'WAPIS WAHIN 🌸',
+          soundEffect: 'Warm Acoustic Guitar & Soft Chimes',
+          brollKeyword: 'anime couple sitting floor holding hands window',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'leaning head on his shoulder, smiling serenely', text: 'Hamari kahani yahan se shuru hui thi, aur ab hamesha chalegi.' },
+            { character: '👦 Boy', emotion: 'smiling softly, squeezing her hand', text: 'Ye sirf shuruat hai... hamara poora jahan baaki hai.' }
+          ],
+          actionSummary: 'She looks up into his eyes and smiles with absolute peace and security.'
+        },
+        {
+          sceneNumber: 23,
+          durationSeconds: 10,
+          visualPrompt: 'Camera pulls out of the high glass window into the open blue sky. Birds fly past the blooming campus trees in the sunset breeze.',
+          voiceoverText: 'Sachi mohabbat me waqt aur faaslay sirf ek aazmaish hotay hain, anjaam hamesha milan hota hai.',
+          onScreenCaption: 'SACHI MOHABBAT 🕊️',
+          soundEffect: 'Birds Chirping & Grand Musical Climax',
+          brollKeyword: 'anime camera pulling away university building sky',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'voiceover narration with warmth', text: 'Jo dil me rehte hain, woh kabhi door nahi hotay.' },
+            { character: '👦 Boy', emotion: 'voiceover narration with smile', text: 'Aur jo wada nibhana jaante hain, unki mohabbat amar hoti hai.' }
+          ],
+          actionSummary: 'Golden title card softly appears: "The End • Dil Ka Wada".'
+        },
+        {
+          sceneNumber: 24,
+          durationSeconds: 10,
+          visualPrompt: 'End card showing cute polaroid photos of their memories together pinned on a corkboard with the lavender ribbon draped over them.',
+          voiceoverText: 'Aapko ye 5-Part Love Story kaisi lagi? Comments me zaroor batayein!',
+          onScreenCaption: 'COMMENTS ME BATAO 👇',
+          soundEffect: 'Camera Shutter Click & Soft Bell',
+          brollKeyword: 'anime polaroid photo memory board corkboard',
+          dialogues: [
+            { character: '👧 Girl', emotion: 'cheerful, sweet tone', text: 'Agar aapko hamari story pasand aayi toh video ko LIKE zaroor karna!' },
+            { character: '👦 Boy', emotion: 'warm, friendly smile', text: 'Aur apne khas dost ke sath SHARE karna mat bhoolna! ❤️' }
+          ],
+          actionSummary: 'Interactive subscribe button pops with glowing heart animation.'
+        },
+        {
+          sceneNumber: 25,
+          durationSeconds: 10,
+          visualPrompt: 'Pulsing heart animation in lavender and gold with text: "Subscribe for Part-Wise AI Stories • Series Complete ❤️"',
+          voiceoverText: 'Agle episode aur nayi story series ke liye abhi channel ko subscribe kar lo!',
+          onScreenCaption: 'SUBSCRIBE FOR MORE 🔔',
+          soundEffect: 'Double Bell Ding & Sparkle Pop',
+          brollKeyword: 'neon heart subscribe button animation anime',
+          dialogues: [
+            { character: '👦 Boy & 👧 Girl', emotion: 'together in harmony', text: 'Thank you for watching! Stay blessed and keep smiling! ❤️✨' }
+          ],
+          actionSummary: 'Final screen ends with glowing logo and subscribe reminder.'
+        }
+      ]
+    }
+  ];
+
+  // Select 1, 5, or 10 parts
+  const selectedParts = seriesParts === 5 
+    ? partsData 
+    : seriesParts === 10 
+    ? [...partsData, ...partsData.map((p, i) => ({ 
+        ...p, 
+        partNumber: p.partNumber + 5, 
+        partTitle: `Part ${p.partNumber + 5}: Chapter ${p.partNumber + 5} (The Journey Continues)` 
+      }))] 
+    : [partsData[0]];
+
+  // Flatten scenes and build production AI Video Prompts
+  const allScenes: SceneItem[] = [];
+  selectedParts.forEach(part => {
+    part.scenes.forEach(sc => {
+      const formattedAiPrompt = buildProductionAiVideoPrompt({
+        style: visualStyle,
+        sceneDescription: sc.visualPrompt,
+        dialogues: sc.dialogues,
+        actionSummary: sc.actionSummary,
+        aspectRatio: targetFormat === 'shorts_9_16' ? '9:16' : '16:9',
+        durationSeconds: 10
+      });
+
+      allScenes.push({
+        ...sc,
+        partNumber: part.partNumber,
+        partTitle: part.partTitle,
+        aiVideoPrompt: formattedAiPrompt
+      });
+    });
+  });
+
+  return {
+    titleOptions: [
+      `University Floor Promise: The 10-Second Anime Love Story (Part 1-5 Series) ❤️🥹`,
+      `"Agar Hum Dur Ho Gaye Toh?" 5 Saal Baad Wapis Milne Ka Wada 🎀`,
+      `The Lavender Ribbon: Purest Emotional Anime Love Story (Full Arc) 🌸`
+    ],
+    selectedTitle: `University Floor Promise: The 10-Second Anime Love Story (Part 1-5 Series) ❤️🥹`,
+    niche: 'romantic_anime',
+    channelName: 'Beshaan Animation',
+    targetFormat,
+    totalDurationSeconds: allScenes.length * 10,
+    seriesParts: selectedParts.length,
+    storyParts: selectedParts.map(p => ({
+      ...p,
+      scenes: p.scenes.map(sc => ({
+        ...sc,
+        partNumber: p.partNumber,
+        partTitle: p.partTitle,
+        aiVideoPrompt: buildProductionAiVideoPrompt({
+          style: visualStyle,
+          sceneDescription: sc.visualPrompt,
+          dialogues: sc.dialogues,
+          actionSummary: sc.actionSummary,
+          aspectRatio: targetFormat === 'shorts_9_16' ? '9:16' : '16:9',
+          durationSeconds: 10
+        })
+      }))
+    })),
+    scenes: allScenes,
+    description: `🌸 University Floor Promise: The 10-Second Anime Love Story ❤️🥹\n\nEk pyari si larki lavender kapron me aur ek larka black clothes me university floor par aamne saamne baithay hain. Ek wada jo 5 saal baad bhi nahi toota.\n\nAI Video Prompts included for Kling AI, Runway Gen-3, Luma Dream Machine & Sora!\n\n#Anime #LoveStory #Shorts #Reels #AIAnimation #KlingAI #RunwayGen3 #RomanUrdu #Pakistan`,
+    hashtags: ['#Anime', '#LoveStory', '#Shorts', '#Reels', '#AIAnimation', '#KlingAI', '#RunwayGen3', '#RomanUrdu'],
+    tags: ['Anime love story', 'AI video prompt', 'kling ai prompt', 'runway gen 3', 'roman urdu anime', 'romantic anime'],
+    thumbnailConcept: {
+      mainHeadline: 'AGAR HUM DUR HO GAYE?',
+      badgeText: 'ROMANTIC ANIME',
+      bgColor: '#a855f7'
+    }
+  };
+}
+
+function finalizeAutomationResult(
+  result: VideoAutomationResult,
+  targetFormat: 'shorts_9_16' | 'video_16_9',
+  visualStyle: string = 'cinematic anime-style',
+  seriesParts: number = 1
+): VideoAutomationResult {
+  result.seriesParts = seriesParts;
+  result.scenes = (result.scenes || []).map((sc, idx) => {
+    const dialogues: CharacterDialogue[] = sc.dialogues || [
+      {
+        character: '👧 Character A',
+        emotion: 'expressively',
+        text: sc.voiceoverText || 'Arey dekho zara kya zabardast scene hai!'
+      },
+      {
+        character: '👦 Character B',
+        emotion: 'smiling confidently',
+        text: 'Agay dekho kya twist ata hai! ⚡'
+      }
+    ];
+
+    const aiVideoPrompt = sc.aiVideoPrompt || buildProductionAiVideoPrompt({
+      style: visualStyle,
+      sceneDescription: sc.visualPrompt,
+      dialogues,
+      aspectRatio: targetFormat === 'shorts_9_16' ? '9:16' : '16:9',
+      durationSeconds: sc.durationSeconds || 10
+    });
+
+    return {
+      ...sc,
+      dialogues,
+      aiVideoPrompt,
+      partNumber: sc.partNumber || 1,
+      partTitle: sc.partTitle || 'Part 1'
+    };
+  });
+
+  return result;
+}
+
 // Procedural Multi-Niche Storyline Generator
 function buildDynamicNicheScript(
   niche: string,
@@ -354,10 +998,40 @@ function buildDynamicNicheScript(
   channelName: string,
   targetFormat: 'shorts_9_16' | 'video_16_9',
   duration: number,
-  language: 'roman_urdu' | 'english' | 'urdu' = 'roman_urdu'
+  language: 'roman_urdu' | 'english' | 'urdu' = 'roman_urdu',
+  seriesParts: number = 1,
+  visualStyle: string = 'cinematic anime-style'
 ): VideoAutomationResult {
   const isCustom = Boolean(customPrompt && customPrompt.trim());
   const topicTitle = isCustom ? customPrompt.trim() : getDefaultTopicForNiche(niche);
+
+  // Check if user requested Romantic Anime / Emotional Story Series
+  const isAnimeOrStory = niche === 'romantic_anime' ||
+    customPrompt.toLowerCase().includes('anime') ||
+    customPrompt.toLowerCase().includes('lavender') ||
+    customPrompt.toLowerCase().includes('floor') ||
+    customPrompt.toLowerCase().includes('bhool') ||
+    customPrompt.toLowerCase().includes('university') ||
+    customPrompt.toLowerCase().includes('part') ||
+    seriesParts > 1;
+
+  if (isAnimeOrStory && (niche === 'romantic_anime' || customPrompt.toLowerCase().includes('anime') || customPrompt.toLowerCase().includes('lavender') || seriesParts > 1)) {
+    return buildRomanticAnimeSeries(topicTitle, targetFormat, duration, language, seriesParts, visualStyle);
+  }
+
+  const rawResult = getRawNicheScript(niche, topicTitle, channelName, targetFormat, duration, language, isCustom);
+  return finalizeAutomationResult(rawResult, targetFormat, visualStyle, seriesParts);
+}
+
+function getRawNicheScript(
+  niche: string,
+  topicTitle: string,
+  channelName: string,
+  targetFormat: 'shorts_9_16' | 'video_16_9',
+  duration: number,
+  language: 'roman_urdu' | 'english' | 'urdu',
+  isCustom: boolean
+): VideoAutomationResult {
 
   // =========================================================================
   // 1. BESHAAN (TRIO CREATORS: 2 GIRLS + 1 BOY - FASHION, LIFESTYLE & GAMING)
@@ -1135,6 +1809,8 @@ function buildDynamicNicheScript(
 
 function getDefaultTopicForNiche(niche: string): string {
   switch (niche) {
+    case 'romantic_anime':
+      return 'University Floor Promise: The 10-Second Anime Love Story ❤️';
     case 'beshaan_trio':
       return 'We Styled 1 Outfit 3 Different Ways! (Boys vs Girls Challenge)';
     case 'wealth_business':

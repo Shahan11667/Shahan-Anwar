@@ -89,6 +89,19 @@ interface SocialAccountItem {
   updatedAt?: string;
 }
 
+export interface CharacterDialogue {
+  speaker: string;
+  dialogue: string;
+  emotion?: string;
+  emoji?: string;
+}
+
+export interface StoryPart {
+  partNumber: number;
+  partTitle: string;
+  scenes: SceneItem[];
+}
+
 interface SceneItem {
   sceneNumber: number;
   durationSeconds: number;
@@ -97,6 +110,11 @@ interface SceneItem {
   onScreenCaption: string;
   soundEffect: string;
   brollKeyword: string;
+  aiVideoPrompt?: string;
+  dialogues?: CharacterDialogue[];
+  actionSummary?: string;
+  partNumber?: number;
+  partTitle?: string;
 }
 
 interface ContentPlanItem {
@@ -248,6 +266,13 @@ export default function YoutubeAutomationView() {
 
   // Script & Voiceover Language Selection (Roman Urdu Default for Pakistani Creators)
   const [scriptLanguage, setScriptLanguage] = useState<'roman_urdu' | 'english' | 'urdu'>('roman_urdu');
+
+  // Multi-Part Story Arc & AI Video Engine State (Bisma Style ❤️)
+  const [seriesParts, setSeriesParts] = useState<1 | 5 | 10>(1);
+  const [activePartTab, setActivePartTab] = useState<number>(1);
+  const [visualStyle, setVisualStyle] = useState<string>('cinematic anime-style');
+  const [storyParts, setStoryParts] = useState<StoryPart[]>([]);
+  const [copiedPromptIdx, setCopiedPromptIdx] = useState<number | null>(null);
 
   // Video Player / Canvas Simulation State
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -614,6 +639,8 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
           targetFormat,
           duration: targetDuration,
           language: scriptLanguage,
+          seriesParts,
+          visualStyle,
           apiKey: apiKey || undefined,
         })
       });
@@ -624,6 +651,11 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
         setTitleOptions(data.titleOptions || []);
         setSelectedTitle(data.selectedTitle || promptToUse);
         setScenes(data.scenes || []);
+        if (data.storyParts && Array.isArray(data.storyParts)) {
+          setStoryParts(data.storyParts);
+        } else {
+          setStoryParts([]);
+        }
         setDescription(data.description || '');
         setHashtags(data.hashtags || []);
         if (data.thumbnailConcept) {
@@ -634,7 +666,10 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
         setCurrentTime(0);
         setCurrentSceneIdx(0);
         confetti({ particleCount: 50, spread: 60 });
-        toast.success(`Generated 5-scene viral video script for "${data.selectedTitle}"!`, { icon: '🎬' });
+        const partMsg = (data.seriesParts && data.seriesParts > 1) 
+          ? `Generated ${data.seriesParts}-Part Story Series (${data.scenes.length} Scenes with 10s AI Video Prompts)!`
+          : `Generated ${data.scenes?.length || 5}-scene video script with 10s AI Video Prompts!`;
+        toast.success(partMsg, { icon: '🎬' });
         setActiveTab('flow');
       } else {
         toast.error(res.error || 'Failed to generate script');
@@ -1215,7 +1250,39 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
         <div className="space-y-6">
           {/* Quick Generator Controls Card */}
           <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Series Arc Mode</label>
+                <select
+                  value={seriesParts}
+                  onChange={e => {
+                    const p = parseInt(e.target.value) as 1 | 5 | 10;
+                    setSeriesParts(p);
+                    setActivePartTab(1);
+                  }}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-pink-400 font-bold focus:outline-none focus:border-pink-500"
+                >
+                  <option value={1}>🎬 Single Clip (5 Scenes)</option>
+                  <option value={5}>💖 5-Part Story Series (25 Scenes - Bisma)</option>
+                  <option value={10}>🔥 10-Part Epic Story (50 Scenes)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Visual Art Style</label>
+                <select
+                  value={visualStyle}
+                  onChange={e => setVisualStyle(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500"
+                >
+                  <option value="cinematic anime-style">🌸 Cinematic Anime (Bisma Style ❤️)</option>
+                  <option value="photorealistic 8k">📸 Photorealistic 8K Cinema</option>
+                  <option value="korean drama cinematic">🎎 Korean Drama Romance</option>
+                  <option value="3d pixar disney style">✨ 3D Pixar Animation</option>
+                  <option value="cyberpunk retro neon">🌆 Cyberpunk Neon Noir</option>
+                </select>
+              </div>
+
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Niche Curriculum</label>
                 <select
@@ -1225,8 +1292,9 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
                     setSelectedNiche(n);
                     fetchChannelTopics(n);
                   }}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
                 >
+                  <option value="romantic_anime">💖 Romantic Anime Story (Bisma 🦟)</option>
                   <option value="beshaan_trio">🎀 Beshaan (Fashion, Lifestyle, Gaming)</option>
                   <option value="ai_tech">🤖 AI & Developer Engineering</option>
                   <option value="wealth_business">💰 High-Income Wealth & Micro-SaaS</option>
@@ -1238,66 +1306,120 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Voiceover Language</label>
+                <label className="text-xs text-slate-400 block mb-1">Dialogue / Voiceover</label>
                 <select
                   value={scriptLanguage}
                   onChange={e => setScriptLanguage(e.target.value as any)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-500"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-500"
                 >
-                  <option value="roman_urdu">🇵🇰 Roman Urdu (رومن اردو - Voiceover)</option>
-                  <option value="english">🌐 English (Global US/UK)</option>
-                  <option value="urdu">🇵🇰 Urdu Script (اردو رسم الخط)</option>
+                  <option value="roman_urdu">🇵🇰 Roman Urdu (رومن اردو dialogues)</option>
+                  <option value="english">🌐 English (Global dialogues)</option>
+                  <option value="urdu">🇵🇰 Urdu Script (اردو)</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Target Format</label>
+                <label className="text-xs text-slate-400 block mb-1">Format</label>
                 <select
                   value={targetFormat}
                   onChange={e => setTargetFormat(e.target.value as any)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
                 >
                   <option value="shorts_9_16">📱 Vertical 9:16 (Shorts/Reels)</option>
                   <option value="video_16_9">🖥️ Horizontal 16:9 (YouTube Video)</option>
                 </select>
               </div>
 
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Duration: {targetDuration}s (Ideal 30s-40s)</label>
-                <input
-                  type="range"
-                  min="25"
-                  max="50"
-                  step="5"
-                  value={targetDuration}
-                  onChange={e => setTargetDuration(parseInt(e.target.value))}
-                  className="w-full accent-amber-500 mt-2"
-                />
-              </div>
-
               <div className="flex items-end">
                 <button
                   onClick={() => handleGenerateAutomation()}
                   disabled={isGenerating}
-                  className="w-full py-2 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:from-pink-400 hover:to-amber-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
                 >
                   {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  <span>Generate Script</span>
+                  <span>{seriesParts > 1 ? `Generate ${seriesParts}-Part Arc` : 'Generate Script'}</span>
                 </button>
               </div>
             </div>
 
             <div>
-              <label className="text-xs text-slate-400 block mb-1">Custom Video Topic / Prompt (Optional)</label>
+              <label className="text-xs text-slate-400 block mb-1">
+                Story Premise / Reference Prompt (e.g. Bisma's "Little girl in lavender on university floor...")
+              </label>
               <input
                 type="text"
                 value={customPrompt}
                 onChange={e => setCustomPrompt(e.target.value)}
-                placeholder="Type any topic, or leave blank to use the active channel's self-generated curriculum..."
+                placeholder="Type story outline (e.g. Two childhood friends meet on university floor, emotional promise...)"
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white"
               />
             </div>
           </div>
+
+          {/* Series Navigation Tabs if seriesParts > 1 or storyParts.length > 0 */}
+          {((seriesParts > 1) || storyParts.length > 1) && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-pink-950/40 via-purple-950/40 to-slate-950 border border-pink-500/30 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 font-bold text-xs">
+                    🎭 Multi-Part Story Series ({seriesParts} Parts Active)
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Showing 5-6 scenes per episode with complete 10-second AI Video Prompts
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const currentPartScenes = scenes.filter(s => (s.partNumber || 1) === activePartTab);
+                      const bundle = currentPartScenes.map((s, i) => `=== SCENE ${s.sceneNumber} (${s.durationSeconds}s) ===\n${s.aiVideoPrompt || s.visualPrompt}\n`).join('\n\n');
+                      navigator.clipboard.writeText(bundle);
+                      toast.success(`Copied all ${currentPartScenes.length} AI Video Prompts for Part ${activePartTab}!`);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/40 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy All Part {activePartTab} Prompts</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const fullBundle = scenes.map(s => `[Part ${s.partNumber || 1} - Scene ${s.sceneNumber}]\n${s.aiVideoPrompt || s.visualPrompt}\n`).join('\n---\n\n');
+                      navigator.clipboard.writeText(fullBundle);
+                      toast.success(`Copied entire story series (${scenes.length} scenes) for AI video engines!`);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Full Series ({scenes.length} Prompts)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Part selector buttons */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {Array.from({ length: seriesParts }, (_, i) => i + 1).map(pNum => {
+                  const partObj = storyParts.find(sp => sp.partNumber === pNum);
+                  const isCurrent = activePartTab === pNum;
+                  return (
+                    <button
+                      key={pNum}
+                      onClick={() => setActivePartTab(pNum)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                        isCurrent
+                          ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/30'
+                          : 'bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <span>Part {pNum}</span>
+                      {partObj && <span className="opacity-75 font-normal">({partObj.partTitle})</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Title & SEO High-CTR Selection */}
           <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
@@ -1351,7 +1473,9 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
             </div>
 
             <div className="grid grid-cols-1 gap-3.5">
-              {scenes.map((sc, idx) => (
+              {scenes
+                .filter(sc => !seriesParts || seriesParts <= 1 || (sc.partNumber || 1) === activePartTab)
+                .map((sc, idx) => (
                 <div
                   key={idx}
                   className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all space-y-3"
@@ -1361,6 +1485,11 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
                       <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono text-xs font-bold">
                         Scene #{sc.sceneNumber}
                       </span>
+                      {sc.partNumber && (
+                        <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-mono text-xs font-bold">
+                          Part {sc.partNumber}
+                        </span>
+                      )}
                       <span className="text-xs text-slate-400 font-mono">
                         {sc.durationSeconds}s duration
                       </span>
@@ -1390,10 +1519,83 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
                     </div>
                   </div>
 
+                  {/* AI Video Prompt (10s Engine - Kling / Runway / Luma / Sora) */}
+                  <div className="p-3.5 rounded-xl bg-gradient-to-r from-pink-950/30 via-purple-950/30 to-slate-900 border border-pink-500/30 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-pink-300 flex items-center gap-1">
+                          <span>🎬 AI Video Prompt (10s Clip Engine)</span>
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-pink-500/20 text-pink-200 font-mono">
+                          Kling • Runway Gen-3 • Luma • Sora
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            const pText = sc.aiVideoPrompt || sc.visualPrompt;
+                            navigator.clipboard.writeText(pText);
+                            setCopiedPromptIdx(sc.sceneNumber);
+                            setTimeout(() => setCopiedPromptIdx(null), 2000);
+                            toast.success(`Copied Scene #${sc.sceneNumber} 10s AI Video Prompt!`);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow"
+                        >
+                          {copiedPromptIdx === sc.sceneNumber ? <CheckCircle2 className="w-3 h-3 text-white" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedPromptIdx === sc.sceneNumber ? 'Copied!' : 'Copy 10s Prompt'}</span>
+                        </button>
+
+                        <a
+                          href="https://klingai.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium"
+                        >
+                          Kling AI ↗
+                        </a>
+                        <a
+                          href="https://runwayml.com"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium"
+                        >
+                          Runway Gen-3 ↗
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Formatted Text Box */}
+                    <div className="relative">
+                      <textarea
+                        rows={6}
+                        value={sc.aiVideoPrompt || sc.visualPrompt}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setScenes(scenes.map((s, i) => i === idx ? { ...s, aiVideoPrompt: val } : s));
+                        }}
+                        className="w-full bg-black/60 border border-pink-500/20 rounded-lg p-2.5 text-pink-100 font-mono text-[11px] leading-relaxed focus:border-pink-500 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Dialogues Chips Preview if available */}
+                    {sc.dialogues && sc.dialogues.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {sc.dialogues.map((dlg, dIdx) => (
+                          <div key={dIdx} className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-300 flex items-center gap-1.5">
+                            <span className="font-bold text-pink-400">{dlg.emoji || '💬'} {dlg.speaker}</span>
+                            {dlg.emotion && <span className="text-slate-500 text-[10px]">({dlg.emotion}):</span>}
+                            <span className="text-white italic">"{dlg.dialogue}"</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Scene Fields */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                     <div>
-                      <label className="text-[11px] text-slate-500 block mb-1">Visual Prompt (Image / Video Gen)</label>
+                      <label className="text-[11px] text-slate-500 block mb-1">Visual Prompt (Image Diffusion)</label>
                       <textarea
                         rows={3}
                         value={sc.visualPrompt}
