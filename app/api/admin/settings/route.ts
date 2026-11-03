@@ -4,6 +4,42 @@ import connectDB from '@/lib/mongodb';
 import '@/models'; // Import all models to ensure they're registered
 import AdminSettings from '@/models/AdminSettings';
 
+const DEFAULT_SETTINGS = {
+  videoEditorEnabled: true,
+  videoTrimEnabled: true,
+  videoResizeEnabled: true,
+  // Tools
+  pdfEditorEnabled: true,
+  wordToPdfEnabled: true,
+  pdfToWordEnabled: true,
+  wordEditorEnabled: true,
+  imageEditorEnabled: true,
+  screenshotStudioEnabled: true,
+  resumeBuilderEnabled: true,
+  invoiceGeneratorEnabled: true,
+  nicheCalculatorsEnabled: true,
+  dataConverterEnabled: true,
+  focusTimerEnabled: true,
+  musicStudioEnabled: true,
+  interiorPlannerEnabled: true,
+  // Complete PDF Suite Toggles
+  pdfSuiteEnabled: true,
+  organizePdfEnabled: true,
+  compressPdfEnabled: true,
+  convertToPdfEnabled: true,
+  convertFromPdfEnabled: true,
+  pdfAnnotateEnabled: true,
+  pdfSecurityEnabled: true,
+  pdfIntelligenceEnabled: true,
+  // Specialist PDF Features
+  pdfTextReflowEnabled: true,
+  pdfBulkHighlightsEnabled: true,
+  pdfAdvancedTypographyEnabled: true,
+  pdfMultiObjectAlignmentEnabled: true,
+  pdfReferenceManagerEnabled: true,
+  pdfMindMapEnabled: true,
+};
+
 // GET - Fetch admin settings (public - for checking feature visibility)
 export async function GET(request: NextRequest) {
   try {
@@ -13,12 +49,7 @@ export async function GET(request: NextRequest) {
     let settings = await AdminSettings.findOne({});
     
     if (!settings) {
-      // Create default settings if none exist
-      settings = await AdminSettings.create({
-        videoEditorEnabled: true,
-        videoTrimEnabled: true,
-        videoResizeEnabled: true,
-      });
+      settings = await AdminSettings.create(DEFAULT_SETTINGS);
     }
 
     return NextResponse.json({
@@ -55,28 +86,22 @@ export async function PUT(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const { videoEditorEnabled, videoTrimEnabled, videoResizeEnabled } = body;
 
     // Get or create settings document
     let settings = await AdminSettings.findOne({});
     
     if (!settings) {
       settings = await AdminSettings.create({
-        videoEditorEnabled: videoEditorEnabled ?? true,
-        videoTrimEnabled: videoTrimEnabled ?? true,
-        videoResizeEnabled: videoResizeEnabled ?? true,
+        ...DEFAULT_SETTINGS,
+        ...body
       });
     } else {
-      // Update existing settings
-      if (typeof videoEditorEnabled !== 'undefined') {
-        settings.videoEditorEnabled = videoEditorEnabled;
-      }
-      if (typeof videoTrimEnabled !== 'undefined') {
-        settings.videoTrimEnabled = videoTrimEnabled;
-      }
-      if (typeof videoResizeEnabled !== 'undefined') {
-        settings.videoResizeEnabled = videoResizeEnabled;
-      }
+      // Update all supplied fields
+      Object.keys(body).forEach((key) => {
+        if (typeof body[key] !== 'undefined') {
+          (settings as any)[key] = body[key];
+        }
+      });
       await settings.save();
     }
 
@@ -97,4 +122,3 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
-

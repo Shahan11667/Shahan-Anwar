@@ -50,6 +50,35 @@ const SUPPORTED_LANGUAGES: LanguageOption[] = [
   { code: 'turkish', name: 'Turkish', flag: '🇹🇷' },
 ];
 
+// Helper to encode Float32Array to standard 16kHz 16-bit Mono WAV
+function encodeWav16kMono(samples: Float32Array): Blob {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  // RIFF header
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, 36 + samples.length * 2, true);
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(16, 16, true); // Subchunk1Size
+  view.setUint16(20, 1, true); // PCM = 1
+  view.setUint16(22, 1, true); // 1 channel
+  view.setUint32(24, 16000, true); // 16kHz
+  view.setUint32(28, 16000 * 2, true); // Byte rate
+  view.setUint16(32, 2, true); // Block align
+  view.setUint16(34, 16, true); // 16-bit
+  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(40, samples.length * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
 export default function VoiceToTextTool() {
   const [activeTab, setActiveTab] = useState<TabMode>('upload');
   
@@ -66,6 +95,7 @@ export default function VoiceToTextTool() {
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [audioDuration, setAudioDuration] = useState<string>('');
+  const [isDragging, setIsDragging] = useState<boolean>(false);
 
   // Live Mic State
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -134,31 +164,7 @@ export default function VoiceToTextTool() {
     };
   }, []);
 
-  // Handle Audio File Selection
-  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-    }
-
-    setAudioFile(file);
-    const url = URL.createObjectURL(file);
-    setAudioUrl(url);
-
-    // Read audio duration
-    const tempAudio = new Audio(url);
-    tempAudio.onloadedmetadata = () => {
-      const m = Math.floor(tempAudio.duration / 60);
-      const s = Math.floor(tempAudio.duration % 60);
-      setAudioDuration(`${m}:${s.toString().padStart(2, '0')}`);
-    };
-
-    toast.success(`Loaded "${file.name}"! Click "Transcribe Audio with Whisper AI" below.`);
-  };
-
-  // Convert and Resample Audio to 16kHz Float32Array
+  // Convert and Resample Audio to 16kHz Float32Array in browser
   const decodeAndResampleAudio = async (file: File): Promise<Float32Array> => {
     const arrayBuffer = await file.arrayBuffer();
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -183,23 +189,18 @@ export default function VoiceToTextTool() {
   };
 
   // Run Direct AI File Transcription using Whisper
-  const handleTranscribeAudioFile = async () => {
-    if (!audioFile) {
-      toast.error('Please choose or drop an audio file first.');
-      return;
-    }
-
+  const runFileTranscription = async (fileToTranscribe: File, langToUse: string = selectedLanguage) => {
     setIsTranscribing(true);
-    setProgressPercent(20);
-    setStatusMessage('Uploading and analyzing audio...');
+    setProgressPercent(15);
+    setStatusMessage('Analyzing audio file and preparing neural pipeline...');
 
     try {
-      // Primary Engine: High-speed server-side AI Whisper transcription with native Ogg Opus & WAV decoders
+      // Pathway 1: Primary Server-Side Neural Whisper with Native Opus / WAV Decoders
       const formData = new FormData();
-      formData.append('audio', audioFile);
-      formData.append('language', selectedLanguage);
+      formData.append('audio', fileToTranscribe);
+      formData.append('language', langToUse);
 
-      setProgressPercent(45);
+      setProgressPercent(40);
       setStatusMessage('Transcribing audio with Whisper AI neural network...');
 
       const response = await fetch('/api/transcribe-audio', {
@@ -212,21 +213,62 @@ export default function VoiceToTextTool() {
         if (data.success && data.text) {
           setTranscript(data.text);
           setProgressPercent(100);
-          setStatusMessage(`Completed in ${data.duration || 'a few'}s (Language: ${data.language || selectedLanguage})`);
+          setStatusMessage(`Transcribed in ${data.duration || 'a few'}s (${data.language || langToUse})`);
           confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
-          toast.success('Audio transcribed successfully!');
+          toast.success('Audio transcribed successfully from file!');
+          return;
+        } else if (data.success && data.silent) {
+          toast.error('The uploaded audio is completely silent or no audible voice was detected.');
+          setStatusMessage('Audio appears silent or contains no audible speech.');
           return;
         } else if (data.success && !data.text) {
-          toast.error('No audible speech detected in this audio recording.');
-          setStatusMessage('No speech detected in audio file.');
+          // If auto language returned empty, user might need to specify Urdu/Hindi/other
+          toast.error('No speech detected. If speaking Urdu, Hindi or Arabic, try selecting it explicitly in the dropdown.');
+          setStatusMessage('No speech recognized with current language selection.');
           return;
         }
       }
 
-      // Fallback: If server route returned error, try in-browser engine
-      setStatusMessage('Trying in-browser transcription engine...');
-      setProgressPercent(60);
-      const audioData = await decodeAndResampleAudio(audioFile);
+      // Pathway 2: Browser Resample to Standard 16kHz WAV -> Server Whisper
+      setStatusMessage('Resampling audio format with hardware acceleration...');
+      setProgressPercent(55);
+
+      try {
+        const pcmSamples = await decodeAndResampleAudio(fileToTranscribe);
+        const wavBlob = encodeWav16kMono(pcmSamples);
+        const wavFile = new File([wavBlob], 'audio.wav', { type: 'audio/wav' });
+
+        const retryFormData = new FormData();
+        retryFormData.append('audio', wavFile);
+        retryFormData.append('language', langToUse);
+
+        setProgressPercent(70);
+        setStatusMessage('Transcribing resampled 16kHz audio stream...');
+
+        const wavResponse = await fetch('/api/transcribe-audio', {
+          method: 'POST',
+          body: retryFormData,
+        });
+
+        if (wavResponse.ok) {
+          const wavData = await wavResponse.json();
+          if (wavData.success && wavData.text) {
+            setTranscript(wavData.text);
+            setProgressPercent(100);
+            setStatusMessage(`Transcribed successfully in ${wavData.duration || 'a few'}s`);
+            confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
+            toast.success('Audio transcribed successfully!');
+            return;
+          }
+        }
+      } catch (browserDecodeErr) {
+        console.warn('Browser decode fallback attempted:', browserDecodeErr);
+      }
+
+      // Pathway 3: Full In-Browser Client-Side Whisper Fallback
+      setStatusMessage('Initializing in-browser client-side Whisper model...');
+      setProgressPercent(80);
+      const audioData = await decodeAndResampleAudio(fileToTranscribe);
 
       const { pipeline, env } = await import('@xenova/transformers');
       env.allowLocalModels = false;
@@ -238,15 +280,15 @@ export default function VoiceToTextTool() {
         { quantized: true }
       );
 
-      setProgressPercent(85);
-      setStatusMessage('Transcribing with client-side Whisper model...');
+      setProgressPercent(90);
+      setStatusMessage('Transcribing with client-side neural model...');
 
       const options: any = {
         chunk_length_s: 30,
         task: 'transcribe',
       };
-      if (selectedLanguage !== 'auto') {
-        options.language = selectedLanguage;
+      if (langToUse !== 'auto') {
+        options.language = langToUse;
       }
 
       const output: any = await transcriber(audioData, options);
@@ -255,20 +297,67 @@ export default function VoiceToTextTool() {
       if (transcribedText) {
         setTranscript(transcribedText);
         setProgressPercent(100);
-        setStatusMessage('Transcription completed!');
+        setStatusMessage('Transcription completed successfully!');
         confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
         toast.success('Audio transcribed successfully!');
       } else {
-        toast.error('No audible speech detected. If speaking Urdu/Hindi, select it from the language menu.');
+        toast.error('No audible speech detected. If speaking in another language, select it from the language dropdown.');
         setStatusMessage('No speech detected.');
       }
     } catch (err: any) {
       console.error('Audio transcription error:', err);
       toast.error(err.message || 'Failed to transcribe audio. Please select language or try again.');
-      setStatusMessage('Error during transcription. Please check audio file format.');
+      setStatusMessage('Error during transcription. Please verify file format.');
     } finally {
       setIsTranscribing(false);
     }
+  };
+
+  // Handle Audio File Selection (Automatic Instant Transcription)
+  const processUploadedFile = (file: File) => {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+    }
+
+    setAudioFile(file);
+    const url = URL.createObjectURL(file);
+    setAudioUrl(url);
+
+    // Read audio duration
+    const tempAudio = new Audio(url);
+    tempAudio.onloadedmetadata = () => {
+      const m = Math.floor(tempAudio.duration / 60);
+      const s = Math.floor(tempAudio.duration % 60);
+      setAudioDuration(`${m}:${s.toString().padStart(2, '0')}`);
+    };
+
+    toast.success(`Loaded "${file.name}"! Starting automatic transcription...`);
+    // Immediately start transcription automatically! No manual play required.
+    runFileTranscription(file, selectedLanguage);
+  };
+
+  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processUploadedFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      processUploadedFile(file);
+    }
+  };
+
+  // Manual Trigger Button Handler
+  const handleTranscribeAudioFile = () => {
+    if (!audioFile) {
+      toast.error('Please choose or drop an audio file first.');
+      return;
+    }
+    runFileTranscription(audioFile, selectedLanguage);
   };
 
   // Mic Controls
@@ -370,7 +459,14 @@ export default function VoiceToTextTool() {
       {activeTab === 'upload' && (
         <div className="space-y-5">
           {/* File Upload Drop Zone */}
-          <div className="p-8 rounded-2xl bg-slate-950/90 border-2 border-dashed border-slate-800 hover:border-amber-500/60 transition-all text-center relative overflow-hidden group">
+          <div 
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`p-8 rounded-2xl bg-slate-950/90 border-2 border-dashed transition-all text-center relative overflow-hidden group ${
+              isDragging ? 'border-amber-400 bg-amber-500/10 scale-[1.01]' : 'border-slate-800 hover:border-amber-500/60'
+            }`}
+          >
             <div className="max-w-md mx-auto space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/10 to-red-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto shadow-inner group-hover:scale-105 transition-transform">
                 <FileAudio className="w-8 h-8" />
@@ -383,6 +479,10 @@ export default function VoiceToTextTool() {
                 <p className="text-xs text-slate-400 mt-1">
                   Supports WhatsApp Voice Notes (<code className="text-amber-400">.opus</code>, <code className="text-amber-400">.ogg</code>), MP3, WAV, M4A, AAC, and WebM
                 </p>
+                <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Auto-transcribes immediately upon upload — no need to play through speakers!</span>
+                </div>
               </div>
 
               <div className="flex items-center justify-center gap-3">
@@ -419,7 +519,12 @@ export default function VoiceToTextTool() {
                 </div>
 
                 {audioUrl && (
-                  <audio src={audioUrl} controls className="h-9 max-w-full sm:max-w-xs" />
+                  <div className="flex flex-col items-end gap-1">
+                    <audio src={audioUrl} controls className="h-9 max-w-full sm:max-w-xs" />
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      Preview only • Voice is converted directly from file bytes
+                    </span>
+                  </div>
                 )}
               </div>
 
@@ -432,7 +537,14 @@ export default function VoiceToTextTool() {
                   </label>
                   <select
                     value={selectedLanguage}
-                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                    onChange={(e) => {
+                      const newLang = e.target.value;
+                      setSelectedLanguage(newLang);
+                      if (audioFile && !isTranscribing) {
+                        toast(`Language updated. Re-transcribing audio...`, { icon: '🌐' });
+                        runFileTranscription(audioFile, newLang);
+                      }
+                    }}
                     disabled={isTranscribing}
                     className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
                   >

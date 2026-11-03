@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+// Offline font
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
 import AnalyticsTracker from '@/components/analytics-tracker'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = { className: 'font-sans' }
 
 import connectDB from '@/lib/mongodb'
 import Hero from '@/models/Hero'

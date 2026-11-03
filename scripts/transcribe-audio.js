@@ -25,41 +25,77 @@ async function main() {
   }
 
   const buffer = fs.readFileSync(filePath);
+  const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  const uint8 = new Uint8Array(arrayBuffer);
   let audioSamples = null;
 
   const magic = buffer.slice(0, 4).toString('ascii');
 
   if (magic === 'OggS') {
     // WhatsApp voice note / Ogg Opus
-    const decoder = new OggOpusDecoder();
-    await decoder.ready;
-    const decoded = await decoder.decodeFile(buffer);
-    if (decoded.channelData && decoded.channelData.length > 0) {
-      audioSamples = resampleTo16k(decoded.channelData[0], decoded.sampleRate);
-    }
-  } else if (magic === 'RIFF') {
-    // WAV format
-    const decoded = wav.decode(buffer);
-    if (decoded.channelData && decoded.channelData.length > 0) {
-      audioSamples = resampleTo16k(decoded.channelData[0], decoded.sampleRate);
-    }
-  } else {
-    // Try Ogg Opus decode fallback
     try {
       const decoder = new OggOpusDecoder();
       await decoder.ready;
-      const decoded = await decoder.decodeFile(buffer);
-      if (decoded.channelData && decoded.channelData.length > 0) {
+      const decoded = await decoder.decodeFile(uint8);
+      if (decoded && decoded.channelData && decoded.channelData.length > 0) {
         audioSamples = resampleTo16k(decoded.channelData[0], decoded.sampleRate);
       }
     } catch (e) {
-      // not ogg
+      // fallback
     }
+  } else if (magic === 'RIFF') {
+    // WAV format
+    try {
+      const decoded = wav.decode(arrayBuffer);
+      if (decoded && decoded.channelData && decoded.channelData.length > 0) {
+        audioSamples = resampleTo16k(decoded.channelData[0], decoded.sampleRate);
+      }
+    } catch (e) {
+      // fallback
+    }
+  }
+
+  // Universal Fallbacks if magic header was unusual or wrapped
+  if (!audioSamples) {
+    try {
+      const decoded = wav.decode(arrayBuffer);
+      if (decoded && decoded.channelData && decoded.channelData.length > 0) {
+        audioSamples = resampleTo16k(decoded.channelData[0], decoded.sampleRate);
+      }
+    } catch (e) {}
+  }
+
+  if (!audioSamples) {
+    try {
+      const decoder = new OggOpusDecoder();
+      await decoder.ready;
+      const decoded = await decoder.decodeFile(uint8);
+      if (decoded && decoded.channelData && decoded.channelData.length > 0) {
+        audioSamples = resampleTo16k(decoded.channelData[0], decoded.sampleRate);
+      }
+    } catch (e) {}
   }
 
   if (!audioSamples || audioSamples.length === 0) {
     console.error(JSON.stringify({ success: false, error: 'Unsupported audio container. Please upload .ogg, .opus, or .wav' }));
     process.exit(1);
+  }
+
+  // Calculate RMS amplitude to detect silence / blank audio
+  let sumSquare = 0;
+  for (let i = 0; i < audioSamples.length; i++) {
+    sumSquare += audioSamples[i] * audioSamples[i];
+  }
+  const rms = Math.sqrt(sumSquare / audioSamples.length);
+  if (rms < 0.002) {
+    console.log(JSON.stringify({
+      success: true,
+      text: "",
+      language: requestedLang,
+      duration: (audioSamples.length / 16000).toFixed(1),
+      silent: true
+    }));
+    return;
   }
 
   const { pipeline } = await import('@xenova/transformers');
@@ -85,7 +121,7 @@ async function main() {
     });
     textResult = (result && result.text) ? result.text.trim() : '';
 
-    // If auto-detect returned empty string on short/noisy audio, try Urdu fallback, then English
+    // If auto-detect returned empty string on short audio, try Urdu fallback, then English
     if (!textResult) {
       const urduResult = await transcriber(audioSamples, {
         language: 'urdu',

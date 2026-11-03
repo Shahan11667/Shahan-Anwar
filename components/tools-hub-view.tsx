@@ -25,7 +25,19 @@ import {
   Scaling,
   RefreshCw,
   CaseSensitive,
-  Binary
+  Binary,
+  PenTool,
+  FileCode,
+  Camera,
+  DollarSign,
+  Calculator,
+  Clock,
+  Music,
+  Home,
+  Presentation,
+  Table,
+  Stamp,
+  Bot
 } from 'lucide-react';
 import { ALL_TOOLS_LIST, CATEGORIES } from '@/lib/tools-data';
 import Navbar from '@/components/navbar';
@@ -83,6 +95,48 @@ const getToolIcon = (slug: string) => {
       return <FileText className="w-5 h-5 text-teal-400" />;
     case 'voice-message-to-text':
       return <Mic className="w-5 h-5 text-red-400" />;
+    case 'word-to-pdf':
+      return <FileText className="w-5 h-5 text-blue-400" />;
+    case 'pdf-to-word':
+      return <FileCode className="w-5 h-5 text-cyan-400" />;
+    case 'pdf-editor':
+      return <PenTool className="w-5 h-5 text-rose-400" />;
+    case 'word-editor':
+      return <FileText className="w-5 h-5 text-indigo-400" />;
+    case 'image-editor':
+      return <ImageIcon className="w-5 h-5 text-emerald-400" />;
+    case 'screenshot-studio':
+      return <Camera className="w-5 h-5 text-indigo-400" />;
+    case 'resume-builder':
+      return <FileText className="w-5 h-5 text-blue-400" />;
+    case 'invoice-generator':
+      return <DollarSign className="w-5 h-5 text-emerald-400" />;
+    case 'smart-calculator':
+      return <Calculator className="w-5 h-5 text-amber-400" />;
+    case 'dev-text-converter':
+      return <Code2 className="w-5 h-5 text-purple-400" />;
+    case 'focus-habit-tracker':
+      return <Clock className="w-5 h-5 text-rose-400" />;
+    case 'music-studio':
+      return <Music className="w-5 h-5 text-violet-400" />;
+    case 'interior-planner':
+      return <Home className="w-5 h-5 text-emerald-400" />;
+    case 'pdf-suite':
+      return <Layers className="w-5 h-5 text-amber-400" />;
+    case 'organize-pdf':
+      return <Layers className="w-5 h-5 text-orange-400" />;
+    case 'compress-pdf':
+      return <Minimize2 className="w-5 h-5 text-emerald-400" />;
+    case 'convert-to-pdf':
+      return <Presentation className="w-5 h-5 text-amber-400" />;
+    case 'convert-from-pdf':
+      return <Table className="w-5 h-5 text-blue-400" />;
+    case 'pdf-annotate':
+      return <Stamp className="w-5 h-5 text-purple-400" />;
+    case 'pdf-security':
+      return <Lock className="w-5 h-5 text-cyan-400" />;
+    case 'pdf-intelligence':
+      return <Bot className="w-5 h-5 text-indigo-400" />;
     default:
       return <Sparkles className="w-5 h-5 text-rose-400" />;
   }

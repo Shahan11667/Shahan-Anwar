@@ -19,6 +19,27 @@ import Base64Tool from '@/components/tools/base64-tool';
 import ImageToTextTool from '@/components/tools/image-to-text-tool';
 import PdfToTextTool from '@/components/tools/pdf-to-text-tool';
 import VoiceToTextTool from '@/components/tools/voice-to-text-tool';
+import WordToPdfTool from '@/components/tools/word-to-pdf-tool';
+import PdfToWordTool from '@/components/tools/pdf-to-word-tool';
+import PdfEditorTool from '@/components/tools/pdf-editor-tool';
+import WordEditorTool from '@/components/tools/word-editor-tool';
+import ImageEditorTool from '@/components/tools/image-editor-tool';
+import ScreenshotStudioTool from '@/components/tools/screenshot-studio-tool';
+import ResumeBuilderTool from '@/components/tools/resume-builder-tool';
+import InvoiceGeneratorTool from '@/components/tools/invoice-generator-tool';
+import SmartCalculatorTool from '@/components/tools/smart-calculator-tool';
+import DevTextConverterTool from '@/components/tools/dev-text-converter-tool';
+import FocusHabitTrackerTool from '@/components/tools/focus-habit-tracker-tool';
+import MusicStudioTool from '@/components/tools/music-studio-tool';
+import InteriorPlannerTool from '@/components/tools/interior-planner-tool';
+import PdfSuiteTool from '@/components/tools/pdf-suite-tool';
+import OrganizePdfTool from '@/components/tools/organize-pdf-tool';
+import CompressPdfTool from '@/components/tools/compress-pdf-tool';
+import ConvertToPdfSuiteTool from '@/components/tools/convert-to-pdf-suite-tool';
+import ConvertFromPdfSuiteTool from '@/components/tools/convert-from-pdf-suite-tool';
+import PdfAnnotateTool from '@/components/tools/pdf-annotate-tool';
+import PdfSecurityTool from '@/components/tools/pdf-security-tool';
+import PdfIntelligenceTool from '@/components/tools/pdf-intelligence-tool';
 
 interface ToolPageProps {
   params: Promise<{
@@ -26,11 +47,7 @@ interface ToolPageProps {
   }>;
 }
 
-export async function generateStaticParams() {
-  return ALL_TOOLS_LIST.map((tool) => ({
-    slug: tool.slug,
-  }));
-}
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: ToolPageProps): Promise<Metadata> {
   const { slug } = await params;
@@ -126,6 +143,48 @@ export default async function ToolPage({ params }: ToolPageProps) {
         return <PdfToTextTool />;
       case 'voice-message-to-text':
         return <VoiceToTextTool />;
+      case 'word-to-pdf':
+        return <WordToPdfTool />;
+      case 'pdf-to-word':
+        return <PdfToWordTool />;
+      case 'pdf-editor':
+        return <PdfEditorTool />;
+      case 'word-editor':
+        return <WordEditorTool />;
+      case 'image-editor':
+        return <ImageEditorTool />;
+      case 'screenshot-studio':
+        return <ScreenshotStudioTool />;
+      case 'resume-builder':
+        return <ResumeBuilderTool />;
+      case 'invoice-generator':
+        return <InvoiceGeneratorTool />;
+      case 'smart-calculator':
+        return <SmartCalculatorTool />;
+      case 'dev-text-converter':
+        return <DevTextConverterTool />;
+      case 'focus-habit-tracker':
+        return <FocusHabitTrackerTool />;
+      case 'music-studio':
+        return <MusicStudioTool />;
+      case 'interior-planner':
+        return <InteriorPlannerTool />;
+      case 'pdf-suite':
+        return <PdfSuiteTool />;
+      case 'organize-pdf':
+        return <OrganizePdfTool />;
+      case 'compress-pdf':
+        return <CompressPdfTool />;
+      case 'convert-to-pdf':
+        return <ConvertToPdfSuiteTool />;
+      case 'convert-from-pdf':
+        return <ConvertFromPdfSuiteTool />;
+      case 'pdf-annotate':
+        return <PdfAnnotateTool />;
+      case 'pdf-security':
+        return <PdfSecurityTool />;
+      case 'pdf-intelligence':
+        return <PdfIntelligenceTool />;
       default:
         return null;
     }
