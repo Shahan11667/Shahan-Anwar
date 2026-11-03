@@ -230,11 +230,39 @@ export default function YoutubeAutomationView() {
   // Content Plan State
   const [contentPlan, setContentPlan] = useState<ContentPlanItem[]>([]);
 
-  // Publisher State
+  // Publisher & Webhook Integration State (Make.com vs Zapier)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['youtube', 'instagram', 'tiktok']);
   const [webhookUrl, setWebhookUrl] = useState<string>('');
+  const [webhookProvider, setWebhookProvider] = useState<'make' | 'zapier' | 'custom'>('make');
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
+  const [isTestingWebhook, setIsTestingWebhook] = useState<boolean>(false);
   const [publishedStatus, setPublishedStatus] = useState<any>(null);
+
+  // Restore saved webhook URL & provider from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUrl = localStorage.getItem('sol_automation_webhook_url');
+      if (savedUrl) setWebhookUrl(savedUrl);
+      const savedProvider = localStorage.getItem('sol_automation_webhook_provider') as any;
+      if (savedProvider && ['make', 'zapier', 'custom'].includes(savedProvider)) {
+        setWebhookProvider(savedProvider);
+      }
+    }
+  }, []);
+
+  const handleWebhookChange = (val: string) => {
+    setWebhookUrl(val);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sol_automation_webhook_url', val);
+    }
+  };
+
+  const handleProviderChange = (p: 'make' | 'zapier' | 'custom') => {
+    setWebhookProvider(p);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sol_automation_webhook_provider', p);
+    }
+  };
 
   // Total Duration
   const totalDuration = scenes.length > 0 ? scenes.reduce((acc, s) => acc + s.durationSeconds, 0) : 35;
@@ -706,7 +734,49 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
     window.speechSynthesis.speak(utterance);
   };
 
-  // Multi-Platform Publisher
+  // Test Webhook Ping for Make.com / Zapier Data Structure Detection
+  const handleTestWebhookPing = async () => {
+    if (!webhookUrl || (!webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://'))) {
+      toast.error('Please enter a valid webhook URL (e.g. https://hook.eu1.make.com/...)');
+      return;
+    }
+    setIsTestingWebhook(true);
+    try {
+      const res = await fetch('/api/admin/automation/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'test_ping',
+          webhookUrl,
+          channelName,
+          niche: selectedNiche,
+          language: scriptLanguage,
+          title: selectedTitle,
+          description,
+          hashtags,
+          scenes,
+          thumbnail: {
+            mainHeadline: thumbnailHeadline,
+            badgeText: thumbnailBadge,
+            bgColor: '#ec4899'
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        confetti({ particleCount: 50, spread: 60 });
+        toast.success(`Make.com webhook verified! (HTTP ${data.status || 200}) Data structure active.`, { icon: '⚡' });
+      } else {
+        toast.error(data.error || 'Webhook test ping failed');
+      }
+    } catch (e: any) {
+      toast.error('Test ping error: ' + e.message);
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
+
+  // Multi-Platform & Webhook Publisher
   const handlePublishAll = async () => {
     setIsPublishing(true);
     try {
@@ -714,10 +784,20 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'publish',
           platforms: selectedPlatforms,
+          channelName,
+          niche: selectedNiche,
+          language: scriptLanguage,
           title: selectedTitle,
           description,
           hashtags,
+          scenes,
+          thumbnail: {
+            mainHeadline: thumbnailHeadline,
+            badgeText: thumbnailBadge,
+            bgColor: '#ec4899'
+          },
           webhookUrl,
         })
       });
@@ -726,7 +806,10 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
       if (data.success) {
         setPublishedStatus(data.publishedPlatforms);
         confetti({ particleCount: 70, spread: 80 });
-        toast.success('Successfully packaged & dispatched to all platforms!');
+        const webhookNote = data.webhookDispatched 
+          ? ` & Dispatched to ${webhookProvider === 'make' ? 'Make.com' : 'Webhook'}` 
+          : '';
+        toast.success(`Packaged for ${selectedPlatforms.length} platforms${webhookNote}!`, { icon: '🚀' });
 
         setContentPlan(prev => [
           {
@@ -1406,17 +1489,129 @@ Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
             </div>
 
             <div className="space-y-3">
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Webhook Dispatch URL (Zapier / Make.com)</label>
-                <input
-                  type="url"
-                  value={webhookUrl}
-                  onChange={e => setWebhookUrl(e.target.value)}
-                  placeholder="https://hooks.zapier.com/hooks/catch/..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono"
-                />
+              {/* Automation Bridge Provider Card */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span>No-Code Automation Webhook</span>
+                  </label>
+                  <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => handleProviderChange('make')}
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                        webhookProvider === 'make'
+                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Make.com (1,000 Free ⚡)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleProviderChange('zapier')}
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                        webhookProvider === 'zapier'
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Zapier (100 Free)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleProviderChange('custom')}
+                      className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                        webhookProvider === 'custom'
+                          ? 'bg-slate-700 text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] text-slate-400">
+                      {webhookProvider === 'make' ? 'Make.com Custom Webhook URL' : webhookProvider === 'zapier' ? 'Zapier Catch Hook URL' : 'Webhook Endpoint URL'}
+                    </span>
+                    <a
+                      href={webhookProvider === 'make' ? 'https://www.make.com' : 'https://zapier.com'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
+                    >
+                      <span>Open {webhookProvider === 'make' ? 'Make.com' : 'Zapier'}</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                  <input
+                    type="url"
+                    value={webhookUrl}
+                    onChange={e => handleWebhookChange(e.target.value)}
+                    placeholder={
+                      webhookProvider === 'make'
+                        ? 'https://hook.eu1.make.com/your-custom-webhook-id'
+                        : 'https://hooks.zapier.com/hooks/catch/12345/abcdef/'
+                    }
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Make.com Action Buttons & Helpers */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleTestWebhookPing}
+                    disabled={isTestingWebhook || !webhookUrl}
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 transition-all"
+                  >
+                    {isTestingWebhook ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-indigo-400" />}
+                    <span>{isTestingWebhook ? 'Sending Ping...' : 'Send Test Ping to Make.com'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const samplePayload = {
+                        event: 'video_automation.publish',
+                        channel: channelName,
+                        niche: selectedNiche,
+                        language: scriptLanguage,
+                        title: selectedTitle,
+                        description,
+                        hashtags,
+                        scenes,
+                        timestamp: new Date().toISOString()
+                      };
+                      copyToClipboard(JSON.stringify(samplePayload, null, 2), 'Make.com Sample Payload');
+                    }}
+                    className="py-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3 h-3 text-amber-400" />
+                    <span>Copy JSON</span>
+                  </button>
+                </div>
+
+                {/* Quick Step Guide for Make.com */}
+                <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/60 text-[11px] text-slate-400 space-y-1">
+                  <strong className="text-amber-300 flex items-center gap-1">
+                    <span>⚡ Make.com Setup Guide (1,000 Free Tasks/Month):</span>
+                  </strong>
+                  <ol className="list-decimal list-inside space-y-0.5 text-slate-400 text-[10px]">
+                    <li>Make.com par login karein &rarr; <strong>Create a new scenario</strong> dabayein.</li>
+                    <li>First module add karein: <strong>Webhooks</strong> &rarr; <strong>Custom Webhook</strong>.</li>
+                    <li>Generated URL copy karke ooper box me paste karein.</li>
+                    <li><strong>Send Test Ping to Make.com</strong> button dabayein (Make.com automatically data structure detect kar lega).</li>
+                    <li>Agay <strong>YouTube</strong>, <strong>Instagram</strong>, ya <strong>Google Sheets</strong> connect karein!</li>
+                  </ol>
+                </div>
               </div>
 
+              {/* Hashtag Cloud */}
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                 <span className="text-xs font-semibold text-slate-300">Hashtag Cloud:</span>
                 <div className="flex flex-wrap gap-1.5">
