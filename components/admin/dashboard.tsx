@@ -69,6 +69,7 @@ const AdminDashboard = () => {
       if (tabParam === 'automation' || hash === 'automation') {
         setActiveTab('automation')
       }
+      window.addEventListener('open-video-editor', () => setActiveTab('video-studio'))
     }
   }, [])
 

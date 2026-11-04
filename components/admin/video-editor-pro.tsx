@@ -34,7 +34,6 @@ import {
 import toast from 'react-hot-toast';
 import { makeTicker, pickMime } from '@/lib/video-render';
 import { generateSpeech } from '@/lib/video-studio-ai';
-import { loadPuter } from '@/lib/puter';
 import { getStudioProject } from '@/components/admin/youtube-automation-view';
 
 /* ------------------------------------------------------------------ types */
@@ -1100,7 +1099,7 @@ export default function VideoEditorPro() {
       setProj((o) => ({ ...o, media: [...o.media, m] }));
       addMedia(m, 'audio', timeRef.current);
     } catch (e: any) {
-      toast.error(e?.message || 'Text-to-speech failed. Sign in to Puter in the AI Video Automation tab.');
+      toast.error(e?.message || 'Text-to-speech failed. Please try again.');
     } finally {
       setBusy('');
     }
@@ -1150,37 +1149,32 @@ export default function VideoEditorPro() {
 
       let chunks: { text: string; timestamp: [number, number | null] }[] = [];
       let usedPuter = false;
+
+      // 1. Groq Whisper on the server (free, accurate, handles Urdu). WAV must stay under Vercel's ~4.5 MB body limit.
+      let studioKey = '';
       try {
-        setCapMsg('Transcribing with Puter AI…');
-        const puter = await loadPuter();
-        if (!puter?.ai?.speech2txt) throw new Error('Puter speech-to-text unavailable');
-        const iso: Record<string, string> = { english: 'en', urdu: 'ur', hindi: 'hi', arabic: 'ar' };
-        const opts: any = { provider: 'gemini', model: 'gemini-3.5-transcribe', timestamp_granularities: ['word'] };
-        if (iso[capLang]) opts.language = iso[capLang];
-        const res: any = await puter.ai.speech2txt(encodeWav(mono, 16000), opts);
-        const words: { word?: string; text?: string; start: number; end: number }[] = res?.words || [];
-        if (words.length) {
-          let cur: string[] = [];
-          let t0 = 0;
-          let last = 0;
-          const flush = () => {
-            if (cur.length) chunks.push({ text: cur.join(' '), timestamp: [t0, last] });
-            cur = [];
-          };
-          words.forEach((w) => {
-            const txt = String(w.word ?? w.text ?? '').trim();
-            if (!txt) return;
-            if (cur.length && (cur.length >= 7 || w.start - last > 0.7)) flush();
-            if (!cur.length) t0 = w.start;
-            cur.push(txt);
-            last = w.end;
-            if (/[.!?؟۔]$/.test(txt)) flush();
-          });
-          flush();
-          usedPuter = chunks.length > 0;
+        studioKey = sessionStorage.getItem('studioKey') || '';
+      } catch {
+        /* ignore */
+      }
+      {
+        try {
+          setCapMsg('Transcribing with Groq Whisper…');
+          const wavBlob = encodeWav(mono, 16000);
+          if (wavBlob.size > 4_200_000) throw new Error('clip too long for the server route');
+          const fd = new FormData();
+          fd.append('file', wavBlob, 'audio.wav');
+          const iso2: Record<string, string> = { english: 'en', urdu: 'ur', hindi: 'hi', arabic: 'ar' };
+          if (iso2[capLang]) fd.append('language', iso2[capLang]);
+          const r = await fetch('/api/admin/automation/transcribe', { method: 'POST', headers: { 'x-studio-key': studioKey }, body: fd });
+          const j = await r.json().catch(() => ({}));
+          if (r.ok && j.success && j.segments?.length) {
+            chunks = j.segments.filter((x: any) => x.text).map((x: any) => ({ text: x.text, timestamp: [x.start, x.end] as [number, number] }));
+            usedPuter = chunks.length > 0;
+          }
+        } catch (err) {
+          console.warn('Groq transcription failed, trying Puter:', err);
         }
-      } catch (err) {
-        console.warn('Puter speech-to-text failed, using offline Whisper:', err);
       }
 
       if (!usedPuter) {
@@ -1631,7 +1625,7 @@ export default function VideoEditorPro() {
               {recording ? 'Stop recording' : 'Record voiceover at playhead'}
             </button>
             <div className="rounded-md border border-slate-700 p-2">
-              <span className={lab}>Text to speech (Puter AI)</span>
+              <span className={lab}>Text to speech</span>
               <textarea className={`${inp} mb-1 min-h-[60px]`} value={ttsText} onChange={(e) => setTtsText(e.target.value)} placeholder="Type what the voice should say" />
               <div className="flex gap-1">
                 <select className={inp} value={ttsLang} onChange={(e) => setTtsLang(e.target.value)}>
@@ -1654,7 +1648,7 @@ export default function VideoEditorPro() {
             </button>
             <div className="rounded-md border border-slate-700 p-2">
               <span className={lab}>Auto captions (from speech)</span>
-              <p className="mb-1 text-[10px] text-slate-500">Select a video/audio clip with speech, then press the button. Uses your Puter AI (sign in on the AI Video Automation tab); if that fails it falls back to an offline model.</p>
+              <p className="mb-1 text-[10px] text-slate-500">Select a video/audio clip with speech, then press the button. Uses Groq Whisper; if that fails it falls back to an offline model.</p>
               <select className={`${inp} mb-1`} value={capLang} onChange={(e) => setCapLang(e.target.value)}>
                 <option value="auto">Language: auto-detect</option>
                 <option value="english">English</option>

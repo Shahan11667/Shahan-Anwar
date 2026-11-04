@@ -1,10 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { generateText } from '@/lib/llm';
 import DailyPack, { IDailyPack } from '@/models/DailyPack';
 
 export const BESHAAN_CONTEXT =
   'CHANNEL: BESHAAN. Tagline: Three Creators | Three Personalities | One Amazing Journey. Two girls and one boy blending fashion, lifestyle vibes and gaming entertainment. Tone: energetic trio banter, friendly, trendy, fun, positive, family-safe. The three recurring characters have distinct personalities (the stylish fashion girl, the bubbly lifestyle girl, the funny gamer boy) and always look the same.';
-
-const MODELS = (process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : []).concat(['gemini-2.5-flash', 'gemini-2.0-flash']);
 
 export function todayKey(): string {
   // Pakistan time (UTC+5) so "today" matches the creator's day
@@ -23,9 +21,6 @@ const LANG: Record<string, string> = {
 };
 
 export async function generatePack(opts: { source: 'cron' | 'manual'; hint?: string }): Promise<IDailyPack> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set. Get a free key at aistudio.google.com and add it to env vars.');
-
   const sceneCount = Math.min(12, Math.max(3, Number(process.env.DAILY_PACK_SCENES) || 7));
   const language = LANG[process.env.DAILY_PACK_LANGUAGE || 'roman_urdu'] || LANG.roman_urdu;
   const genre = process.env.DAILY_PACK_GENRE || 'Beshaan (Fashion, Lifestyle, Gaming)';
@@ -52,15 +47,12 @@ Return ONLY JSON:
 "facebook":{"title":"title","description":"conversational caption with a question","hashtags":"3-5 hashtags","tags":""}}
 Use at most 3 characters. Use #Beshaan #BeshaanVibe in hashtags when the channel is Beshaan.`;
 
-  const genAI = new GoogleGenerativeAI(apiKey);
   let data: any = null;
   let lastErr = '';
-  for (const name of MODELS) {
+  for (let attempt = 0; attempt < 2 && !data?.scenes?.length; attempt++) {
     try {
-      const model = genAI.getGenerativeModel({ model: name, generationConfig: { responseMimeType: 'application/json', temperature: 1 } });
-      const res = await model.generateContent(prompt);
-      data = parseJson(res.response.text());
-      if (data?.scenes?.length) break;
+      const r = await generateText({ prompt, json: true, maxTokens: 8000 });
+      data = parseJson(r.text);
     } catch (e: any) {
       lastErr = e?.message || String(e);
     }

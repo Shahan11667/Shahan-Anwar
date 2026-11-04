@@ -1,6 +1,7 @@
+import { getGeminiKey } from '@/lib/llm';
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { guardStudio } from '@/lib/studio-guard';
+import { guardSameOrigin } from '@/lib/studio-guard';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -8,10 +9,9 @@ export const dynamic = 'force-dynamic';
 // Image generation with reference images (keeps characters consistent) through Gemini.
 // Needs GEMINI_API_KEY. If Gemini is unavailable the browser falls back to a free generator.
 export async function POST(req: NextRequest) {
-  const denied = guardStudio(req);
+  const denied = guardSameOrigin(req);
   if (denied) return denied;
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return NextResponse.json({ success: false, error: 'GEMINI_API_KEY not set' }, { status: 501 });
+  const apiKey = getGeminiKey();
   try {
     const { prompt, references } = await req.json();
     const parts: any[] = [{ text: String(prompt || '').slice(0, 4000) }];
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       if (m) parts.push({ inlineData: { mimeType: m[1], data: m[2] } });
     });
     const genAI = new GoogleGenerativeAI(apiKey);
-    const names = (process.env.GEMINI_IMAGE_MODEL ? [process.env.GEMINI_IMAGE_MODEL] : []).concat(['gemini-2.5-flash-image', 'gemini-2.0-flash-preview-image-generation']);
+    const names = (process.env.GEMINI_IMAGE_MODEL ? [process.env.GEMINI_IMAGE_MODEL] : []).concat(['gemini-2.5-flash-image', 'gemini-3.1-flash-image']);
     let lastErr = '';
     for (const name of names) {
       try {

@@ -17,3 +17,20 @@ export function guardStudio(req: NextRequest): NextResponse | null {
   }
   return null;
 }
+
+/**
+ * For the free AI routes (text / image / voice / captions): no password to type, but the request
+ * must come from this site's own pages (Origin or Referer host equals Host), so other websites can't use it.
+ */
+export function guardSameOrigin(req: NextRequest): NextResponse | null {
+  const host = req.headers.get('host') || '';
+  const from = req.headers.get('origin') || req.headers.get('referer') || '';
+  let fromHost = '';
+  try {
+    fromHost = new URL(from).host;
+  } catch {
+    /* none */
+  }
+  if (host && fromHost === host) return null;
+  return NextResponse.json({ success: false, error: 'Not allowed from outside the site.' }, { status: 403 });
+}

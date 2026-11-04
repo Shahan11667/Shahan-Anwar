@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { guardStudio } from '@/lib/studio-guard';
 
 const BUFFER_URL = 'https://api.buffer.com';
+const BUFFER_KEY = process.env.BUFFER_API_KEY || '';
 
 async function gql(query: string, variables?: Record<string, unknown>) {
   const res = await fetch(BUFFER_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.BUFFER_API_KEY}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${BUFFER_KEY}` },
     body: JSON.stringify({ query, variables }),
   });
   const text = await res.text();
@@ -33,7 +34,7 @@ mutation CreatePost($input: CreatePostInput!) {
 export async function POST(req: NextRequest) {
   const denied = guardStudio(req);
   if (denied) return denied;
-  if (!process.env.BUFFER_API_KEY) {
+  if (!BUFFER_KEY) {
     return NextResponse.json({ success: false, error: 'BUFFER_API_KEY is not set on the server.' }, { status: 500 });
   }
   try {

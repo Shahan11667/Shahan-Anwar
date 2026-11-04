@@ -1,7 +1,6 @@
 /**
  * AI + file helpers for the AI Video Studio. Reuses the existing Puter.js integration (lib/puter.ts).
  */
-import { loadPuter } from '@/lib/puter';
 
 export function extractJson<T = any>(text: string): T {
   const cleaned = text.replace(/```json|```/gi, '');
@@ -92,11 +91,11 @@ export async function generateImage(prompt: string, references: string[] = [], o
   const errors: string[] = [];
 
   // 1. Gemini via our server route (reference images supported)
-  if (studioKey()) {
+  {
     try {
       const res = await fetch('/api/admin/automation/image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-studio-key': studioKey() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: `${prompt}
 Aspect ratio: ${aspect === 'vertical' ? '9:16 vertical' : aspect === 'horizontal' ? '16:9 horizontal' : '1:1'}.`, references }),
       });
@@ -111,43 +110,61 @@ Aspect ratio: ${aspect === 'vertical' ? '9:16 vertical' : aspect === 'horizontal
   // 2. Pollinations (free)
   try {
     const [w, h] = SIZES[aspect];
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 1400))}?width=${w}&height=${h}&model=flux&nologo=true&private=true&seed=${seed}`;
-    return { dataUrl: await toJpegDataUrl(url), usedReference: false };
+    const res = await fetch('/api/admin/automation/image-free', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, width: w, height: h, seed }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.dataUrl) throw new Error(j.error || `status ${res.status}`);
+    return { dataUrl: await toJpegDataUrl(j.dataUrl), usedReference: false };
   } catch (e: any) {
     errors.push(`Pollinations: ${e?.message}`);
   }
 
-  // 3. Puter
-  try {
-    const puter = await loadPuter();
-    if (!puter?.ai?.txt2img) throw new Error('not available');
-    let result: any = null;
-    let usedReference = false;
-    if (references.length) {
-      try {
-        result = await puter.ai.txt2img(prompt, { model: 'gemini-2.5-flash-image-preview', input_image: await referenceSheet(references), input_image_mime_type: 'image/jpeg' });
-        usedReference = true;
-      } catch {
-        result = null;
-      }
-    }
-    if (!result) result = await puter.ai.txt2img(prompt);
-    const src: string = typeof result === 'string' ? result : result?.src;
-    if (!src) throw new Error('nothing returned');
-    return { dataUrl: await toJpegDataUrl(src), usedReference };
-  } catch (e: any) {
-    errors.push(`Puter: ${e?.message || 'failed'}`);
-  }
   throw new Error(`Image generation failed. ${errors.join(' | ')}`);
 }
 
-/** Text-to-speech through Puter. Returns an audio Blob. */
+/** Text-to-speech. Gemini on the server first (any language), Puter as the backup. */
 export async function generateSpeech(text: string, language: string): Promise<Blob> {
-  const puter = await loadPuter();
-  if (!puter?.ai?.txt2speech) throw new Error('Puter text-to-speech is not available. Sign in to Puter first.');
-  const audio: HTMLAudioElement = await puter.ai.txt2speech(text, { language });
-  const res = await fetch(audio.src);
-  return res.blob();
+  const errors: string[] = [];
+  {
+    try {
+      const res = await fetch('/api/admin/automation/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (res.ok) return await res.blob();
+      const j = await res.json().catch(() => ({}));
+      errors.push(`Gemini: ${j.error || res.status}`);
+    } catch (e: any) {
+      errors.push(`Gemini: ${e?.message}`);
+    }
+  }
+  throw new Error(`Voice generation failed. ${errors.join(' | ')}`);
+}
+
+/**
+ * Text generation. Gemini on the server first (free key, no daily Puter limit), Puter as the backup.
+ */
+export async function aiText(system: string, user: string, opts: { model?: string } = {}): Promise<string> {
+  const errors: string[] = [];
+  {
+    try {
+      const res = await fetch('/api/admin/automation/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ system, prompt: user }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.success && j.text) return j.text as string;
+      errors.push(`Gemini: ${j.error || res.status}`);
+    } catch (e: any) {
+      errors.push(`Gemini: ${e?.message}`);
+    }
+  }
+  throw new Error(`AI text failed. ${errors.join(' | ')}`);
 }
 
 export async function decodeAudio(ac: AudioContext, blob: Blob): Promise<AudioBuffer> {
