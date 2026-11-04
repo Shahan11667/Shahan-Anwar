@@ -130,9 +130,12 @@ const STYLES = [
   'dark moody cinematic',
 ];
 
-const GENRES = ['Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming'];
-const MOODS = ['Emotional', 'Funny', 'Suspenseful', 'Epic', 'Heartwarming', 'Dark', 'Cute & light'];
-const SETTINGS = ['Rooftop at sunset', 'College campus', 'Rainy city street', 'Village & fields', 'Futuristic city', 'Haunted house', 'Beach', 'Mountains', 'Cafe', 'Gaming room', 'Wedding'];
+const BESHAAN = 'Beshaan (Fashion • Lifestyle • Gaming)';
+const BESHAAN_CONTEXT =
+  'CHANNEL: BESHAAN. Tagline: Three Creators | Three Personalities | One Amazing Journey. Two girls and one boy blending fashion, lifestyle vibes and gaming entertainment. Tone: energetic trio banter, friendly, trendy, fun, positive, family-safe. The three recurring characters have distinct personalities (e.g. the stylish fashion girl, the bubbly lifestyle girl, the funny gamer boy) and stay the same in every video. Content ideas: outfit challenges, styling battles, room/lifestyle vlogs, gaming nights, challenges and playful rivalry between the trio.';
+const GENRES = [BESHAAN, 'Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming'];
+const MOODS = ['Fun & energetic', 'Emotional', 'Funny', 'Suspenseful', 'Epic', 'Heartwarming', 'Dark', 'Cute & light'];
+const SETTINGS = ['Fashion studio / bedroom', 'Shopping mall', 'Home lifestyle vlog', 'Rooftop at sunset', 'College campus', 'Rainy city street', 'Village & fields', 'Futuristic city', 'Haunted house', 'Beach', 'Mountains', 'Cafe', 'Gaming room', 'Wedding'];
 const CASTS = ['1 boy + 1 girl', '2 girls + 1 boy', '3 friends', '1 hero alone', 'Family (3 members)', 'Hero vs villain'];
 
 const PLATFORMS: { id: Platform; label: string; titleMax: number; uploadUrl: string }[] = [
@@ -153,10 +156,10 @@ function newProject(): Project {
     step: 0,
     model: 'openai/gpt-4o',
     prompt: '',
-    genre: 'Romantic',
-    mood: 'Emotional',
-    setting: 'Rooftop at sunset',
-    cast: '1 boy + 1 girl',
+    genre: BESHAAN,
+    mood: 'Fun & energetic',
+    setting: 'Fashion studio / bedroom',
+    cast: '2 girls + 1 boy',
     idea: '',
     sceneCount: 7,
     style: STYLES[0],
@@ -225,6 +228,7 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
   const [progress, setProgress] = useState<number>(0);
   const [selectedId, setSelectedId] = useState<string>('');
   const [seoTab, setSeoTab] = useState<Platform>('youtube');
+  const [ideaList, setIdeaList] = useState<string[]>([]);
   const [autoMsg, setAutoMsg] = useState<string>('');
   const autoCancel = useRef(false);
   const [exported, setExported] = useState<{ url: string; ext: string; size: number; blob: Blob } | null>(null);
@@ -411,7 +415,7 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
   const buildPrompt = async (): Promise<string> => {
     const system =
       'You are a creative director for AI videos. Write ONE complete, vivid video prompt in plain English (150-250 words): story, characters with fixed looks, dialogues, expressions, camera movements, lighting, background music, lip-sync, duration and visual style. Output ONLY the prompt text.';
-    const user = `Genre: ${p.genre}
+    const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}Genre: ${p.genre}
 Mood: ${p.mood}
 Setting: ${p.setting}
 Cast: ${p.cast}
@@ -421,6 +425,23 @@ Dialogue language: ${LANG_LABEL[p.language]}
 ${p.idea.trim() ? `User's extra idea: ${p.idea}
 ` : ''}Invent an original, engaging story with a strong hook and satisfying ending.`;
     return (await ask(system, user)).trim();
+  };
+
+  const suggestIdeas = async () => {
+    setBusy('ideas');
+    try {
+      const system = 'You are a viral short-video idea generator. Reply with ONLY valid JSON, no markdown.';
+      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}Genre: ${p.genre}. Mood: ${p.mood}. Setting: ${p.setting}. Cast: ${p.cast}. Format: ${formatLabel}.
+Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, max 25 words). Return {"ideas":["...","..."]}`;
+      const data = extractJson<any>(await ask(system, user));
+      const list: string[] = (data.ideas || []).map((x: any) => String(x)).filter(Boolean).slice(0, 20);
+      if (!list.length) throw new Error('No ideas returned. Try again.');
+      setIdeaList(list);
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not get ideas');
+    } finally {
+      setBusy('');
+    }
   };
 
   const createPrompt = async () => {
@@ -445,7 +466,7 @@ ${p.idea.trim() ? `User's extra idea: ${p.idea}
       }
       const system =
         'You are a senior AI video director. You turn ONE video idea into connected scenes for an AI video generator. Characters must keep the same fixed appearance in every scene. Reply with ONLY valid JSON, no markdown.';
-      const user = `VIDEO IDEA:\n${mainPrompt}\n\nNumber of scenes: ${p.sceneCount}\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
+      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}VIDEO IDEA:\n${mainPrompt}\n\nNumber of scenes: ${p.sceneCount}\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
       const text = await ask(system, user);
       const data = extractJson<any>(text);
       const scenes: Scene[] = (data.scenes || []).slice(0, 30).map((s: any) => ({
@@ -640,7 +661,7 @@ ${p.idea.trim() ? `User's extra idea: ${p.idea}
     try {
       const system =
         'You are a social media SEO expert for short-form video. Reply with ONLY valid JSON, no markdown. Each platform must get DIFFERENT, platform-native copy.';
-      const user = `VIDEO TITLE: ${p.title}\nSTORY: ${p.story}\nIDEA: ${p.prompt}\nLANGUAGE: ${LANG_LABEL[p.language]} (hashtags may mix English)\nSCENES: ${p.scenes.map((s) => s.caption).join(' | ')}\n\nReturn JSON:\n{"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"max 3 words"},"youtube":{"title":"<=100 chars, keyword first, include #Shorts","description":"hook line + 2-3 lines + CTA","hashtags":"#a #b #c (5-8)"},"tiktok":{"title":"<=150 chars hooky caption","description":"short caption text","hashtags":"4-6 hashtags incl. trending-style"},"instagram":{"title":"first-line hook <=125 chars","description":"caption with line breaks, emojis, CTA","hashtags":"8-12 hashtags"},"facebook":{"title":"<=125 chars","description":"conversational caption, ask a question","hashtags":"3-5 hashtags"}}`;
+      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + " Use channel name Beshaan in hashtags (#Beshaan #BeshaanVibe). " : ""}VIDEO TITLE: ${p.title}\nSTORY: ${p.story}\nIDEA: ${p.prompt}\nLANGUAGE: ${LANG_LABEL[p.language]} (hashtags may mix English)\nSCENES: ${p.scenes.map((s) => s.caption).join(' | ')}\n\nReturn JSON:\n{"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"max 3 words"},"youtube":{"title":"<=100 chars, keyword first, include #Shorts","description":"hook line + 2-3 lines + CTA","hashtags":"#a #b #c (5-8)"},"tiktok":{"title":"<=150 chars hooky caption","description":"short caption text","hashtags":"4-6 hashtags incl. trending-style"},"instagram":{"title":"first-line hook <=125 chars","description":"caption with line breaks, emojis, CTA","hashtags":"8-12 hashtags"},"facebook":{"title":"<=125 chars","description":"conversational caption, ask a question","hashtags":"3-5 hashtags"}}`;
       const data = extractJson<any>(await ask(system, user));
       const pick = (k: Platform) => ({
         title: String(data[k]?.title || p.title),
@@ -1127,7 +1148,7 @@ ${p.idea.trim() ? `User's extra idea: ${p.idea}
           <span className={label}>Genre</span>
           <div className="flex flex-wrap gap-1.5">
             {GENRES.map((g) => (
-              <button key={g} onClick={() => patch({ genre: g })} className={`rounded-full px-3 py-1 text-xs font-semibold ${p.genre === g ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+              <button key={g} onClick={() => patch(g === BESHAAN ? { genre: g, cast: '2 girls + 1 boy', mood: 'Fun & energetic' } : { genre: g })} className={`rounded-full px-3 py-1 text-xs font-semibold ${p.genre === g ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                 {g}
               </button>
             ))}
@@ -1154,8 +1175,29 @@ ${p.idea.trim() ? `User's extra idea: ${p.idea}
           </div>
         </div>
         <div className="mb-4">
-          <span className={label}>Your idea (optional, one line)</span>
+          <span className={label}>Your idea (type your own, or pick one below)</span>
           <input className={input} placeholder="e.g. a shy boy finally confesses on the last day of college" value={p.idea} onChange={(e) => patch({ idea: e.target.value })} />
+        </div>
+        <div className="mb-4">
+          <button className={btnGhost} disabled={!!busy} onClick={suggestIdeas}>
+            <Spin on={busy === 'ideas'}><Sparkles className="h-4 w-4" /></Spin>
+            {ideaList.length ? 'Suggest 15 new ideas' : 'Suggest 15 ideas for me'}
+          </button>
+          {ideaList.length > 0 && (
+            <div className="mt-2 grid gap-1.5 md:grid-cols-2">
+              {ideaList.map((idea, i) => (
+                <button
+                  key={i}
+                  onClick={() => patch({ idea })}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition ${p.idea === idea ? 'border-indigo-500 bg-indigo-600/20 text-white' : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500'}`}
+                >
+                  <span className="mr-1 font-bold text-indigo-300">{i + 1}.</span>
+                  {idea}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="mt-1 text-xs text-slate-500">Click an idea to use it, or type your own above.</p>
         </div>
         <div className="mb-4 flex flex-wrap gap-2">
           <button className={btnGhost} disabled={!!busy} onClick={createPrompt}>
