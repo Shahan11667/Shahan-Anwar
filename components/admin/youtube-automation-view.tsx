@@ -156,7 +156,8 @@ function flowPrompt(s: any, i: number, total: number, style: string, vertical: b
   return { prompt, narration, duration };
 }
 
-const STEPS = ['Write Prompt', 'Characters', 'Generate Scenes', 'Join Videos', 'Thumbnail & SEO', 'Post'];
+const STEPS = ['Write Prompt', 'Characters', 'Scene Prompts', 'Join Videos', 'Title & Tags', 'Post'];
+const HIDDEN_STEPS = [1];
 
 const STYLES = [
   'cinematic anime style',
@@ -700,30 +701,10 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         thumb: { ...o.thumb, bg: '', headline: '', badge: '' },
         partIdx: part >= 0 ? part : 0,
         ideaHistory: o.ideaHistory.concat(String(data.title || '')).slice(-80),
-        step: 1,
+        step: 2,
       }));
       setSelectedId(scenes[0].id);
-      toast.success(`${scenes.length} scene prompts ready. Creating character images…`);
-      // Auto-create reference images for characters that have a description but no image yet
-      let made = 0;
-      for (let i = 0; i < chars.length; i++) {
-        const mineChar = libImage(i);
-        if (mineChar && !chars[i].image) {
-          patchChar(i, { image: mineChar });
-          continue;
-        }
-        if (!chars[i].description.trim() || chars[i].image) continue;
-        try {
-          const { dataUrl } = await generateImage(
-            `Character reference image, full body, front view, neutral plain background, clean lighting. Style: ${p.style}. ${chars[i].name ? `Name: ${chars[i].name}. ` : ''}${chars[i].description}`
-          );
-          patchChar(i, { image: dataUrl });
-          made++;
-        } catch {
-          toast.error(`Character ${i + 1} image failed. You can retry in step 2.`);
-        }
-      }
-      if (made) toast.success(`${made} character image(s) ready`);
+      toast.success(`${scenes.length} scene prompts ready. Copy them into Google Flow.`);
       return true;
     } catch (e: any) {
       toast.error(e?.message || 'Could not generate prompts');
@@ -1424,11 +1405,14 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
                   </button>
                   <button
                     disabled={!!busy || !!autoMsg}
-                    onClick={() => autoAll({ idea })}
-                    title="Create the full video from this idea"
+                    onClick={() => {
+                      patch({ idea, prompt: p.promptEdited ? p.prompt : '', series: null });
+                      setTimeout(() => generatePlan(), 60);
+                    }}
+                    title="Write the scene prompts for this idea"
                     className="m-1 shrink-0 rounded-md bg-emerald-600 px-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
                   >
-                    ⚡ Auto-Produce Video
+                    ⚡ Create scene prompts
                   </button>
                 </div>
               ))}
@@ -1463,32 +1447,6 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
               <option value="english">🌐 English (Global dialogues)</option>
               <option value="urdu">🇵🇰 Urdu Script (اردو)</option>
             </select>
-          </div>
-        </div>
-        <div className="mb-4 rounded-xl border border-slate-700 bg-slate-950 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <span className={label}>Images for scenes</span>
-              <p className="text-xs text-slate-500">AI images can look weak. Upload your own default pictures (your 3 characters etc.) and the studio will use them instead.</p>
-            </div>
-            <div className="flex overflow-hidden rounded-lg border border-slate-700 text-xs font-semibold">
-              <button onClick={() => saveLib(lib, false)} className={`px-3 py-1.5 ${!useLib ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-300'}`}>AI generated</button>
-              <button onClick={() => (lib.length ? saveLib(lib, true) : toast('Add at least one image first'))} className={`px-3 py-1.5 ${useLib ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-300'}`}>My default images</button>
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {lib.map((src, i) => (
-              <div key={i} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt={`Default ${i + 1}`} className="h-16 w-12 rounded-md object-cover" />
-                <button onClick={() => saveLib(lib.filter((_, k) => k !== i), useLib && lib.length > 1)} className="absolute -right-1 -top-1 rounded-full bg-red-600 px-1 text-[10px] font-bold text-white" title="Remove">×</button>
-              </div>
-            ))}
-            <label className="flex h-16 w-12 cursor-pointer items-center justify-center rounded-md border border-dashed border-slate-600 text-xl text-slate-400 hover:border-indigo-400" title="Add images">
-              +
-              <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addLibImages(e.target.files); e.target.value = ''; }} />
-            </label>
-            {useLib && lib.length > 0 && <span className="text-xs text-emerald-400">Scenes will use these {lib.length} image{lib.length > 1 ? 's' : ''} in order (1st = characters / thumbnail).</span>}
           </div>
         </div>
         <div className="mb-4">
@@ -1582,17 +1540,14 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-500`} disabled={!!busy || !!autoMsg} onClick={() => autoAll()}>
-            <Sparkles className="h-4 w-4" /> Auto-create full video (everything)
-          </button>
-          <button className={btnGhost} disabled={!!busy || !!autoMsg} onClick={() => generatePlan()}>
-            <Spin on={busy === 'plan'}>
+          <button className={btnPrimary} disabled={!!busy || !!autoMsg} onClick={() => generatePlan()}>
+            <Spin on={busy === 'plan' || busy === 'series'}>
               <Sparkles className="h-4 w-4" />
             </Spin>
-            {p.scenes.length ? 'Only redo scenes & characters' : 'Only scenes & characters'}
+            {p.scenes.length ? 'Write new scene prompts' : 'Create scene prompts'}
           </button>
           {p.scenes.length > 0 && (
-            <button className={btnGhost} onClick={() => patch({ step: 1 })}>
+            <button className={btnGhost} onClick={() => patch({ step: 2 })}>
               Continue <ArrowRight className="h-4 w-4" />
             </button>
           )}
@@ -1614,8 +1569,8 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
                   </div>
                   <div className="truncate text-xs text-slate-400">{part.summary}</div>
                 </div>
-                <button className={`${btnPrimary} shrink-0 !py-1 text-xs`} disabled={!!busy || !!autoMsg} onClick={() => autoAll({ part: i })}>
-                  ▶ Make part {i + 1}
+                <button className={`${btnPrimary} shrink-0 !py-1 text-xs`} disabled={!!busy || !!autoMsg} onClick={() => generatePlan(i)}>
+                  ▶ Prompts for part {i + 1}
                 </button>
               </div>
             ))}
@@ -1704,20 +1659,10 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         <div>
           <h3 className="text-base font-bold text-white">Scenes ({p.scenes.length})</h3>
           <p className="text-xs text-slate-400">
-            Edit prompts, reorder, regenerate. Images are made with your character references. For real motion video, use “Copy all
-            prompts” in Veo / Kling / Runway / Sora (attach your character images there).
+            Copy each scene into Google Flow (attach your character pictures there) and make one clip per scene. Then go to Join Videos.
           </p>
         </div>
         <div className="flex gap-2">
-          {busy === 'all' ? (
-            <button className={btnGhost} onClick={() => (cancelRef.current.cancelled = true)}>
-              Stop ({Math.round(progress)}%)
-            </button>
-          ) : (
-            <button className={btnPrimary} disabled={!!busy} onClick={generateAllImages}>
-              <ImageIcon className="h-4 w-4" /> Generate all images
-            </button>
-          )}
           <button className={btnGhost} onClick={addScene}>
             <Plus className="h-4 w-4" /> Scene
           </button>
@@ -1731,8 +1676,8 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       </div>
 
       {p.scenes.map((s, i) => (
-        <div key={s.id} className={`${card} grid gap-4 md:grid-cols-[200px_1fr]`}>
-          <div>
+        <div key={s.id} className={card}>
+          <div className="hidden">
             <div
               className={`flex items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-950 ${
                 p.format === 'vertical' ? 'aspect-[9/16]' : 'aspect-video'
@@ -1818,7 +1763,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       ))}
 
       <div className="flex justify-between">
-        <button className={btnGhost} onClick={() => patch({ step: 1 })}>
+        <button className={btnGhost} onClick={() => patch({ step: 0 })}>
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
         <button className={btnPrimary} onClick={() => patch({ step: 3 })}>
@@ -2443,7 +2388,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       </div>
 
       <div className="flex gap-1 overflow-x-auto pb-1">
-        {STEPS.map((name, i) => (
+        {STEPS.map((name, i) => HIDDEN_STEPS.includes(i) ? null : (
           <button
             key={name}
             onClick={() => goto(i)}
@@ -2452,7 +2397,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
             }`}
           >
             <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${p.step === i ? 'bg-white/20' : 'bg-slate-700'}`}>
-              {i + 1}
+              {i + 1 - HIDDEN_STEPS.filter((h) => h < i).length}
             </span>
             {name}
           </button>
@@ -2465,8 +2410,8 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
             Part {p.partIdx + 1} of {p.series.parts.length} done? Download it above, then continue the story.
           </span>
           {p.partIdx + 1 < p.series.parts.length ? (
-            <button className={btnPrimary} disabled={!!busy || !!autoMsg} onClick={() => autoAll({ part: p.partIdx + 1 })}>
-              ▶ Make part {p.partIdx + 2} automatically
+            <button className={btnPrimary} disabled={!!busy || !!autoMsg} onClick={() => generatePlan(p.partIdx + 1)}>
+              ▶ Prompts for part {p.partIdx + 2}
             </button>
           ) : (
             <span className="text-sm font-semibold text-emerald-400">That was the final part 🎉</span>
