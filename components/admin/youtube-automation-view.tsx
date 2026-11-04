@@ -126,6 +126,36 @@ interface Project {
   seo: Seo | null;
 }
 
+/** Turns the AI's scene fields into one complete, copy-paste prompt for Google Flow / Veo (one clip per scene). */
+function flowPrompt(s: any, i: number, total: number, style: string, vertical: boolean): { prompt: string; narration: string; duration: number } {
+  const nl = String.fromCharCode(10);
+  const duration = Math.min(10, Math.max(4, Number(s?.duration) || 8));
+  const lines: any[] = (Array.isArray(s?.dialogue) ? s.dialogue : []).filter((d: any) => d && String(d.line || '').trim()).slice(0, 4);
+  const clean = (t: any) => String(t || '').trim().replace(/^["“”]+|["“”]+$/g, '');
+  const dlg = lines
+    .map((d) => `${d.emoji || '🗣️'} ${clean(d.speaker) || 'Narrator'}${d.delivery ? ` (${clean(d.delivery)})` : ''}: “${clean(d.line)}”`)
+    .join(nl + nl);
+  const visual = String(s?.visual || s?.prompt || '').trim();
+  const end = [
+    clean(s?.ending),
+    `${(clean(s?.music) || 'Soft fitting background music').replace(/^./, (c) => c.toUpperCase())}, natural facial expressions, smooth animation, ${clean(s?.lighting) || 'cinematic lighting'}, ${vertical ? 'vertical 9:16 format' : 'horizontal 16:9 format'}, high-quality visuals, ${duration} seconds long.`,
+    'Keep the characters consistent with the reference images.',
+    lines.length > 1 ? 'Ensure all dialogues are spoken clearly with accurate lip-sync.' : lines.length ? 'Ensure the dialogue is spoken clearly with accurate lip-sync.' : 'No spoken dialogue in this shot.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const prompt = [
+    `AI Video Prompt (${duration} Seconds) | Scene ${i + 1} of ${total}`,
+    `Create a ${style} AI video based on the reference images. ${visual}`,
+    lines.length ? `Dialogue:${nl}${nl}${dlg}` : '',
+    end,
+  ]
+    .filter(Boolean)
+    .join(nl + nl);
+  const narration = lines.map((d) => `${clean(d.speaker) || 'Narrator'}: ${clean(d.line)}`).join(' ') || String(s?.narration || s?.caption || '');
+  return { prompt, narration, duration };
+}
+
 const STEPS = ['Write Prompt', 'Characters', 'Generate Scenes', 'Join Videos', 'Thumbnail & SEO', 'Post'];
 
 const STYLES = [
@@ -529,7 +559,7 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
       .join('\n');
 
   const scenePromptSchema =
-    '"prompt": a COMPLETE detailed AI video prompt for this scene (setting, characters by name with their fixed look, actions, dialogue lines, facial expressions, camera movement, lighting, background music mood, lip-sync note, duration, visual style), "narration": the exact spoken dialogue/voiceover for this scene (NEVER empty: every scene must have at least one spoken line, in the dialogue language, written as "Name: line"), "caption": a short subtitle line (max 12 words), "duration": seconds (4-8)';
+    '"visual": a rich, SELF-CONTAINED description of this one shot (90-150 words) for Google Flow / Veo: setting and time of day, EVERY character on screen by name WITH their full fixed look repeated (age, face, hair, outfit, colors), what they do, facial expressions and emotions, camera movement and framing. Each scene is generated alone, so never say "same as before"; no on-screen text. "dialogue": [{"speaker":"character name or Narrator","emoji":"one emoji for the speaker, e.g. 👧 👦 🎙️","delivery":"how it is said, e.g. shyly, with a sweet smile","line":"the exact spoken line in the dialogue language"}] (1-3 lines that fit the duration, at least one), "ending": "one sentence on how the shot ends", "music": "background music / sound", "lighting": "lighting", "caption": "short subtitle (max 12 words)", "duration": seconds (8 recommended, 6-10)';
 
   const buildPrompt = async (): Promise<string> => {
     const p = pRef.current;
@@ -616,8 +646,14 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     }
   };
 
-  const generatePlan = async (partOverride?: number) => {
+  const generatePlan = async (partOverride?: number): Promise<boolean> => {
     const p = pRef.current;
+    // "5-part / 10-part series" selected but not planned yet: plan the series first, then write part 1
+    if (partOverride === undefined && p.seriesParts > 1 && (!p.series || p.series.key !== seriesKey(p))) {
+      if (!(await planSeries())) return false;
+      await tick();
+      return generatePlan(0);
+    }
     setBusy('plan');
     try {
       let mainPrompt = p.prompt.trim();
@@ -636,16 +672,14 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       }
       const system =
         'You are a senior AI video director. You turn ONE video idea into connected scenes for an AI video generator. Characters must keep the same fixed appearance in every scene. Reply with ONLY valid JSON, no markdown.';
-      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\n\nNumber of scenes: ${p.sceneCount}\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
+      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\n\nNumber of scenes: EXACTLY ${p.sceneCount} (the scenes array must contain exactly ${p.sceneCount} items)\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks (return them in the same order): ${charactersText(p.characters)}\n` : ''}\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
       const text = await ask(system, user);
       const data = extractJson<any>(text);
-      const scenes: Scene[] = (data.scenes || []).slice(0, 30).map((s: any) => ({
-        id: uid(),
-        prompt: String(s.prompt || ''),
-        narration: String(s.narration || s.caption || ''),
-        caption: String(s.caption || ''),
-        duration: Math.min(15, Math.max(2, Number(s.duration) || 5)),
-      }));
+      const rawScenes: any[] = (data.scenes || []).slice(0, 30);
+      const scenes: Scene[] = rawScenes.map((s: any, i: number) => {
+        const f = flowPrompt(s, i, rawScenes.length, p.style, p.format === 'vertical');
+        return { id: uid(), prompt: f.prompt, narration: f.narration, caption: String(s.caption || ''), duration: f.duration };
+      });
       if (!scenes.length) throw new Error('No scenes returned. Try again.');
       const chars = [0, 1, 2].map((i) => {
         const old = p.characters[i];
@@ -709,11 +743,12 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         'You are a senior AI video director. Rewrite ONE scene so it stays connected to the story. Reply with ONLY valid JSON, no markdown.';
       const user = `STORY: ${p.story || p.prompt}\nMAIN IDEA: ${p.prompt}\nCHARACTERS:\n${charactersText(p.characters)}\nStyle: ${p.style}\nLanguage: ${LANG_LABEL[p.language]}\nPrevious scene: ${p.scenes[idx - 1]?.prompt.slice(0, 400) || '(none, this is the opening)'}\nNext scene: ${p.scenes[idx + 1]?.prompt.slice(0, 400) || '(none, this is the ending)'}\nCurrent scene ${idx + 1} of ${p.scenes.length}: ${sc.prompt}\n\nWrite a fresh, better version. Return {${scenePromptSchema}}`;
       const data = extractJson<any>(await ask(system, user));
+      const f = flowPrompt(data, idx, p.scenes.length, p.style, p.format === 'vertical');
       patchScene(id, {
-        prompt: String(data.prompt || sc.prompt),
-        narration: String(data.narration || sc.narration),
+        prompt: f.prompt || sc.prompt,
+        narration: f.narration || sc.narration,
         caption: String(data.caption || sc.caption),
-        duration: Math.min(15, Math.max(2, Number(data.duration) || sc.duration)),
+        duration: f.duration,
       });
       toast.success(`Scene ${idx + 1} prompt regenerated`);
     } catch (e: any) {
@@ -1100,7 +1135,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       `CHARACTERS (attach the reference images and keep them IDENTICAL in every scene):\n${charactersText(p.characters) || '(none)'}`,
       ...p.scenes.map(
         (s, i) =>
-          `\n===== SCENE ${i + 1} of ${p.scenes.length} (${s.duration}s) =====\n${s.prompt}\nDialogue / voice: ${s.narration}\nSubtitle: ${s.caption}`
+          `\n==================== SCENE ${i + 1} of ${p.scenes.length} ====================\n\n${s.prompt}`
       ),
     ]
       .filter(Boolean)
@@ -1512,7 +1547,11 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
           </div>
           <div>
             <span className={label}>Video type</span>
-            <select className={input} value={p.seriesParts} onChange={(e) => patch({ seriesParts: Number(e.target.value) as 1 | 5 | 10, series: null, partIdx: 0 })}>
+            <select className={input} value={p.seriesParts} onChange={(e) => {
+                const n = Number(e.target.value) as 1 | 5 | 10;
+                patch({ seriesParts: n, series: null, partIdx: 0 });
+                if (n > 1) setTimeout(() => { if (pRef.current.seriesParts > 1 && !pRef.current.series) planSeries(); }, 80);
+              }}>
               <option value={1}>Single video</option>
               <option value={5}>5-part series</option>
               <option value={10}>10-part series</option>
