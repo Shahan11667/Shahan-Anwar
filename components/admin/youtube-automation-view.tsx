@@ -330,6 +330,7 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
   const [ideaList, setIdeaList] = useState<string[]>([]);
   const [autoMsg, setAutoMsg] = useState<string>('');
   const autoCancel = useRef(false);
+  const [postError, setPostError] = useState('');
   const [exported, setExported] = useState<{ url: string; ext: string; size: number; blob: Blob } | null>(null);
   const [pubKey, setPubKey] = useState<string>(() => {
     try {
@@ -889,6 +890,31 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     }
   };
 
+  // Picks a good-looking frame (about 30% into the video) from the finished video as the thumbnail background
+  const thumbFromVideo = async () => {
+    if (!exported) return;
+    try {
+      const v = document.createElement('video');
+      v.muted = true;
+      v.preload = 'auto';
+      v.src = exported.url;
+      await new Promise<void>((res, rej) => {
+        v.onloadedmetadata = () => res();
+        v.onerror = () => rej(new Error('Cannot read the video'));
+      });
+      v.currentTime = Math.min(Math.max(0.5, (v.duration || 3) * 0.3), Math.max(0, (v.duration || 1) - 0.1));
+      await new Promise<void>((res) => (v.onseeked = () => res()));
+      const c = document.createElement('canvas');
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      c.getContext('2d')!.drawImage(v, 0, 0);
+      patchThumb({ bg: c.toDataURL('image/jpeg', 0.9) });
+      toast.success('Thumbnail background taken from your video');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not take a frame');
+    }
+  };
+
   const generateThumbBg = async () => {
     const mineThumb = libImage(0);
     if (mineThumb) {
@@ -977,11 +1003,17 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
   };
 
   const postEverywhere = async () => {
-    if (!exported) return toast.error('Render the video first (step 1 above)');
-    if (!p.seo) return toast.error('Generate the SEO text first (step 5)');
+    const stop = (m: string) => {
+      setPostError(m);
+      toast.error(m);
+    };
+    setPostError('');
+    if (!exported) return stop('No video yet: join your clips in "Join Videos" or pick your finished video file above.');
+    if (!p.seo) return stop('Title, description and tags are missing: press "Write title, description, tags & thumbnail text" above.');
     const targets = channels.filter((c) => picked.includes(c.id));
-    if (!targets.length) return toast.error('Pick at least one channel');
-    if (postWhen === 'schedule' && !dueAt) return toast.error('Choose a date and time');
+    if (!targets.length) return stop('Pick at least one channel.');
+    if (postWhen === 'schedule' && !dueAt) return stop('Choose a date and time.');
+    if (exported.size > 100 * 1048576) return stop(`The video is ${(exported.size / 1048576).toFixed(0)} MB. Cloudinary's free plan accepts up to 100 MB per video.`);
     setBusy('post');
     setPostLog([]);
     setProgress(0);
@@ -1014,7 +1046,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       if (log.every((l) => l.ok)) toast.success('All posts sent');
       else toast.error('Some posts failed. See details.');
     } catch (e: any) {
-      toast.error(e?.message || 'Upload failed');
+      stop(`Upload failed: ${e?.message || 'unknown error'}`);
     } finally {
       setBusy('');
       setProgress(0);
@@ -1252,7 +1284,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
   /* --------------------------------------------------------------- thumbnail */
 
   useEffect(() => {
-    if (p.step !== 4) return;
+    if (p.step !== 4 && p.step !== 5) return;
     const c = thumbRef.current;
     const ctx = c?.getContext('2d');
     if (!c || !ctx) return;
@@ -2071,8 +2103,27 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     setP((o) => (o.seo ? { ...o, seo: { ...o.seo, [seoTab]: { ...o.seo[seoTab], ...x } } } : o));
   const platformMeta = PLATFORMS.find((x) => x.id === seoTab)!;
 
-  const step5 = (
-    <div className="space-y-4">
+  const seoAbout = (
+    <div className={card}>
+      <h3 className="text-base font-bold text-white">What is this video about?</h3>
+      <p className="mt-1 text-xs text-slate-400">Write 1-2 lines (any language). The title, description, hashtags and thumbnail text are written from this.</p>
+      <input className={`${input} mt-2 font-semibold`} placeholder="Working title (optional)" value={p.title} onChange={(e) => patch({ title: e.target.value })} />
+      <textarea
+        className={`${input} mt-2 min-h-[70px]`}
+        placeholder="e.g. Aisha, Mira and Zaid do a 5-minute Eid outfit challenge, Zaid loses and has to cook for everyone"
+        value={p.story}
+        onChange={(e) => patch({ story: e.target.value })}
+      />
+      <button className={`${btnPrimary} mt-2`} disabled={!!busy || (!p.story.trim() && !p.title.trim() && !p.prompt.trim())} onClick={generateSeo}>
+        <Spin on={busy === 'seo'}>
+          <Sparkles className="h-4 w-4" />
+        </Spin>
+        {p.seo ? 'Write again' : 'Write title, description, tags & thumbnail text'}
+      </button>
+    </div>
+  );
+
+  const seoBlock = (
       <div className="grid gap-4 lg:grid-cols-2">
         <div className={card}>
           <h3 className="mb-3 text-base font-bold text-white">Thumbnail</h3>
@@ -2143,6 +2194,11 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
                 }}
               />
             </label>
+            {exported && (
+              <button className={btnGhost} disabled={!!busy} onClick={thumbFromVideo}>
+                <ImageIcon className="h-4 w-4" /> Frame from my video
+              </button>
+            )}
             <button className={btnGhost} onClick={downloadThumb}>
               <Download className="h-4 w-4" /> PNG
             </button>
@@ -2200,12 +2256,18 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
           )}
         </div>
       </div>
+  );
+
+  const step5 = (
+    <div className="space-y-4">
+      {seoAbout}
+      {seoBlock}
       <div className="flex justify-between">
         <button className={btnGhost} onClick={() => patch({ step: 3 })}>
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
         <button className={btnPrimary} onClick={() => patch({ step: 5 })}>
-          Next: Export <ArrowRight className="h-4 w-4" />
+          Next: Post <ArrowRight className="h-4 w-4" />
         </button>
       </div>
     </div>
@@ -2242,6 +2304,9 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
           </p>
         )}
       </div>
+
+      {seoAbout}
+      {seoBlock}
 
       <div className={card}>
         <h3 className="text-base font-bold text-white">2. Post to all platforms from here (Buffer)</h3>
@@ -2287,16 +2352,19 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
               {postWhen === 'schedule' && (
                 <input type="datetime-local" className={`${input} !w-auto`} value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
               )}
-              <button className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-500`} disabled={!!busy || !exported} onClick={postEverywhere}>
+              <button className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-500`} disabled={!!busy} onClick={postEverywhere}>
                 <Spin on={busy === 'post'}>
                   <Upload className="h-4 w-4" />
                 </Spin>
                 {busy === 'post' ? (progress > 0 ? `Uploading ${Math.round(progress)}%` : 'Posting…') : 'Upload video & post'}
               </button>
-              {!exported && <span className="text-xs text-amber-400">Render the video first.</span>}
+              <span className="text-xs text-slate-400">
+                Video {exported ? '✅' : '❌'} · Title & tags {p.seo ? '✅' : '❌'}
+              </span>
             </div>
           </div>
         )}
+        {postError && <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{postError}</p>}
         {postLog.length > 0 && (
           <ul className="mt-3 space-y-1 text-sm">
             {postLog.map((l, i) => (
