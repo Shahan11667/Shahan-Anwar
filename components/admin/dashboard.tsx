@@ -17,7 +17,6 @@ import ContactInfoForm from './contact-info-form'
 import CVParserForm from './cv-parser-form'
 import AnalyticsDashboard from './analytics-dashboard'
 import YoutubeAutomationView from './youtube-automation-view'
-import VideoEditorStudio from './video-editor-studio'
 import { IProject } from '@/models/Project'
 
 interface Project {
@@ -420,7 +419,7 @@ const AdminDashboard = () => {
             className={activeTab === 'video-studio' ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white border-0 shadow-md shadow-violet-500/20' : ''}
           >
             <Film className="h-4 w-4 mr-2 text-violet-400" />
-            CapCut Studio Pro
+            Video Editor
           </Button>
         </div>
 
@@ -1526,7 +1525,7 @@ const AdminDashboard = () => {
         {/* CapCut Studio Pro Tab */}
         {activeTab === 'video-studio' && (
           <div>
-            <VideoEditorStudio />
+            <YoutubeAutomationView mode="editor" />
           </div>
         )}
       </div>

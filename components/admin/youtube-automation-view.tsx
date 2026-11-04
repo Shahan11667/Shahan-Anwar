@@ -1,2980 +1,2091 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  Bot, 
-  Sparkles, 
-  Play, 
-  Pause, 
-  RotateCcw, 
-  Download, 
-  Share2, 
-  Layers, 
-  Volume2, 
-  VolumeX, 
-  Film, 
-  Calendar, 
-  CheckCircle2, 
-  Clock, 
-  Send, 
-  Copy, 
-  Sliders, 
-  Zap, 
-  Settings2, 
-  ExternalLink,
-  ChevronRight,
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  Sparkles,
+  Play,
+  Pause,
+  Download,
+  Copy,
   Plus,
   Trash2,
-  Edit3,
   Loader2,
   RefreshCw,
-  Image as ImageIcon,
-  Key,
-  Flame,
-  Radio,
-  Shuffle,
-  TrendingUp,
-  Bookmark,
-  Hash,
-  Tv,
+  ImageIcon,
   Check,
-  Globe,
-  LogIn,
-  LogOut,
-  Link2,
-  Unlink,
-  ShieldCheck,
-  AlertCircle
+  Upload,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ExternalLink,
+  Volume2,
+  RotateCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import confetti from 'canvas-confetti';
 import PuterAuthBadge from '@/components/puter-auth-badge';
-import { puterChat, puterChatWithDetails, isPuterSignedIn, POPULAR_PUTER_MODELS } from '@/lib/puter';
+import { puterChat } from '@/lib/puter';
+import {
+  extractJson,
+  fileToDataUrl,
+  toJpegDataUrl,
+  generateImage,
+  generateSpeech,
+  decodeAudio,
+  downloadBlob,
+} from '@/lib/video-studio-ai';
+import {
+  RenderScene,
+  RenderSettings,
+  Transition,
+  VideoFilter,
+  Corner,
+  drawFrame,
+  scheduleAudio,
+  exportVideo,
+  totalDuration,
+  loadImage,
+} from '@/lib/video-render';
 
-const Youtube = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" />
-    <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" fill="currentColor" />
-  </svg>
-);
+/* ------------------------------------------------------------------ types */
 
-const Instagram = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-  </svg>
-);
+type Platform = 'youtube' | 'tiktok' | 'instagram' | 'facebook';
 
-const Facebook = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-  </svg>
-);
-
-const TikTok = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
-  </svg>
-);
-
-interface SocialAccountItem {
-  platform: 'youtube' | 'instagram' | 'tiktok' | 'facebook';
-  accountHandle: string;
-  accountName: string;
-  channelId?: string;
-  isConnected: boolean;
-  hasToken?: boolean;
-  avatarUrl?: string;
-  updatedAt?: string;
-}
-
-export interface CharacterDialogue {
-  speaker: string;
-  dialogue: string;
-  emotion?: string;
-  emoji?: string;
-}
-
-export interface StoryPart {
-  partNumber: number;
-  partTitle: string;
-  scenes: SceneItem[];
-}
-
-export interface SceneItem {
-  sceneNumber: number;
-  durationSeconds: number;
-  visualPrompt: string;
-  voiceoverText: string;
-  onScreenCaption: string;
-  soundEffect: string;
-  brollKeyword: string;
-  aiVideoPrompt?: string;
-  dialogues?: CharacterDialogue[];
-  actionSummary?: string;
-  partNumber?: number;
-  partTitle?: string;
-  hookOptions?: string[];
-  onScreenTexts?: string[];
-  visualDirection?: string;
-  ctaLoop?: string;
-  title?: string;
-  description?: string;
-  tags?: string[];
-  hashtags?: string[];
-  thumbnailConcept?: {
-    headline: string;
-    subtext: string;
-    colorTheme: string;
-  };
-  safetyNote?: string;
-}
-
-interface ContentPlanItem {
+interface Scene {
   id: string;
-  title: string;
-  niche: string;
-  format: '9:16 Shorts' | '16:9 Video';
-  scheduledTime: string;
-  status: 'published' | 'ready' | 'pending';
+  prompt: string;
+  narration: string;
+  caption: string;
+  duration: number;
+  image?: string; // data URL
+  extraRef?: string; // optional scene-specific reference image
+  voice?: Blob;
 }
 
-export interface ChannelProfile {
-  id: string;
+interface Character {
   name: string;
-  handle: string;
-  niche: string;
-  tone: string;
-  avatarIcon: string;
-  badge: string;
-  color: string;
   description: string;
+  image?: string;
 }
 
-export interface SelfGeneratedTopic {
-  id: string;
-  title: string;
-  hook: string;
-  niche: string;
+interface EditSettings {
+  transition: Transition;
+  motion: boolean;
+  filter: VideoFilter;
+  capShow: boolean;
+  capPos: 'top' | 'middle' | 'bottom';
+  capSize: number;
+  capColor: string;
+  logoPos: Corner;
+  logoSize: number;
+  logoOpacity: number;
+  voiceVol: number;
+  musicVol: number;
+}
+
+interface Thumb {
+  bg: string;
+  headline: string;
   badge: string;
-  viralScore: number;
+  textColor: string;
+  accent: string;
+  position: 'top' | 'center' | 'bottom';
 }
 
-// Channels for Dynamic Self-Generation (Beshaan Flagship First)
-export const CHANNEL_PROFILES: ChannelProfile[] = [
-  {
-    id: 'beshaan',
-    name: 'Beshaan',
-    handle: '@BeshaanVibe',
-    niche: 'beshaan_trio',
-    tone: 'Energetic Trio Banter, Trendy Fashion Styling & Gaming Hype',
-    avatarIcon: '🎀🎮',
-    badge: 'FASHION • LIFESTYLE • GAMING',
-    color: 'from-pink-500 via-rose-500 to-indigo-600',
-    description: 'Three Creators | Three Personalities | One Amazing Journey! Two girls & one boy blending fashion, lifestyle vibes, and gaming entertainment.'
-  },
-  {
-    id: 'ai_tech',
-    name: 'Tech Matrix AI',
-    handle: '@TechMatrixAI',
-    niche: 'ai_tech',
-    tone: 'High-Velocity & Technical Insights',
-    avatarIcon: '🤖',
-    badge: 'AI & CODING',
-    color: 'from-blue-600 to-cyan-500',
-    description: 'Autonomous agents, local LLMs, and high-velocity developer tools.'
-  },
-  {
-    id: 'wealth_business',
-    name: 'Cash Flow Solopreneur',
-    handle: '@CashFlowDev',
-    niche: 'wealth_business',
-    tone: 'Alex Hormozi Viral & Bold Numbers',
-    avatarIcon: '💰',
-    badge: 'MICRO-SAAS & WEALTH',
-    color: 'from-emerald-600 to-teal-500',
-    description: 'Zero-employee micro-SaaS, digital cashflow, and high-margin assets.'
-  },
-  {
-    id: 'dark_psychology',
-    name: 'Mindset Alpha Dynamics',
-    handle: '@MindsetAlpha',
-    niche: 'dark_psychology',
-    tone: 'Intense, Mysterious & Authoritative',
-    avatarIcon: '🧠',
-    badge: 'DARK PSYCHOLOGY',
-    color: 'from-purple-600 to-indigo-600',
-    description: 'Body language cues, conversational influence, and human psychology.'
-  },
-  {
-    id: 'stoicism_mindset',
-    name: 'The Daily Stoic Edge',
-    handle: '@StoicFocus',
-    niche: 'stoicism_mindset',
-    tone: 'Deep, Calm & High-Discipline',
-    avatarIcon: '⚡',
-    badge: 'STOIC MINDSET',
-    color: 'from-amber-600 to-orange-500',
-    description: 'Marcus Aurelius principles, dopamine resets, and laser productivity.'
-  },
-  {
-    id: 'science_space',
-    name: 'Cosmic Horizons',
-    handle: '@DeepUniverse',
-    niche: 'science_space',
-    tone: 'Mind-Blowing Curiosity & 8K Visuals',
-    avatarIcon: '🌌',
-    badge: 'COSMOS & SCIENCE',
-    color: 'from-indigo-600 to-blue-500',
-    description: 'Black holes, astrophysics discoveries, and quantum mysteries.'
-  },
-  {
-    id: 'mystery_facts',
-    name: 'Untold Vault',
-    handle: '@UntoldVault',
-    niche: 'mystery_facts',
-    tone: 'Narrative Storytelling & Retention Hooks',
-    avatarIcon: '🎙️',
-    badge: 'MYSTERIES & FACTS',
-    color: 'from-rose-600 to-pink-500',
-    description: 'Unexplained events, billion-dollar blunders, and hidden history.'
-  }
+type Seo = Record<Platform, { title: string; description: string; hashtags: string }>;
+
+interface Project {
+  step: number;
+  model: string;
+  prompt: string;
+  genre: string;
+  mood: string;
+  setting: string;
+  cast: string;
+  idea: string;
+  sceneCount: number;
+  style: string;
+  format: 'vertical' | 'horizontal';
+  language: 'roman_urdu' | 'english' | 'urdu';
+  voiceLang: string;
+  title: string;
+  story: string;
+  characters: Character[];
+  scenes: Scene[];
+  edit: EditSettings;
+  music?: { name: string; blob: Blob };
+  logo?: string;
+  thumb: Thumb;
+  seo: Seo | null;
+}
+
+const STEPS = ['Write Prompt', 'Characters', 'Generate Scenes', 'Edit Video', 'Thumbnail & SEO', 'Export'];
+
+const STYLES = [
+  'cinematic anime style',
+  'Pixar-style 3D animation',
+  'cinematic photorealistic 8k',
+  'comic book illustration',
+  'watercolor storybook',
+  'dark moody cinematic',
 ];
 
-export default function YoutubeAutomationView() {
-  const [activeTab, setActiveTab] = useState<'topics' | 'flow' | 'player' | 'planner' | 'publisher' | 'settings'>('flow');
+const GENRES = ['Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming'];
+const MOODS = ['Emotional', 'Funny', 'Suspenseful', 'Epic', 'Heartwarming', 'Dark', 'Cute & light'];
+const SETTINGS = ['Rooftop at sunset', 'College campus', 'Rainy city street', 'Village & fields', 'Futuristic city', 'Haunted house', 'Beach', 'Mountains', 'Cafe', 'Gaming room', 'Wedding'];
+const CASTS = ['1 boy + 1 girl', '2 girls + 1 boy', '3 friends', '1 hero alone', 'Family (3 members)', 'Hero vs villain'];
 
-  // Channel Profile State (Defaults to Beshaan)
-  const [activeChannelId, setActiveChannelId] = useState<string>('beshaan');
-  const [channelName, setChannelName] = useState<string>('Beshaan');
-  const [channelTone, setChannelTone] = useState<string>('Energetic Trio Banter, Trendy Fashion Styling & Gaming Hype');
-  const [isEditingChannel, setIsEditingChannel] = useState<boolean>(false);
+const PLATFORMS: { id: Platform; label: string; titleMax: number; uploadUrl: string }[] = [
+  { id: 'youtube', label: 'YouTube Shorts', titleMax: 100, uploadUrl: 'https://studio.youtube.com' },
+  { id: 'tiktok', label: 'TikTok', titleMax: 150, uploadUrl: 'https://www.tiktok.com/creator-center/upload' },
+  { id: 'instagram', label: 'Instagram Reels', titleMax: 125, uploadUrl: 'https://www.instagram.com/' },
+  { id: 'facebook', label: 'Facebook Reels', titleMax: 125, uploadUrl: 'https://www.facebook.com/reels/create' },
+];
 
-  // Self-Generated Topics State
-  const [selfGeneratedTopics, setSelfGeneratedTopics] = useState<SelfGeneratedTopic[]>([]);
-  const [isLoadingTopics, setIsLoadingTopics] = useState<boolean>(false);
+const LANG_LABEL: Record<Project['language'], string> = {
+  roman_urdu: 'Roman Urdu (Urdu written in English letters)',
+  english: 'English',
+  urdu: 'Urdu (Arabic script)',
+};
 
-  // Video Generation Controls
-  const [selectedNiche, setSelectedNiche] = useState<string>('beshaan_trio');
-  const [customPrompt, setCustomPrompt] = useState<string>('');
-  const [targetFormat, setTargetFormat] = useState<'shorts_9_16' | 'video_16_9'>('shorts_9_16');
-  const [targetDuration, setTargetDuration] = useState<number>(35);
-  const [apiKey, setApiKey] = useState<string>('');
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [usePuterAi, setUsePuterAi] = useState<boolean>(true);
-  const [selectedPuterModel, setSelectedPuterModel] = useState<string>('openai/gpt-4o');
+function newProject(): Project {
+  return {
+    step: 0,
+    model: 'openai/gpt-4o',
+    prompt: '',
+    genre: 'Romantic',
+    mood: 'Emotional',
+    setting: 'Rooftop at sunset',
+    cast: '1 boy + 1 girl',
+    idea: '',
+    sceneCount: 7,
+    style: STYLES[0],
+    format: 'vertical',
+    language: 'roman_urdu',
+    voiceLang: 'en-US',
+    title: '',
+    story: '',
+    characters: [
+      { name: '', description: '' },
+      { name: '', description: '' },
+      { name: '', description: '' },
+    ],
+    scenes: [],
+    edit: {
+      transition: 'fade',
+      motion: true,
+      filter: 'none',
+      capShow: true,
+      capPos: 'bottom',
+      capSize: 44,
+      capColor: '#ffffff',
+      logoPos: 'tr',
+      logoSize: 16,
+      logoOpacity: 0.9,
+      voiceVol: 1,
+      musicVol: 0.25,
+    },
+    thumb: {
+      bg: '',
+      headline: '',
+      badge: '',
+      textColor: '#ffffff',
+      accent: '#ef4444',
+      position: 'bottom',
+    },
+    seo: null,
+  };
+}
 
-  // Video Content State
-  const [titleOptions, setTitleOptions] = useState<string[]>([
-    'How 1% Developers Build 10x Faster with AI in 2026 🤯',
-    'The AI Coding Secret Nobody Is Telling You (Must Watch)',
-    'Stop Coding Like It\'s 2020: Autonomous Agents Are Here'
-  ]);
-  const [selectedTitle, setSelectedTitle] = useState<string>('How 1% Developers Build 10x Faster with AI in 2026 🤯');
-  const [scenes, setScenes] = useState<SceneItem[]>([]);
-  const [description, setDescription] = useState<string>('');
-  const [hashtags, setHashtags] = useState<string[]>([]);
-  const [thumbnailHeadline, setThumbnailHeadline] = useState<string>('DON\'T CODE ALONE');
-  const [thumbnailBadge, setThumbnailBadge] = useState<string>('10X AI VELOCITY');
+// Keeps the project alive when the admin switches dashboard tabs (component unmounts) during one session.
+let projectCache: Project | null = null;
 
-  // Script & Voiceover Language Selection (Roman Urdu Default for Pakistani Creators)
-  const [scriptLanguage, setScriptLanguage] = useState<'roman_urdu' | 'english' | 'urdu'>('roman_urdu');
+const uid = () => `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-  // Multi-Part Story Arc & AI Video Engine State (Bisma Style ❤️)
-  const [seriesParts, setSeriesParts] = useState<1 | 5 | 10>(1);
-  const [sceneCountChoice, setSceneCountChoice] = useState<number>(5);
-  const [activePartTab, setActivePartTab] = useState<number>(1);
-  const [visualStyle, setVisualStyle] = useState<string>('cinematic anime-style');
-  const [storyParts, setStoryParts] = useState<StoryPart[]>([]);
-  const [copiedPromptIdx, setCopiedPromptIdx] = useState<number | null>(null);
+/* ------------------------------------------------------------- small UI bits */
 
-  // Video Player / Canvas Simulation State
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [currentTime, setCurrentTime] = useState<number>(0);
-  const [currentSceneIdx, setCurrentSceneIdx] = useState<number>(0);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
-  const animationFrameRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+const card = 'rounded-2xl border border-slate-700/60 bg-slate-900/70 p-4';
+const input =
+  'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none';
+const btn =
+  'inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50';
+const btnPrimary = `${btn} bg-indigo-600 text-white hover:bg-indigo-500`;
+const btnGhost = `${btn} border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700`;
+const label = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400';
 
-  // Content Plan State
-  const [contentPlan, setContentPlan] = useState<ContentPlanItem[]>([]);
+function Spin({ on, children }: { on: boolean; children: React.ReactNode }) {
+  return <>{on ? <Loader2 className="h-4 w-4 animate-spin" /> : children}</>;
+}
 
-  // Publisher & Webhook Integration State (Direct In-App vs Make.com/Zapier)
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['youtube', 'instagram', 'tiktok']);
-  const [publishMode, setPublishMode] = useState<'direct' | 'webhook'>('direct');
-  const [directYouTubeToken, setDirectYouTubeToken] = useState<string>('');
-  const [directInstagramToken, setDirectInstagramToken] = useState<string>('');
-  const [showApiTokenInputs, setShowApiTokenInputs] = useState<boolean>(false);
-  const [webhookUrl, setWebhookUrl] = useState<string>('');
-  const [webhookProvider, setWebhookProvider] = useState<'make' | 'zapier' | 'custom'>('make');
-  const [isPublishing, setIsPublishing] = useState<boolean>(false);
-  const [isTestingWebhook, setIsTestingWebhook] = useState<boolean>(false);
-  const [publishedStatus, setPublishedStatus] = useState<any>(null);
+/* ---------------------------------------------------------------- component */
 
-  // Connected Social Accounts & Channel Sign-In Hub State
-  const [socialAccounts, setSocialAccounts] = useState<SocialAccountItem[]>([
-    { platform: 'youtube', accountHandle: '@BeshaanVibe', accountName: 'Beshaan (YouTube Shorts)', isConnected: true },
-    { platform: 'instagram', accountHandle: '@beshaan_vibe', accountName: 'Beshaan (Instagram Reels)', isConnected: true },
-    { platform: 'tiktok', accountHandle: '@beshaan', accountName: 'Beshaan (TikTok)', isConnected: true },
-    { platform: 'facebook', accountHandle: 'Beshaan Family', accountName: 'Beshaan (Facebook Reels)', isConnected: true },
-  ]);
-  const [isFetchingSocial, setIsFetchingSocial] = useState<boolean>(false);
-  const [editingSocialPlatform, setEditingSocialPlatform] = useState<string | null>(null);
-  const [connectHandleInput, setConnectHandleInput] = useState<string>('');
-  const [connectTokenInput, setConnectTokenInput] = useState<string>('');
-  const [isSavingSocial, setIsSavingSocial] = useState<boolean>(false);
-
-  // Fetch Connected Accounts from MongoDB
-  const fetchSocialAccounts = useCallback(async () => {
-    setIsFetchingSocial(true);
+export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wizard' | 'editor' }) {
+  const [p, setP] = useState<Project>(() => projectCache || newProject());
+  const [busy, setBusy] = useState<string>('');
+  const [progress, setProgress] = useState<number>(0);
+  const [selectedId, setSelectedId] = useState<string>('');
+  const [seoTab, setSeoTab] = useState<Platform>('youtube');
+  const [autoMsg, setAutoMsg] = useState<string>('');
+  const autoCancel = useRef(false);
+  const [exported, setExported] = useState<{ url: string; ext: string; size: number; blob: Blob } | null>(null);
+  const [pubKey, setPubKey] = useState<string>(() => {
     try {
-      const res = await fetch('/api/admin/social/accounts');
-      const data = await res.json();
-      if (data.success && Array.isArray(data.accounts)) {
-        setSocialAccounts(data.accounts);
-      }
+      return sessionStorage.getItem('studioKey') || '';
     } catch {
-      // offline fallback
-    } finally {
-      setIsFetchingSocial(false);
+      return '';
     }
-  }, []);
+  });
+  const [channels, setChannels] = useState<{ id: string; name: string; displayName?: string; service: string }[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [postWhen, setPostWhen] = useState<'now' | 'queue' | 'schedule'>('now');
+  const [dueAt, setDueAt] = useState<string>('');
+  const [postLog, setPostLog] = useState<{ label: string; ok: boolean; msg: string }[]>([]);
+
+  // decoded media
+  const [images, setImages] = useState<Record<string, HTMLImageElement>>({});
+  const [voices, setVoices] = useState<Record<string, { blob: Blob; buf: AudioBuffer }>>({});
+  const [musicBuf, setMusicBuf] = useState<AudioBuffer | null>(null);
+  const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
+
+  // player
+  const [playing, setPlaying] = useState(false);
+  const [time, setTime] = useState(0);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const thumbRef = useRef<HTMLCanvasElement | null>(null);
+  const acRef = useRef<AudioContext | null>(null);
+  const stopAudioRef = useRef<(() => void) | null>(null);
+  const rafRef = useRef<number>(0);
+  const timeRef = useRef(0);
+  const cancelRef = useRef({ cancelled: false });
+  const pRef = useRef(p);
+  pRef.current = p;
 
   useEffect(() => {
-    fetchSocialAccounts();
-  }, [fetchSocialAccounts]);
+    projectCache = p;
+  }, [p]);
 
-  const handleConnectSocialAccount = async (platform: string, handle: string, token?: string) => {
-    setIsSavingSocial(true);
-    try {
-      const res = await fetch('/api/admin/social/accounts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform,
-          accountHandle: handle,
-          accountName: platform === 'youtube' ? 'Beshaan Official' : 'Beshaan Trio',
-          accessToken: token || '',
-          channelId: platform === 'youtube' ? '@BeshaanVibe' : undefined
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(data.message || `Connected ${platform}!`, { icon: '🟢' });
-        await fetchSocialAccounts();
-        setEditingSocialPlatform(null);
-        setConnectHandleInput('');
-        setConnectTokenInput('');
-      } else {
-        toast.error(data.error || 'Failed to connect');
-      }
-    } catch (err: any) {
-      toast.error('Connection failed: ' + err.message);
-    } finally {
-      setIsSavingSocial(false);
-    }
-  };
-
-  const handleDisconnectSocialAccount = async (platform: string) => {
-    try {
-      const res = await fetch(`/api/admin/social/accounts?platform=${platform}`, {
-        method: 'DELETE'
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(data.message || `Disconnected ${platform}`, { icon: '⚪' });
-        await fetchSocialAccounts();
-      }
-    } catch (err: any) {
-      toast.error('Disconnect failed: ' + err.message);
-    }
-  };
-
-  // Restore saved webhook URL, provider, and direct tokens from localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedUrl = localStorage.getItem('sol_automation_webhook_url');
-      if (savedUrl) setWebhookUrl(savedUrl);
-      const savedProvider = localStorage.getItem('sol_automation_webhook_provider') as any;
-      if (savedProvider && ['make', 'zapier', 'custom'].includes(savedProvider)) {
-        setWebhookProvider(savedProvider);
-      }
-      const savedMode = localStorage.getItem('sol_automation_publish_mode') as any;
-      if (savedMode && ['direct', 'webhook'].includes(savedMode)) {
-        setPublishMode(savedMode);
-      }
-      const savedYt = localStorage.getItem('sol_direct_yt_token');
-      if (savedYt) setDirectYouTubeToken(savedYt);
-      const savedIg = localStorage.getItem('sol_direct_ig_token');
-      if (savedIg) setDirectInstagramToken(savedIg);
-    }
+    if (mode === 'editor') setP((o) => ({ ...o, step: Math.max(o.step, 3) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handlePublishModeChange = (mode: 'direct' | 'webhook') => {
-    setPublishMode(mode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sol_automation_publish_mode', mode);
+  const patch = useCallback((x: Partial<Project>) => setP((o) => ({ ...o, ...x })), []);
+  const patchEdit = (x: Partial<EditSettings>) => setP((o) => ({ ...o, edit: { ...o.edit, ...x } }));
+  const patchThumb = (x: Partial<Thumb>) => setP((o) => ({ ...o, thumb: { ...o.thumb, ...x } }));
+  const patchScene = useCallback(
+    (id: string, x: Partial<Scene>) =>
+      setP((o) => ({ ...o, scenes: o.scenes.map((s) => (s.id === id ? { ...s, ...x } : s)) })),
+    []
+  );
+  const patchChar = (i: number, x: Partial<Character>) =>
+    setP((o) => ({ ...o, characters: o.characters.map((c, k) => (k === i ? { ...c, ...x } : c)) }));
+
+  const getAc = () => {
+    if (!acRef.current) {
+      const AC: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+      acRef.current = new AC();
     }
+    return acRef.current;
   };
 
-  const handleWebhookChange = (val: string) => {
-    setWebhookUrl(val);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sol_automation_webhook_url', val);
-    }
-  };
+  const dims = p.format === 'vertical' ? { w: 720, h: 1280 } : { w: 1280, h: 720 };
+  const formatLabel = p.format === 'vertical' ? '9:16 vertical' : '16:9 horizontal';
 
-  const handleProviderChange = (p: 'make' | 'zapier' | 'custom') => {
-    setWebhookProvider(p);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('sol_automation_webhook_provider', p);
-    }
-  };
+  /* ------------------------------------------------ decode media (images, voices, music, logo) */
 
-  // Total Duration
-  const totalDuration = scenes.length > 0 ? scenes.reduce((acc, s) => acc + s.durationSeconds, 0) : 35;
-
-  // Active Channel Profile
-  const activeProfile = CHANNEL_PROFILES.find(p => p.id === activeChannelId) || CHANNEL_PROFILES[0];
-
-  // Self-Generate Fresh Topics for the Active Channel
-  const fetchChannelTopics = useCallback(async (nicheToFetch?: string) => {
-    setIsLoadingTopics(true);
-    const targetNiche = nicheToFetch || selectedNiche;
-
-    // Check if Puter AI is active and signed in
-    if (usePuterAi) {
-      try {
-        const signed = await isPuterSignedIn();
-        if (signed) {
-          const langPrompt = scriptLanguage === 'roman_urdu'
-            ? 'LANGUAGE REQUIREMENT: Generate all topic titles and hooks in conversational ROMAN URDU (Urdu written in Latin/English alphabets, popular with Pakistani vloggers and YouTube creators, e.g. "Ek Outfit Ko 3 Alag Tareeqon Se Style Kiya", "Larke Ne Hamara Makeup Kiya", etc.).'
-            : scriptLanguage === 'urdu'
-            ? 'LANGUAGE REQUIREMENT: Generate all topic titles and hooks in authentic Urdu script (اردو).'
-            : 'LANGUAGE: English.';
-
-          const systemPrompt = `You are an elite viral YouTube Shorts & Reels strategist.
-${langPrompt}
-Return ONLY valid JSON array with 8 unique objects (no markdown, no backticks, no code fence):
-[
-  {
-    "id": "puter_1",
-    "title": "High CTR Click-Worthy Title",
-    "hook": "Intense first 3-second hook",
-    "badge": "VIRAL HOOK",
-    "viralScore": 96
-  }
-]`;
-          const prompt = `Channel Name: "${channelName}"
-Niche: "${targetNiche}"
-Tone: "${channelTone}"
-Language: ${scriptLanguage}
-Generate 8 completely unique, viral video ideas.`;
-
-          const result = await puterChatWithDetails(prompt, { 
-            model: selectedPuterModel, 
-            systemPrompt,
-            autoFallback: true,
-            onModelFallback: (fromM, toM) => {
-              toast(`Model ${fromM.split('/')[1] || fromM} busy. Auto-cascading to ${toM.split('/')[1] || toM}...`, { icon: '🔄' });
-            }
-          });
-          const raw = result.text;
-          const clean = raw.replace(/```json/g, '').replace(/```/g, '').trim();
-          const parsed = JSON.parse(clean);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const formatted = parsed.map((item: any, idx: number) => ({
-              id: item.id || `puter_${Date.now()}_${idx}`,
-              title: item.title,
-              hook: item.hook,
-              badge: item.badge || 'PUTER AI',
-              niche: targetNiche,
-              viralScore: item.viralScore || (90 + (idx % 9))
-            }));
-            setSelfGeneratedTopics(formatted);
-            const modelUsedName = result.modelUsed.split('/')[1] || result.modelUsed;
-            toast.success(`Generated 8 fresh topics via Puter (${modelUsedName})!`, { icon: '✨' });
-            setIsLoadingTopics(false);
-            return;
-          }
+  const imageKey = p.scenes.map((s) => `${s.id}:${s.image ? s.image.length : 0}`).join('|');
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      const next: Record<string, HTMLImageElement> = {};
+      for (const s of pRef.current.scenes) {
+        if (!s.image) continue;
+        try {
+          next[s.id] = await loadImage(s.image);
+        } catch {
+          /* skip broken image */
         }
-      } catch (err: any) {
-        console.warn('Puter topic generation fallback to server API:', err.message);
       }
-    }
+      if (!dead) setImages(next);
+    })();
+    return () => {
+      dead = true;
+    };
+  }, [imageKey]);
 
-    try {
-      const res = await fetch('/api/admin/automation/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate_topics',
-          niche: targetNiche,
-          channelName,
-          channelTone,
-          language: scriptLanguage,
-          count: 8,
-          apiKey: apiKey || undefined
-        })
-      });
-      const data = await res.json();
-      if (data.success && data.topics) {
-        setSelfGeneratedTopics(data.topics);
-        toast.success(`Generated ${data.topics.length} fresh video topics for ${channelName}!`, { icon: '✨' });
+  const voiceKey = p.scenes.map((s) => `${s.id}:${s.voice ? s.voice.size : 0}`).join('|');
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      const next: Record<string, { blob: Blob; buf: AudioBuffer }> = {};
+      for (const s of pRef.current.scenes) {
+        if (!s.voice) continue;
+        try {
+          next[s.id] = { blob: s.voice, buf: await decodeAudio(getAc(), s.voice) };
+        } catch {
+          /* skip undecodable audio */
+        }
       }
+      if (!dead) setVoices(next);
+    })();
+    return () => {
+      dead = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceKey]);
+
+  useEffect(() => {
+    let dead = false;
+    if (!p.music) {
+      setMusicBuf(null);
+      return;
+    }
+    decodeAudio(getAc(), p.music.blob)
+      .then((b) => !dead && setMusicBuf(b))
+      .catch(() => toast.error('Could not decode the music file'));
+    return () => {
+      dead = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.music]);
+
+  useEffect(() => {
+    if (!p.logo) {
+      setLogoImg(null);
+      return;
+    }
+    loadImage(p.logo)
+      .then(setLogoImg)
+      .catch(() => setLogoImg(null));
+  }, [p.logo]);
+
+  const renderScenes: RenderScene[] = useMemo(
+    () =>
+      p.scenes.map((s) => ({
+        img: images[s.id] || null,
+        caption: s.caption,
+        duration: s.duration,
+        voice: voices[s.id]?.buf || null,
+      })),
+    [p.scenes, images, voices]
+  );
+
+  const renderSettings: RenderSettings = useMemo(
+    () => ({
+      width: dims.w,
+      height: dims.h,
+      transition: p.edit.transition,
+      motion: p.edit.motion,
+      filter: p.edit.filter,
+      captions: { show: p.edit.capShow, position: p.edit.capPos, size: p.edit.capSize, color: p.edit.capColor },
+      logo: { img: logoImg, position: p.edit.logoPos, size: p.edit.logoSize, opacity: p.edit.logoOpacity },
+      voiceVolume: p.edit.voiceVol,
+      musicVolume: p.edit.musicVol,
+    }),
+    [dims.w, dims.h, p.edit, logoImg]
+  );
+
+  const rsRef = useRef(renderScenes);
+  rsRef.current = renderScenes;
+  const setRef = useRef(renderSettings);
+  setRef.current = renderSettings;
+  const musicRef = useRef(musicBuf);
+  musicRef.current = musicBuf;
+
+  const total = totalDuration(renderScenes);
+
+  /* ---------------------------------------------------------------- AI helpers */
+
+  const ask = async (system: string, user: string) =>
+    puterChat(user, { model: p.model, systemPrompt: system, max_tokens: 8000 });
+
+  const charactersText = (chars: Character[]) =>
+    chars
+      .filter((c) => c.description.trim() || c.name.trim())
+      .map((c) => `${c.name || 'Character'}: ${c.description}`)
+      .join('\n');
+
+  const scenePromptSchema =
+    '"prompt": a COMPLETE detailed AI video prompt for this scene (setting, characters by name with their fixed look, actions, dialogue lines, facial expressions, camera movement, lighting, background music mood, lip-sync note, duration, visual style), "narration": the exact spoken dialogue/voiceover for this scene, "caption": a short subtitle line (max 12 words), "duration": seconds (4-8)';
+
+  const buildPrompt = async (): Promise<string> => {
+    const system =
+      'You are a creative director for AI videos. Write ONE complete, vivid video prompt in plain English (150-250 words): story, characters with fixed looks, dialogues, expressions, camera movements, lighting, background music, lip-sync, duration and visual style. Output ONLY the prompt text.';
+    const user = `Genre: ${p.genre}
+Mood: ${p.mood}
+Setting: ${p.setting}
+Cast: ${p.cast}
+Visual style: ${p.style}
+Format: ${formatLabel}
+Dialogue language: ${LANG_LABEL[p.language]}
+${p.idea.trim() ? `User's extra idea: ${p.idea}
+` : ''}Invent an original, engaging story with a strong hook and satisfying ending.`;
+    return (await ask(system, user)).trim();
+  };
+
+  const createPrompt = async () => {
+    setBusy('idea');
+    try {
+      patch({ prompt: await buildPrompt() });
+      toast.success('Prompt ready. Edit it if you like, then generate scenes.');
     } catch (e: any) {
-      toast.error('Failed to generate topics: ' + e.message);
+      toast.error(e?.message || 'Could not create prompt');
     } finally {
-      setIsLoadingTopics(false);
+      setBusy('');
     }
-  }, [selectedNiche, channelName, channelTone, apiKey, usePuterAi, selectedPuterModel, scriptLanguage]);
-
-  // Initial Load: Fetch Topics & Generate Baseline Video
-  useEffect(() => {
-    fetchChannelTopics('beshaan_trio');
-    handleGenerateAutomation('We Styled 1 Outfit 3 Different Ways! (Two Girls vs One Boy Challenge)', 'beshaan_trio');
-  }, []);
-
-  // Handle Channel Selection
-  const handleSelectChannel = (channel: ChannelProfile) => {
-    setActiveChannelId(channel.id);
-    setSelectedNiche(channel.niche);
-    setChannelName(channel.name);
-    setChannelTone(channel.tone);
-    fetchChannelTopics(channel.niche);
   };
 
-  // Run AI Video Generation for a specific topic or custom prompt
-  const handleGenerateAutomation = async (overridePrompt?: string, overrideNiche?: string) => {
-    setIsGenerating(true);
-    const promptToUse = overridePrompt !== undefined ? overridePrompt : customPrompt;
-    const nicheToUse = overrideNiche || selectedNiche;
-
-    // Check if Puter AI is active and signed in
-    if (usePuterAi) {
-      try {
-        const signed = await isPuterSignedIn();
-        if (signed) {
-          const langInstruction = scriptLanguage === 'roman_urdu'
-            ? `CRITICAL LANGUAGE REQUIREMENT:
-- Write ALL "voiceoverText" in high-energy, authentic, conversational ROMAN URDU (Urdu written in Latin/English alphabets, exactly how Pakistani YouTube creators and youth speak, e.g., "Arey yaar welcome back to Beshaan!", "Dekho bhai twist kya aya...", "Jaldi se comment me ja ke vote karo!").
-- Write "onScreenCaption" in bold Roman Urdu or mixed Roman Urdu/English pop words (e.g., "ASLI TWIST DEKHO 😱", "WAIT FOR THE END 🔥", "YE KYA HO GAYA ⚡").
-- Write "titleOptions" and "selectedTitle" in catchy Roman Urdu with emojis.
-- Write "description" in Roman Urdu with relevant channel hashtags.
-- Keep "visualPrompt" and "brollKeyword" in clear descriptive English for image/video generation.`
-            : scriptLanguage === 'urdu'
-            ? `CRITICAL LANGUAGE REQUIREMENT:
-- Write ALL "voiceoverText", "onScreenCaption", "titleOptions", and "description" in authentic Urdu script (اردو).
-- Keep "visualPrompt" and "brollKeyword" in clear descriptive English.`
-            : `Write all voiceoverText and captions in high-retention English.`;
-
-          const systemPrompt = `You are a world-class viral short-form video producer.
-${langInstruction}
-Return ONLY valid raw JSON with no markdown formatting and no code fences matching this schema:
-{
-  "titleOptions": ["title 1", "title 2", "title 3"],
-  "selectedTitle": "best title",
-  "scenes": [
-    {
-      "sceneNumber": 1,
-      "durationSeconds": 7,
-      "visualPrompt": "cinematic 8k visual prompt for image diffusion",
-      "voiceoverText": "spoken script narration for this scene",
-      "onScreenCaption": "PUNCHY 3-5 WORD CAPTION ⚡",
-      "soundEffect": "Whoosh & Sub Bass",
-      "brollKeyword": "stock footage search keyword"
-    }
-  ],
-  "description": "Full YouTube/Instagram description with takeaways and calls to action",
-  "hashtags": ["#shorts", "#reels", "#viral"],
-  "thumbnailConcept": {
-    "mainHeadline": "MAIN HEADLINE",
-    "badgeText": "CTR BADGE",
-    "bgColor": "#f97316"
-  }
-}`;
-          const prompt = `Topic: "${promptToUse}"
-Channel Name: "${channelName}"
-Niche: "${nicheToUse}"
-Tone: "${channelTone}"
-Language: ${scriptLanguage}
-Format: ${targetFormat === 'shorts_9_16' ? 'Vertical 9:16 Shorts/Reels' : 'Horizontal 16:9'}
-Duration: ${targetDuration} seconds.
-Create exactly 5 intense, progressive narrative scenes with bold pop captions.`;
-
-          const result = await puterChatWithDetails(prompt, { 
-            model: selectedPuterModel, 
-            systemPrompt,
-            autoFallback: true,
-            onModelFallback: (fromM, toM) => {
-              toast(`AI Model ${fromM.split('/')[1] || fromM} busy. Auto-cascading to ${toM.split('/')[1] || toM}...`, { icon: '🔄' });
-            }
-          });
-          const raw = result.text;
-          const clean = raw.replace(/```json/g, '').replace(/```/g, '').trim();
-          const data = JSON.parse(clean);
-          if (data && data.scenes && data.scenes.length > 0) {
-            setTitleOptions(data.titleOptions || [promptToUse]);
-            setSelectedTitle(data.selectedTitle || promptToUse);
-            setScenes(data.scenes || []);
-            setDescription(data.description || '');
-            setHashtags(data.hashtags || []);
-            if (data.thumbnailConcept) {
-              setThumbnailHeadline(data.thumbnailConcept.mainHeadline || 'VIRAL SECRET');
-              setThumbnailBadge(data.thumbnailConcept.badgeText || 'MUST WATCH');
-            }
-            setCurrentTime(0);
-            setCurrentSceneIdx(0);
-            confetti({ particleCount: 50, spread: 60 });
-            const modelUsedName = result.modelUsed.split('/')[1] || result.modelUsed;
-            const langLabel = scriptLanguage === 'roman_urdu' ? 'Roman Urdu' : scriptLanguage === 'urdu' ? 'Urdu' : 'English';
-            toast.success(`Generated 5-scene ${langLabel} video script via Puter (${modelUsedName})!`, { icon: '🎬' });
-            setActiveTab('flow');
-            setIsGenerating(false);
-            return;
-          }
-        }
-      } catch (err: any) {
-        console.warn('Puter script generation fallback to server API:', err.message);
-      }
-    }
-
+  const generatePlan = async () => {
+    setBusy('plan');
     try {
-      const response = await fetch('/api/admin/automation/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate_script',
-          niche: nicheToUse,
-          customPrompt: promptToUse,
-          channelName,
-          channelTone,
-          targetFormat,
-          duration: targetDuration,
-          language: scriptLanguage,
-          seriesParts,
-          sceneCount: sceneCountChoice,
-          visualStyle,
-          apiKey: apiKey || undefined,
-        })
-      });
-
-      const res = await response.json();
-      if (res.success && res.data) {
-        const data = res.data;
-        setTitleOptions(data.titleOptions || []);
-        setSelectedTitle(data.selectedTitle || promptToUse);
-        setScenes(data.scenes || []);
-        if (data.storyParts && Array.isArray(data.storyParts)) {
-          setStoryParts(data.storyParts);
-        } else {
-          setStoryParts([]);
-        }
-        setDescription(data.description || '');
-        setHashtags(data.hashtags || []);
-        if (data.thumbnailConcept) {
-          setThumbnailHeadline(data.thumbnailConcept.mainHeadline);
-          setThumbnailBadge(data.thumbnailConcept.badgeText);
-        }
-
-        setCurrentTime(0);
-        setCurrentSceneIdx(0);
-        confetti({ particleCount: 50, spread: 60 });
-        const partMsg = (data.seriesParts && data.seriesParts > 1) 
-          ? `Generated ${data.seriesParts}-Part Story Series (${data.scenes.length} Scenes with 10s AI Video Prompts)!`
-          : `Generated ${data.scenes?.length || 5}-scene video script with 10s AI Video Prompts!`;
-        toast.success(partMsg, { icon: '🎬' });
-        setActiveTab('flow');
-      } else {
-        toast.error(res.error || 'Failed to generate script');
+      let mainPrompt = p.prompt.trim();
+      if (!mainPrompt) {
+        mainPrompt = await buildPrompt();
+        patch({ prompt: mainPrompt });
       }
+      const system =
+        'You are a senior AI video director. You turn ONE video idea into connected scenes for an AI video generator. Characters must keep the same fixed appearance in every scene. Reply with ONLY valid JSON, no markdown.';
+      const user = `VIDEO IDEA:\n${mainPrompt}\n\nNumber of scenes: ${p.sceneCount}\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
+      const text = await ask(system, user);
+      const data = extractJson<any>(text);
+      const scenes: Scene[] = (data.scenes || []).slice(0, 30).map((s: any) => ({
+        id: uid(),
+        prompt: String(s.prompt || ''),
+        narration: String(s.narration || ''),
+        caption: String(s.caption || ''),
+        duration: Math.min(15, Math.max(2, Number(s.duration) || 5)),
+      }));
+      if (!scenes.length) throw new Error('No scenes returned. Try again.');
+      const chars = [0, 1, 2].map((i) => {
+        const old = p.characters[i];
+        const ai = (data.characters || [])[i];
+        return {
+          ...old,
+          name: old.name || String(ai?.name || ''),
+          description: old.description || String(ai?.description || ''),
+        };
+      });
+      setP((o) => ({
+        ...o,
+        title: String(data.title || o.title),
+        story: String(data.story || ''),
+        characters: chars,
+        scenes,
+        seo: null,
+        step: 1,
+      }));
+      setSelectedId(scenes[0].id);
+      toast.success(`${scenes.length} scene prompts ready. Creating character images…`);
+      // Auto-create reference images for characters that have a description but no image yet
+      let made = 0;
+      for (let i = 0; i < chars.length; i++) {
+        if (!chars[i].description.trim() || chars[i].image) continue;
+        try {
+          const { dataUrl } = await generateImage(
+            `Character reference image, full body, front view, neutral plain background, clean lighting. Style: ${p.style}. ${chars[i].name ? `Name: ${chars[i].name}. ` : ''}${chars[i].description}`
+          );
+          patchChar(i, { image: dataUrl });
+          made++;
+        } catch {
+          toast.error(`Character ${i + 1} image failed. You can retry in step 2.`);
+        }
+      }
+      if (made) toast.success(`${made} character image(s) ready`);
+      return true;
     } catch (e: any) {
-      toast.error('Error generating automation: ' + e.message);
+      toast.error(e?.message || 'Could not generate prompts');
+      return false;
     } finally {
-      setIsGenerating(false);
+      setBusy('');
     }
   };
 
-  // Batch Add All Self-Generated Topics to Content Queue
-  const handleBatchScheduleToQueue = () => {
-    if (selfGeneratedTopics.length === 0) return;
-    const now = new Date();
-    const newItems: ContentPlanItem[] = selfGeneratedTopics.map((top, idx) => {
-      const sched = new Date(now.getTime() + (idx + 1) * 24 * 60 * 60 * 1000);
-      return {
-        id: `plan_${Date.now()}_${idx}`,
-        title: top.title,
-        niche: activeProfile.name,
-        format: '9:16 Shorts',
-        scheduledTime: `${sched.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at 7:00 AM UTC`,
-        status: idx === 0 ? 'ready' : 'pending'
+  const regenerateScenePrompt = async (id: string) => {
+    const idx = p.scenes.findIndex((s) => s.id === id);
+    if (idx < 0) return;
+    setBusy(`prompt:${id}`);
+    try {
+      const sc = p.scenes[idx];
+      const system =
+        'You are a senior AI video director. Rewrite ONE scene so it stays connected to the story. Reply with ONLY valid JSON, no markdown.';
+      const user = `STORY: ${p.story || p.prompt}\nMAIN IDEA: ${p.prompt}\nCHARACTERS:\n${charactersText(p.characters)}\nStyle: ${p.style}\nLanguage: ${LANG_LABEL[p.language]}\nPrevious scene: ${p.scenes[idx - 1]?.prompt.slice(0, 400) || '(none, this is the opening)'}\nNext scene: ${p.scenes[idx + 1]?.prompt.slice(0, 400) || '(none, this is the ending)'}\nCurrent scene ${idx + 1} of ${p.scenes.length}: ${sc.prompt}\n\nWrite a fresh, better version. Return {${scenePromptSchema}}`;
+      const data = extractJson<any>(await ask(system, user));
+      patchScene(id, {
+        prompt: String(data.prompt || sc.prompt),
+        narration: String(data.narration || sc.narration),
+        caption: String(data.caption || sc.caption),
+        duration: Math.min(15, Math.max(2, Number(data.duration) || sc.duration)),
+      });
+      toast.success(`Scene ${idx + 1} prompt regenerated`);
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not regenerate');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const generateCharacterImage = async (i: number) => {
+    const c = p.characters[i];
+    if (!c.description.trim()) return toast.error('Describe the character first');
+    setBusy(`char:${i}`);
+    try {
+      const { dataUrl } = await generateImage(
+        `Character reference image, full body, front view, neutral plain background, clean lighting. Style: ${p.style}. ${c.name ? `Name: ${c.name}. ` : ''}${c.description}`
+      );
+      patchChar(i, { image: dataUrl });
+    } catch (e: any) {
+      toast.error(e?.message || 'Image generation failed. Make sure you are signed in to Puter.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const sceneImagePrompt = (sc: Scene) =>
+    `${p.style}. ${formatLabel} composition. Keep every character EXACTLY as in the reference image (same face, hairstyle, clothes, colors and art style). Characters:\n${charactersText(p.characters)}\nScene: ${sc.prompt.slice(0, 1100)}`;
+
+  const generateSceneImage = async (id: string, silent = false) => {
+    const sc = pRef.current.scenes.find((s) => s.id === id);
+    if (!sc) return;
+    setBusy(`img:${id}`);
+    try {
+      const refs = [...pRef.current.characters.map((c) => c.image).filter(Boolean), sc.extraRef].filter(Boolean) as string[];
+      const { dataUrl, usedReference } = await generateImage(sceneImagePrompt(sc), refs);
+      patchScene(id, { image: dataUrl });
+      if (!silent && refs.length && !usedReference)
+        toast('Reference images were not accepted by the image model. Scene made from text descriptions only.', { icon: '⚠️' });
+    } catch (e: any) {
+      toast.error(e?.message || 'Image generation failed');
+      throw e;
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const generateAllImages = async () => {
+    cancelRef.current = { cancelled: false };
+    const todo = pRef.current.scenes.filter((s) => !s.image).map((s) => s.id);
+    if (!todo.length) return toast('All scenes already have images');
+    setBusy('all');
+    let refsIgnored = false;
+    try {
+      for (let i = 0; i < todo.length; i++) {
+        if (cancelRef.current.cancelled) break;
+        setProgress((i / todo.length) * 100);
+        const sc = pRef.current.scenes.find((s) => s.id === todo[i]);
+        if (!sc) continue;
+        const refs = [...pRef.current.characters.map((c) => c.image).filter(Boolean), sc.extraRef].filter(Boolean) as string[];
+        const r = await generateImage(sceneImagePrompt(sc), refs);
+        if (refs.length && !r.usedReference) refsIgnored = true;
+        patchScene(todo[i], { image: r.dataUrl });
+      }
+      if (refsIgnored) toast('Some scenes were made without image references (model unsupported).', { icon: '⚠️' });
+      else toast.success('Scene images done');
+    } catch (e: any) {
+      toast.error(e?.message || 'Stopped: image generation failed');
+    } finally {
+      setBusy('');
+      setProgress(0);
+    }
+  };
+
+  const makeVoice = async (id: string) => {
+    const sc = pRef.current.scenes.find((s) => s.id === id);
+    if (!sc?.narration.trim()) return toast.error('This scene has no narration text');
+    setBusy(`voice:${id}`);
+    try {
+      const blob = await generateSpeech(sc.narration, pRef.current.voiceLang);
+      const buf = await decodeAudio(getAc(), blob);
+      patchScene(id, { voice: blob, duration: Math.max(sc.duration, Math.ceil((buf.duration + 0.3) * 2) / 2) });
+    } catch (e: any) {
+      toast.error(e?.message || 'Voiceover failed. Make sure you are signed in to Puter.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const uploadVoice = async (id: string, file: File) => {
+    try {
+      const buf = await decodeAudio(getAc(), file);
+      const sc = pRef.current.scenes.find((s) => s.id === id);
+      patchScene(id, { voice: file, duration: Math.max(sc?.duration || 0, Math.ceil((buf.duration + 0.2) * 2) / 2) });
+    } catch {
+      toast.error('Unsupported audio file');
+    }
+  };
+
+  const makeAllVoices = async () => {
+    setBusy('voices');
+    try {
+      const ids = pRef.current.scenes.filter((s) => s.narration.trim()).map((s) => s.id);
+      for (let i = 0; i < ids.length; i++) {
+        setProgress((i / ids.length) * 100);
+        const sc = pRef.current.scenes.find((s) => s.id === ids[i]);
+        if (!sc) continue;
+        const blob = await generateSpeech(sc.narration, pRef.current.voiceLang);
+        const buf = await decodeAudio(getAc(), blob);
+        patchScene(ids[i], { voice: blob, duration: Math.max(sc.duration, Math.ceil((buf.duration + 0.3) * 2) / 2) });
+      }
+      toast.success('Voiceovers ready');
+    } catch (e: any) {
+      toast.error(e?.message || 'Voiceover failed');
+    } finally {
+      setBusy('');
+      setProgress(0);
+    }
+  };
+
+  const generateSeo = async () => {
+    const p = pRef.current;
+    setBusy('seo');
+    try {
+      const system =
+        'You are a social media SEO expert for short-form video. Reply with ONLY valid JSON, no markdown. Each platform must get DIFFERENT, platform-native copy.';
+      const user = `VIDEO TITLE: ${p.title}\nSTORY: ${p.story}\nIDEA: ${p.prompt}\nLANGUAGE: ${LANG_LABEL[p.language]} (hashtags may mix English)\nSCENES: ${p.scenes.map((s) => s.caption).join(' | ')}\n\nReturn JSON:\n{"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"max 3 words"},"youtube":{"title":"<=100 chars, keyword first, include #Shorts","description":"hook line + 2-3 lines + CTA","hashtags":"#a #b #c (5-8)"},"tiktok":{"title":"<=150 chars hooky caption","description":"short caption text","hashtags":"4-6 hashtags incl. trending-style"},"instagram":{"title":"first-line hook <=125 chars","description":"caption with line breaks, emojis, CTA","hashtags":"8-12 hashtags"},"facebook":{"title":"<=125 chars","description":"conversational caption, ask a question","hashtags":"3-5 hashtags"}}`;
+      const data = extractJson<any>(await ask(system, user));
+      const pick = (k: Platform) => ({
+        title: String(data[k]?.title || p.title),
+        description: String(data[k]?.description || ''),
+        hashtags: Array.isArray(data[k]?.hashtags) ? data[k].hashtags.join(' ') : String(data[k]?.hashtags || ''),
+      });
+      setP((o) => ({
+        ...o,
+        seo: { youtube: pick('youtube'), tiktok: pick('tiktok'), instagram: pick('instagram'), facebook: pick('facebook') },
+        thumb: {
+          ...o.thumb,
+          headline: o.thumb.headline || String(data.thumbnail?.headline || o.title).toUpperCase(),
+          badge: o.thumb.badge || String(data.thumbnail?.badge || '').toUpperCase(),
+        },
+      }));
+      toast.success('SEO for all 4 platforms ready');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not generate SEO');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const generateThumbBg = async () => {
+    setBusy('thumb');
+    try {
+      const refs = p.characters.map((c) => c.image).filter(Boolean) as string[];
+      const { dataUrl } = await generateImage(
+        `Eye-catching ${p.format === 'vertical' ? 'vertical' : 'YouTube'} thumbnail background art, dramatic lighting, vivid colors, big expressive characters, empty space for text, NO text or letters. Style: ${p.style}. Topic: ${p.title || p.prompt.slice(0, 200)}. Characters:\n${charactersText(p.characters)}`,
+        refs
+      );
+      patchThumb({ bg: dataUrl });
+    } catch (e: any) {
+      toast.error(e?.message || 'Thumbnail generation failed');
+    } finally {
+      setBusy('');
+    }
+  };
+
+
+
+  /* ------------------------------------------------ one-click posting via Buffer */
+
+  const studioFetch = async (url: string, body: unknown) => {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-studio-key': pubKey },
+      body: JSON.stringify(body),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.success) throw new Error(j.error || `Request failed (${res.status})`);
+    return j;
+  };
+
+  const savePubKey = (v: string) => {
+    setPubKey(v);
+    try {
+      sessionStorage.setItem('studioKey', v);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const loadChannels = async () => {
+    setBusy('channels');
+    try {
+      const j = await studioFetch('/api/admin/automation/buffer', { action: 'channels' });
+      const list = (j.channels || []).filter((c: any) => ['youtube', 'tiktok', 'instagram', 'facebook'].includes(c.service));
+      setChannels(list);
+      setPicked(list.map((c: any) => c.id));
+      if (!list.length) toast.error('No YouTube / TikTok / Instagram / Facebook channels found in Buffer.');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not load Buffer channels');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const uploadToCloudinary = async (blob: Blob, ext: string): Promise<string> => {
+    const isMp4 = ext === 'mp4';
+    const t = await studioFetch('/api/admin/automation/cloudinary-sign', { convertToMp4: !isMp4 });
+    const fd = new FormData();
+    fd.append('file', blob, `video.${ext}`);
+    fd.append('api_key', t.apiKey);
+    fd.append('signature', t.signature);
+    Object.keys(t.params).forEach((k) => fd.append(k, String(t.params[k])));
+    return new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${t.cloudName}/video/upload`);
+      xhr.upload.onprogress = (e) => e.lengthComputable && setProgress((e.loaded / e.total) * 100);
+      xhr.onerror = () => reject(new Error('Upload failed (network)'));
+      xhr.onload = () => {
+        try {
+          const r = JSON.parse(xhr.responseText);
+          if (xhr.status >= 300) return reject(new Error(r?.error?.message || 'Cloudinary rejected the upload'));
+          const mp4 = r.eager?.[0]?.secure_url;
+          resolve(isMp4 ? r.secure_url : mp4 || String(r.secure_url).replace(/[.][a-z0-9]+$/i, '.mp4'));
+        } catch {
+          reject(new Error('Bad response from Cloudinary'));
+        }
       };
+      xhr.send(fd);
+    });
+  };
+
+  const postEverywhere = async () => {
+    if (!exported) return toast.error('Render the video first (step 1 above)');
+    if (!p.seo) return toast.error('Generate the SEO text first (step 5)');
+    const targets = channels.filter((c) => picked.includes(c.id));
+    if (!targets.length) return toast.error('Pick at least one channel');
+    if (postWhen === 'schedule' && !dueAt) return toast.error('Choose a date and time');
+    setBusy('post');
+    setPostLog([]);
+    setProgress(0);
+    try {
+      const videoUrl = await uploadToCloudinary(exported.blob, exported.ext);
+      setProgress(0);
+      const log: { label: string; ok: boolean; msg: string }[] = [];
+      const nl = String.fromCharCode(10, 10);
+      for (let i = 0; i < targets.length; i++) {
+        const c = targets[i];
+        const meta = p.seo[c.service as Platform];
+        const label = `${c.service} · ${c.displayName || c.name}`;
+        try {
+          const r = await studioFetch('/api/admin/automation/buffer', {
+            action: 'post',
+            channelId: c.id,
+            service: c.service,
+            title: meta.title,
+            text: (c.service === 'youtube' ? '' : meta.title + nl) + meta.description + nl + meta.hashtags,
+            videoUrl,
+            mode: postWhen === 'queue' ? 'queue' : 'now',
+            dueAt: postWhen === 'schedule' ? new Date(dueAt).toISOString() : undefined,
+          });
+          log.push({ label, ok: true, msg: `Sent to Buffer (post ${r.postId || 'created'})` });
+        } catch (e: any) {
+          log.push({ label, ok: false, msg: e?.message || 'Failed' });
+        }
+        setPostLog(log.slice());
+      }
+      if (log.every((l) => l.ok)) toast.success('All posts sent');
+      else toast.error('Some posts failed. See details.');
+    } catch (e: any) {
+      toast.error(e?.message || 'Upload failed');
+    } finally {
+      setBusy('');
+      setProgress(0);
+    }
+  };
+
+  /* ------------------------------------------------- one-click full automation */
+
+  const waitFor = async (cond: () => boolean, ms = 15000) => {
+    const t0 = Date.now();
+    while (!cond() && Date.now() - t0 < ms) await new Promise((r) => setTimeout(r, 150));
+  };
+  const tick = () => new Promise((r) => setTimeout(r, 80));
+
+  const autoAll = async () => {
+    autoCancel.current = false;
+    const stop = () => autoCancel.current;
+    const fail = (m: string) => {
+      toast.error(m);
+      setAutoMsg('');
+    };
+    try {
+      setAutoMsg('1/6 Writing story, scenes and characters…');
+      if (!(await generatePlan())) return setAutoMsg('');
+      await tick();
+      if (stop()) return setAutoMsg('');
+
+      setAutoMsg('2/6 Creating scene images…');
+      await generateAllImages();
+      await tick();
+      if (pRef.current.scenes.some((s) => !s.image)) return fail('Some scene images failed. Open step 3 and press Generate all images to retry.');
+      if (stop()) return setAutoMsg('');
+
+      setAutoMsg('3/6 Creating voiceovers…');
+      await makeAllVoices();
+      await tick();
+      if (stop()) return setAutoMsg('');
+
+      setAutoMsg('4/6 Writing titles, descriptions, hashtags and thumbnail text…');
+      await generateSeo();
+      if (stop()) return setAutoMsg('');
+
+      setAutoMsg('5/6 Preparing media…');
+      await waitFor(() => {
+        const sc = pRef.current.scenes;
+        return sc.every((s, i) => (!s.image || !!rsRef.current[i]?.img) && (!s.voice || !!rsRef.current[i]?.voice));
+      });
+      patch({ step: 5 });
+      await tick();
+
+      setAutoMsg('6/6 Rendering the final video (keep this window open)…');
+      await runExport(true);
+      setAutoMsg('');
+      if (!stop()) toast.success('Your video is ready. Download it below.');
+    } catch (e: any) {
+      fail(e?.message || 'Automation stopped');
+    }
+  };
+
+  /* --------------------------------------------------------------- scene ops */
+
+  const moveScene = (id: string, dir: -1 | 1) =>
+    setP((o) => {
+      const i = o.scenes.findIndex((s) => s.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= o.scenes.length) return o;
+      const arr = o.scenes.slice();
+      const tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+      return { ...o, scenes: arr };
     });
 
-    setContentPlan(prev => [...newItems, ...prev]);
-    confetti({ particleCount: 60, spread: 70 });
-    toast.success(`Scheduled ${newItems.length} self-generated topics to Content Plan!`, { icon: '📅' });
-    setActiveTab('planner');
-  };
+  const removeScene = (id: string) =>
+    setP((o) => ({ ...o, scenes: o.scenes.filter((s) => s.id !== id) }));
 
-  // Compute active scene from currentTime
-  useEffect(() => {
-    let accumulated = 0;
-    for (let i = 0; i < scenes.length; i++) {
-      accumulated += scenes[i].durationSeconds;
-      if (currentTime <= accumulated || i === scenes.length - 1) {
-        setCurrentSceneIdx(i);
-        break;
+  const promptPack = () =>
+    [
+      `${p.title || 'AI VIDEO'}  |  ${p.style}  |  ${formatLabel}`,
+      p.story ? `STORY: ${p.story}` : '',
+      `CHARACTERS (attach the reference images and keep them IDENTICAL in every scene):\n${charactersText(p.characters) || '(none)'}`,
+      ...p.scenes.map(
+        (s, i) =>
+          `\n===== SCENE ${i + 1} of ${p.scenes.length} (${s.duration}s) =====\n${s.prompt}\nDialogue / voice: ${s.narration}\nSubtitle: ${s.caption}`
+      ),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+  const addImagesAsScenes = async (files: FileList | null) => {
+    if (!files) return;
+    const added: Scene[] = [];
+    for (let i = 0; i < files.length; i++) {
+      try {
+        added.push({ id: uid(), prompt: '', narration: '', caption: '', duration: 4, image: await toJpegDataUrl(await fileToDataUrl(files[i])) });
+      } catch {
+        toast.error(`Could not read ${files[i].name}`);
       }
     }
-  }, [currentTime, scenes]);
-
-  // Video Animation Loop for Canvas Simulation
-  useEffect(() => {
-    if (!isPlaying) {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-      return;
+    if (added.length) {
+      setP((o) => ({ ...o, scenes: [...o.scenes, ...added] }));
+      setSelectedId(added[0].id);
     }
-
-    lastTimeRef.current = performance.now();
-    const animate = (now: number) => {
-      const deltaSec = (now - lastTimeRef.current) / 1000;
-      lastTimeRef.current = now;
-
-      setCurrentTime(prev => {
-        const nextTime = prev + deltaSec;
-        if (nextTime >= totalDuration) {
-          setIsPlaying(false);
-          return 0;
-        }
-        return nextTime;
-      });
-
-      renderCanvasFrame();
-      animationFrameRef.current = requestAnimationFrame(animate);
-    };
-
-    animationFrameRef.current = requestAnimationFrame(animate);
-    return () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-    };
-  }, [isPlaying, totalDuration, scenes, currentSceneIdx]);
-
-  // Canvas Frame Renderer
-  const renderCanvasFrame = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || scenes.length === 0) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const w = canvas.width;
-    const h = canvas.height;
-    const scene = scenes[currentSceneIdx] || scenes[0];
-
-    // Background Gradient based on active channel
-    const grad = ctx.createLinearGradient(0, 0, w, h);
-    if (activeChannelId === 'beshaan') {
-      grad.addColorStop(0, '#9d174d'); // vibrant rose pink (fashion)
-      grad.addColorStop(0.5, '#581c87'); // deep purple (lifestyle)
-      grad.addColorStop(1, '#1e1b4b'); // midnight indigo (gaming zone)
-    } else if (activeChannelId === 'wealth_business') {
-      grad.addColorStop(0, '#064e3b');
-      grad.addColorStop(0.5, '#022c22');
-      grad.addColorStop(1, '#0f172a');
-    } else if (activeChannelId === 'dark_psychology') {
-      grad.addColorStop(0, '#3b0764');
-      grad.addColorStop(0.5, '#1e1b4b');
-      grad.addColorStop(1, '#090d16');
-    } else if (activeChannelId === 'stoicism_mindset') {
-      grad.addColorStop(0, '#78350f');
-      grad.addColorStop(0.5, '#451a03');
-      grad.addColorStop(1, '#090d16');
-    } else {
-      grad.addColorStop(0, '#0f172a');
-      grad.addColorStop(0.5, '#1e1b4b');
-      grad.addColorStop(1, '#020617');
-    }
-
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
-    // Channel Brand Watermark Top
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.font = 'bold 12px Inter, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(`${activeProfile.avatarIcon} ${channelName}`, 24, 36);
-
-    // Dynamic Ken Burns Zoom Card in Center
-    ctx.save();
-    ctx.translate(w / 2, h / 2 - 40);
-    const scale = 1 + (currentTime % 6) * 0.02;
-    ctx.scale(scale, scale);
-
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.strokeStyle = 'rgba(249, 115, 22, 0.5)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(-w * 0.4, -h * 0.22, w * 0.8, h * 0.44, 20);
-    ctx.fill();
-    ctx.stroke();
-
-    // Scene Keyword Badge
-    ctx.fillStyle = '#f97316';
-    ctx.font = 'bold 13px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(`SCENE ${scene.sceneNumber}: ${scene.brollKeyword.toUpperCase()}`, 0, -h * 0.12);
-
-    // Visual Prompt Description
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = '12px Inter, sans-serif';
-    const words = scene.visualPrompt.split(' ');
-    const line1 = words.slice(0, 6).join(' ');
-    const line2 = words.slice(6, 12).join(' ');
-    const line3 = words.slice(12).join(' ');
-    ctx.fillText(line1, 0, -20);
-    if (line2) ctx.fillText(line2, 0, 0);
-    if (line3) ctx.fillText(line3, 0, 20);
-
-    ctx.restore();
-
-    // Bold Hormozi-Style Captions
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.beginPath();
-    ctx.roundRect(w * 0.08, h - 160, w * 0.84, 90, 16);
-    ctx.fill();
-
-    ctx.fillStyle = '#facc15';
-    ctx.font = '900 24px Inter, Impact, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = '#000000';
-    ctx.shadowBlur = 8;
-    ctx.fillText(scene.onScreenCaption, w / 2, h - 118);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '600 13px Inter, sans-serif';
-    const narrationPreview = scene.voiceoverText.length > 45 
-      ? scene.voiceoverText.slice(0, 45) + '...' 
-      : scene.voiceoverText;
-    ctx.fillText(narrationPreview, w / 2, h - 88);
-    ctx.restore();
-
-    // Progress Bar
-    const progressRatio = totalDuration > 0 ? currentTime / totalDuration : 0;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.fillRect(0, h - 8, w, 8);
-    ctx.fillStyle = '#ea580c';
-    ctx.fillRect(0, h - 8, w * progressRatio, 8);
   };
 
-  useEffect(() => {
-    renderCanvasFrame();
-  }, [currentSceneIdx, scenes]);
-
-  // Voiceover Speech Synthesis with Roman Urdu & Desi Accent Engine
-  const playSceneVoiceover = (text: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      toast.error('Text-to-speech not supported in this browser.');
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.02;
-    utterance.pitch = 1.0;
-    const voices = window.speechSynthesis.getVoices();
-
-    if (scriptLanguage === 'roman_urdu' || scriptLanguage === 'urdu') {
-      // Look for Urdu, Hindi, or South Asian English voice engines for natural phonetics
-      const desiVoice = voices.find(v => 
-        v.lang.startsWith('ur') || 
-        v.lang.startsWith('hi') || 
-        v.lang.startsWith('pa') ||
-        v.lang === 'en-IN' ||
-        v.name.toLowerCase().includes('hindi') ||
-        v.name.toLowerCase().includes('urdu') ||
-        v.name.toLowerCase().includes('india') ||
-        v.name.toLowerCase().includes('pakistan')
-      );
-      if (desiVoice) {
-        utterance.voice = desiVoice;
-        toast.success(`Voiceover preview using ${desiVoice.name} (Desi / Roman Urdu)...`, { icon: '🎙️' });
-      } else {
-        const generalVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('David')));
-        if (generalVoice) utterance.voice = generalVoice;
-        toast.success('Playing Roman Urdu voiceover narration...', { icon: '🎙️' });
-      }
-    } else {
-      const preferredVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('David')));
-      if (preferredVoice) utterance.voice = preferredVoice;
-      toast.success('Playing voiceover narration preview...', { icon: '🎙️' });
-    }
-
-    window.speechSynthesis.speak(utterance);
+  const addScene = () => {
+    const s: Scene = { id: uid(), prompt: '', narration: '', caption: '', duration: 5 };
+    setP((o) => ({ ...o, scenes: [...o.scenes, s] }));
+    setSelectedId(s.id);
   };
 
-  // Test Webhook Ping for Make.com / Zapier Data Structure Detection
-  const handleTestWebhookPing = async () => {
-    if (!webhookUrl || (!webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://'))) {
-      toast.error('Please enter a valid webhook URL (e.g. https://hook.eu1.make.com/...)');
-      return;
-    }
-    setIsTestingWebhook(true);
+  const uploadImageTo = async (file: File, apply: (url: string) => void) => {
     try {
-      const res = await fetch('/api/admin/automation/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'test_ping',
-          webhookUrl,
-          channelName,
-          niche: selectedNiche,
-          language: scriptLanguage,
-          title: selectedTitle,
-          description,
-          hashtags,
-          scenes,
-          thumbnail: {
-            mainHeadline: thumbnailHeadline,
-            badgeText: thumbnailBadge,
-            bgColor: '#ec4899'
-          }
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        confetti({ particleCount: 50, spread: 60 });
-        toast.success(`Make.com webhook verified! (HTTP ${data.status || 200}) Data structure active.`, { icon: '⚡' });
-      } else {
-        toast.error(data.error || 'Webhook test ping failed');
-      }
-    } catch (e: any) {
-      toast.error('Test ping error: ' + e.message);
-    } finally {
-      setIsTestingWebhook(false);
+      apply(await toJpegDataUrl(await fileToDataUrl(file)));
+    } catch {
+      toast.error('Could not read that image');
     }
   };
 
-  // Multi-Platform & Direct Autonomous Publisher
-  const handlePublishAll = async () => {
-    setIsPublishing(true);
-    try {
-      const response = await fetch('/api/admin/automation/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'publish',
-          publishMode,
-          platforms: selectedPlatforms,
-          channelName,
-          niche: selectedNiche,
-          language: scriptLanguage,
-          title: selectedTitle,
-          description,
-          hashtags,
-          scenes,
-          thumbnail: {
-            mainHeadline: thumbnailHeadline,
-            badgeText: thumbnailBadge,
-            bgColor: '#ec4899'
-          },
-          webhookUrl: publishMode === 'webhook' ? webhookUrl : undefined,
-          youtubeToken: directYouTubeToken || undefined,
-          instagramToken: directInstagramToken || undefined,
-        })
-      });
+  /* ------------------------------------------------------------------ player */
 
-      const data = await response.json();
-      if (data.success) {
-        setPublishedStatus(data.publishedPlatforms);
-        confetti({ particleCount: 70, spread: 80 });
+  const draw = useCallback((t: number) => {
+    const c = canvasRef.current;
+    const ctx = c?.getContext('2d');
+    if (!c || !ctx) return;
+    drawFrame(ctx, rsRef.current, setRef.current, t);
+  }, []);
 
-        if (publishMode === 'direct') {
-          // Auto-copy full Roman Urdu package to clipboard
-          copyToClipboard(`${selectedTitle}\n\n${description}\n\n${hashtags.join(' ')}`, 'Full YouTube Metadata Package');
-          
-          const ytAccount = socialAccounts.find(a => a.platform === 'youtube');
-          const hasYtToken = Boolean(directYouTubeToken || ytAccount?.hasToken);
+  const pause = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    stopAudioRef.current?.();
+    stopAudioRef.current = null;
+    setPlaying(false);
+  }, []);
 
-          if (selectedPlatforms.includes('youtube') && !hasYtToken) {
-            window.open('https://studio.youtube.com/channel/videos/upload', '_blank');
-            toast.success('YouTube Studio opened! Roman Urdu title & description copied to clipboard.', { icon: '▶️', duration: 6000 });
-          } else if (hasYtToken) {
-            toast.success(`Directly uploaded to YouTube channel via YouTube Data API!`, { icon: '🚀' });
-          } else {
-            toast.success(`Directly uploaded to ${selectedPlatforms.length} platforms!`, { icon: '🚀' });
-          }
-        } else {
-          const webhookNote = data.webhookDispatched 
-            ? ` & Dispatched to ${webhookProvider === 'make' ? 'Make.com' : 'Webhook'}` 
-            : '';
-          toast.success(`Packaged for ${selectedPlatforms.length} platforms${webhookNote}!`, { icon: '🚀' });
+  const playFrom = useCallback(
+    async (from: number) => {
+      const scenes = rsRef.current;
+      const tot = totalDuration(scenes);
+      if (!scenes.length) return;
+      const ac = getAc();
+      await ac.resume();
+      cancelAnimationFrame(rafRef.current);
+      stopAudioRef.current?.();
+      const start = from >= tot - 0.05 ? 0 : from;
+      stopAudioRef.current = scheduleAudio(ac, ac.destination, scenes, setRef.current, musicRef.current, start);
+      const wall = performance.now();
+      setPlaying(true);
+      const loop = () => {
+        const t = start + (performance.now() - wall) / 1000;
+        if (t >= tot) {
+          timeRef.current = tot;
+          setTime(tot);
+          draw(tot);
+          pause();
+          return;
         }
+        timeRef.current = t;
+        setTime(t);
+        draw(t);
+        rafRef.current = requestAnimationFrame(loop);
+      };
+      loop();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draw, pause]
+  );
 
-        setContentPlan(prev => [
-          {
-            id: Date.now().toString(),
-            title: selectedTitle,
-            niche: activeProfile.name,
-            format: targetFormat === 'shorts_9_16' ? '9:16 Shorts' : '16:9 Video',
-            scheduledTime: 'Published Just Now',
-            status: 'published'
-          },
-          ...prev
-        ]);
-      }
+  const seek = (t: number) => {
+    const wasPlaying = playing;
+    pause();
+    timeRef.current = t;
+    setTime(t);
+    draw(t);
+    if (wasPlaying) playFrom(t);
+  };
+
+  useEffect(() => () => {
+    cancelAnimationFrame(rafRef.current);
+    stopAudioRef.current?.();
+  }, []);
+
+  // keep a paused preview in sync with edits
+  useEffect(() => {
+    if (p.step === 3 && !playing) draw(timeRef.current);
+  }, [p.step, playing, renderScenes, renderSettings, draw]);
+
+  useEffect(() => {
+    if (p.step !== 3 && playing) pause();
+  }, [p.step, playing, pause]);
+
+  /* ----------------------------------------------------------------- export */
+
+  const runExport = async (auto = false) => {
+    if (!p.scenes.length) return toast.error('No scenes to export');
+    const missing = p.scenes.filter((s) => !s.image).length;
+    if (!auto && missing && !window.confirm(`${missing} scene(s) have no image and will render as a placeholder. Continue?`)) return;
+    pause();
+    cancelRef.current = { cancelled: false };
+    setBusy('export');
+    setExported(null);
+    setProgress(0);
+    try {
+      const r = await exportVideo(rsRef.current, setRef.current, musicRef.current, (x) => setProgress(x * 100), cancelRef.current);
+      if (exported) URL.revokeObjectURL(exported.url);
+      setExported({ url: URL.createObjectURL(r.blob), ext: r.ext, size: r.blob.size, blob: r.blob });
+      toast.success('Video rendered');
     } catch (e: any) {
-      toast.error('Dispatch error: ' + e.message);
+      if (!/cancelled/i.test(e?.message || '')) toast.error(e?.message || 'Export failed');
     } finally {
-      setIsPublishing(false);
+      setBusy('');
+      setProgress(0);
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`Copied ${label} to clipboard!`);
+  /* --------------------------------------------------------------- thumbnail */
+
+  useEffect(() => {
+    if (p.step !== 4) return;
+    const c = thumbRef.current;
+    const ctx = c?.getContext('2d');
+    if (!c || !ctx) return;
+    const W = p.format === 'vertical' ? 720 : 1280;
+    const H = p.format === 'vertical' ? 1280 : 720;
+    c.width = W;
+    c.height = H;
+    const t = p.thumb;
+    const fallback = p.scenes.find((s) => s.image)?.image;
+    const render = (img: HTMLImageElement | null) => {
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, W, H);
+      if (img) {
+        const k = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+        ctx.drawImage(img, (W - img.naturalWidth * k) / 2, (H - img.naturalHeight * k) / 2, img.naturalWidth * k, img.naturalHeight * k);
+      }
+      const g = ctx.createLinearGradient(0, t.position === 'top' ? 0 : H, 0, t.position === 'top' ? H * 0.7 : H * 0.3);
+      if (t.position !== 'center') {
+        g.addColorStop(0, 'rgba(0,0,0,0.85)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      } else {
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(0, 0, W, H);
+      }
+      const size = Math.round(W / (p.format === 'vertical' ? 6 : 9));
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `900 ${size}px Impact, "Arial Black", sans-serif`;
+      const words = t.headline.split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      let line = '';
+      words.forEach((w) => {
+        const test = line ? `${line} ${w}` : w;
+        if (ctx.measureText(test).width > W * 0.9 && line) {
+          lines.push(line);
+          line = w;
+        } else line = test;
+      });
+      if (line) lines.push(line);
+      const lh = size * 1.1;
+      const blockH = lines.length * lh;
+      const cy = t.position === 'top' ? H * 0.2 + blockH / 2 - lh : t.position === 'center' ? H / 2 : H - blockH / 2 - H * 0.07;
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = size / 7;
+      ctx.strokeStyle = '#000';
+      ctx.fillStyle = t.textColor;
+      lines.forEach((l, i) => {
+        const y = cy - blockH / 2 + lh / 2 + i * lh;
+        ctx.strokeText(l, W / 2, y);
+        ctx.fillText(l, W / 2, y);
+      });
+      if (t.badge.trim()) {
+        const bs = Math.round(size * 0.42);
+        ctx.font = `800 ${bs}px "Segoe UI", Arial, sans-serif`;
+        const bw = ctx.measureText(t.badge).width + bs * 1.2;
+        const bh = bs * 1.6;
+        ctx.fillStyle = t.accent;
+        const bx = W * 0.05;
+        const by = H * 0.05;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(bx, by, bw, bh, bh / 2) : ctx.rect(bx, by, bw, bh);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        ctx.fillText(t.badge, bx + bs * 0.6, by + bh / 2 + 1);
+      }
+    };
+    const src = t.bg || fallback;
+    if (src) loadImage(src).then(render).catch(() => render(null));
+    else render(null);
+  }, [p.step, p.thumb, p.format, p.scenes]);
+
+  // Auto-generate SEO the first time the Thumbnail & SEO step is opened
+  useEffect(() => {
+    if (p.step === 4 && !p.seo && p.scenes.length && !busy) generateSeo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.step]);
+
+  const downloadThumb = () => {
+    thumbRef.current?.toBlob((b) => b && downloadBlob(b, 'thumbnail.png'), 'image/png');
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Top Header Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/40 border border-slate-800 flex flex-wrap items-center justify-between gap-4 shadow-xl">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
-            <Bot className="w-4 h-4 text-amber-400 animate-pulse" />
-            <span>Autonomous YouTube & Instagram Reels Automation Engine</span>
+  /* -------------------------------------------------------------- navigation */
+
+  const goto = (i: number) => {
+    if (mode === 'wizard' && i > 0 && !p.scenes.length) return toast.error('Generate scene prompts in step 1 first');
+    patch({ step: i });
+  };
+
+  const resetAll = () => {
+    if (!window.confirm('Start a new project? Everything in this one will be cleared.')) return;
+    pause();
+    if (exported) URL.revokeObjectURL(exported.url);
+    setExported(null);
+    setSelectedId('');
+    timeRef.current = 0;
+    setTime(0);
+    setP(newProject());
+  };
+
+  const selected = p.scenes.find((s) => s.id === selectedId) || p.scenes[0];
+  const copy = (text: string, what: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => toast.success(`${what} copied`),
+      () => toast.error('Copy failed')
+    );
+  };
+
+  /* ------------------------------------------------------------------ steps */
+
+  const step1 = (
+    <div className="space-y-4">
+      <div className={card}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-base font-bold text-white">Describe your video</h3>
+          <PuterAuthBadge selectedModel={p.model} onModelSelect={(m) => patch({ model: m })} compact />
+        </div>
+        <div className="mb-4">
+          <span className={label}>Genre</span>
+          <div className="flex flex-wrap gap-1.5">
+            {GENRES.map((g) => (
+              <button key={g} onClick={() => patch({ genre: g })} className={`rounded-full px-3 py-1 text-xs font-semibold ${p.genre === g ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                {g}
+              </button>
+            ))}
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-            <span>Autonomous Channel Content Studio</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-black font-extrabold uppercase">
-              SELF-GENERATING
-            </span>
-          </h2>
-          <p className="text-xs text-slate-400 max-w-2xl">
-            Autonomous curriculum and topic discovery across different channels. Self-generates viral concepts, scene-by-scene scripts, visual B-roll prompts, Hormozi pop captions, and 1-click publishing.
+        </div>
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div>
+            <span className={label}>Mood</span>
+            <select className={input} value={p.mood} onChange={(e) => patch({ mood: e.target.value })}>
+              {MOODS.map((x) => <option key={x}>{x}</option>)}
+            </select>
+          </div>
+          <div>
+            <span className={label}>Setting</span>
+            <select className={input} value={p.setting} onChange={(e) => patch({ setting: e.target.value })}>
+              {SETTINGS.map((x) => <option key={x}>{x}</option>)}
+            </select>
+          </div>
+          <div>
+            <span className={label}>Characters</span>
+            <select className={input} value={p.cast} onChange={(e) => patch({ cast: e.target.value })}>
+              {CASTS.map((x) => <option key={x}>{x}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="mb-4">
+          <span className={label}>Your idea (optional, one line)</span>
+          <input className={input} placeholder="e.g. a shy boy finally confesses on the last day of college" value={p.idea} onChange={(e) => patch({ idea: e.target.value })} />
+        </div>
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button className={btnGhost} disabled={!!busy} onClick={createPrompt}>
+            <Spin on={busy === 'idea'}><Sparkles className="h-4 w-4" /></Spin>
+            Create prompt for me
+          </button>
+        </div>
+        <span className={label}>Full video prompt (auto-written, you can edit)</span>
+        <textarea
+          className={`${input} min-h-[160px]`}
+          placeholder="Leave empty: the prompt, scenes and character images are all created for you from the options above."
+          value={p.prompt}
+          onChange={(e) => patch({ prompt: e.target.value })}
+        />
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div>
+            <span className={label}>Scenes / parts</span>
+            <select className={input} value={p.sceneCount} onChange={(e) => patch({ sceneCount: Number(e.target.value) })}>
+              {[3, 4, 5, 6, 7, 8, 10, 12, 15].map((n) => (
+                <option key={n} value={n}>
+                  {n} scenes
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className={label}>Format</span>
+            <select className={input} value={p.format} onChange={(e) => patch({ format: e.target.value as Project['format'] })}>
+              <option value="vertical">9:16 Shorts / Reels</option>
+              <option value="horizontal">16:9 YouTube</option>
+            </select>
+          </div>
+          <div>
+            <span className={label}>Visual style</span>
+            <select className={input} value={p.style} onChange={(e) => patch({ style: e.target.value })}>
+              {STYLES.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className={label}>Dialogue language</span>
+            <select className={input} value={p.language} onChange={(e) => patch({ language: e.target.value as Project['language'] })}>
+              <option value="roman_urdu">Roman Urdu</option>
+              <option value="english">English</option>
+              <option value="urdu">Urdu (script)</option>
+            </select>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-500`} disabled={!!busy || !!autoMsg} onClick={autoAll}>
+            <Sparkles className="h-4 w-4" /> Auto-create full video (everything)
+          </button>
+          <button className={btnGhost} disabled={!!busy || !!autoMsg} onClick={generatePlan}>
+            <Spin on={busy === 'plan'}>
+              <Sparkles className="h-4 w-4" />
+            </Spin>
+            {p.scenes.length ? 'Only redo scenes & characters' : 'Only scenes & characters'}
+          </button>
+          {p.scenes.length > 0 && (
+            <button className={btnGhost} onClick={() => patch({ step: 1 })}>
+              Continue <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
+          <span className="text-xs text-slate-500">Uses your Puter AI sign-in. No API key needed.</span>
+        </div>
+      </div>
+      {p.story && (
+        <div className={card}>
+          <input className={`${input} mb-2 font-bold`} value={p.title} onChange={(e) => patch({ title: e.target.value })} />
+          <textarea className={`${input} min-h-[70px]`} value={p.story} onChange={(e) => patch({ story: e.target.value })} />
+        </div>
+      )}
+    </div>
+  );
+
+  const step2 = (
+    <div className="space-y-4">
+      <div className={card}>
+        <h3 className="text-base font-bold text-white">Character references (up to 3)</h3>
+        <p className="mt-1 text-sm text-slate-400">
+          These images are sent with <b>every scene</b> so characters keep the same face, clothes and style. Upload your own or generate
+          from a description. Leave empty for scenes without fixed characters.
+        </p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {p.characters.map((c, i) => (
+          <div key={i} className={card}>
+            <div className="mb-3 flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-700 bg-slate-950">
+              {c.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.image} alt={c.name || `Character ${i + 1}`} className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs text-slate-500">Character {i + 1}: no image</span>
+              )}
+            </div>
+            <input className={`${input} mb-2`} placeholder="Name" value={c.name} onChange={(e) => patchChar(i, { name: e.target.value })} />
+            <textarea
+              className={`${input} mb-2 min-h-[90px]`}
+              placeholder="Fixed look: age, face, hair, clothes, colors..."
+              value={c.description}
+              onChange={(e) => patchChar(i, { description: e.target.value })}
+            />
+            <div className="flex flex-wrap gap-2">
+              <button className={btnPrimary} disabled={!!busy} onClick={() => generateCharacterImage(i)}>
+                <Spin on={busy === `char:${i}`}>
+                  <Sparkles className="h-4 w-4" />
+                </Spin>
+                Generate
+              </button>
+              <label className={`${btnGhost} cursor-pointer`}>
+                <Upload className="h-4 w-4" /> Upload
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadImageTo(f, (url) => patchChar(i, { image: url }));
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {c.image && (
+                <button className={btnGhost} onClick={() => patchChar(i, { image: undefined })}>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between">
+        <button className={btnGhost} onClick={() => patch({ step: 0 })}>
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <button className={btnPrimary} onClick={() => patch({ step: 2 })}>
+          Next: Scenes <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const step3 = (
+    <div className="space-y-4">
+      <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+        <div>
+          <h3 className="text-base font-bold text-white">Scenes ({p.scenes.length})</h3>
+          <p className="text-xs text-slate-400">
+            Edit prompts, reorder, regenerate. Images are made with your character references. For real motion video, use “Copy all
+            prompts” in Veo / Kling / Runway / Sora (attach your character images there).
           </p>
         </div>
-
-        {/* Quick Launch Buttons & Puter Integration */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <PuterAuthBadge 
-            selectedModel={selectedPuterModel} 
-            onModelSelect={setSelectedPuterModel} 
-          />
-
-          <button
-            onClick={() => setActiveTab('topics')}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs flex items-center gap-2 transition-all cursor-pointer border border-slate-700"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Discover Topics</span>
+        <div className="flex gap-2">
+          {busy === 'all' ? (
+            <button className={btnGhost} onClick={() => (cancelRef.current.cancelled = true)}>
+              Stop ({Math.round(progress)}%)
+            </button>
+          ) : (
+            <button className={btnPrimary} disabled={!!busy} onClick={generateAllImages}>
+              <ImageIcon className="h-4 w-4" /> Generate all images
+            </button>
+          )}
+          <button className={btnGhost} onClick={addScene}>
+            <Plus className="h-4 w-4" /> Scene
           </button>
-
-          <button
-            onClick={() => handleGenerateAutomation()}
-            disabled={isGenerating}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg hover:shadow-amber-500/25 transition-all cursor-pointer disabled:opacity-50"
-          >
-            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 text-white" />}
-            <span>{isGenerating ? 'Synthesizing...' : 'Auto-Generate Current'}</span>
+          <button className={btnGhost} onClick={() => copy(promptPack(), 'All prompts')} title="For Veo / Kling / Runway / Sora: character block + every scene prompt">
+            <Copy className="h-4 w-4" /> Copy all prompts
+          </button>
+          <button className={btnGhost} onClick={() => downloadBlob(new Blob([promptPack()], { type: 'text/plain' }), 'ai-video-prompts.txt')}>
+            <Download className="h-4 w-4" /> .txt
           </button>
         </div>
       </div>
 
-      {/* 🚀 QUICK SOCIAL CONNECT TOP BAR (Pre-Connected 1-Click Sign-In) */}
-      <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800 shadow-lg space-y-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-bold text-white uppercase tracking-wider">
-              Connected Channels Hub (YouTube, Instagram &amp; Facebook)
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold">
-              READY TO POST
+      {p.scenes.map((s, i) => (
+        <div key={s.id} className={`${card} grid gap-4 md:grid-cols-[200px_1fr]`}>
+          <div>
+            <div
+              className={`flex items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-950 ${
+                p.format === 'vertical' ? 'aspect-[9/16]' : 'aspect-video'
+              }`}
+            >
+              {s.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={s.image} alt={`Scene ${i + 1}`} className="h-full w-full object-cover" />
+              ) : busy === `img:${s.id}` ? (
+                <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+              ) : (
+                <span className="text-xs text-slate-500">No image</span>
+              )}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <button className={`${btnPrimary} !px-2 !py-1 text-xs`} disabled={!!busy} onClick={() => generateSceneImage(s.id).catch(() => undefined)}>
+                <RefreshCw className="h-3.5 w-3.5" /> {s.image ? 'Redo' : 'Generate'}
+              </button>
+              <label className={`${btnGhost} cursor-pointer !px-2 !py-1 text-xs`}>
+                <Upload className="h-3.5 w-3.5" /> Own image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadImageTo(f, (url) => patchScene(s.id, { image: url }));
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <label className={`${btnGhost} cursor-pointer !px-2 !py-1 text-xs`} title="Extra reference used only for this scene">
+                <ImageIcon className="h-3.5 w-3.5" /> {s.extraRef ? 'Ref ✓' : '+ Ref'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadImageTo(f, (url) => patchScene(s.id, { extraRef: url }));
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {s.extraRef && (
+                <button className={`${btnGhost} !px-2 !py-1 text-xs`} onClick={() => patchScene(s.id, { extraRef: undefined })}>
+                  Clear ref
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-indigo-300">Scene {i + 1}</span>
+              <div className="flex gap-1">
+                <button className={`${btnGhost} !px-2 !py-1`} disabled={i === 0} onClick={() => moveScene(s.id, -1)} title="Move up">
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button className={`${btnGhost} !px-2 !py-1`} disabled={i === p.scenes.length - 1} onClick={() => moveScene(s.id, 1)} title="Move down">
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+                <button className={`${btnGhost} !px-2 !py-1`} disabled={!!busy} onClick={() => regenerateScenePrompt(s.id)} title="Regenerate this prompt with AI">
+                  <Spin on={busy === `prompt:${s.id}`}>
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </Spin>
+                </button>
+                <button className={`${btnGhost} !px-2 !py-1`} onClick={() => copy(s.prompt, 'Prompt')} title="Copy prompt">
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+                <button className={`${btnGhost} !px-2 !py-1 text-red-400`} onClick={() => removeScene(s.id)} title="Delete scene">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+            <textarea className={`${input} min-h-[120px]`} placeholder="Full AI video prompt for this scene" value={s.prompt} onChange={(e) => patchScene(s.id, { prompt: e.target.value })} />
+            <div className="grid gap-2 md:grid-cols-[1fr_1fr_90px]">
+              <input className={input} placeholder="Narration / dialogue (spoken)" value={s.narration} onChange={(e) => patchScene(s.id, { narration: e.target.value })} />
+              <input className={input} placeholder="Subtitle (on screen)" value={s.caption} onChange={(e) => patchScene(s.id, { caption: e.target.value })} />
+              <input className={input} type="number" min={2} max={20} step={0.5} value={s.duration} onChange={(e) => patchScene(s.id, { duration: Math.min(20, Math.max(1, Number(e.target.value) || 5)) })} title="Seconds" />
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <div className="flex justify-between">
+        <button className={btnGhost} onClick={() => patch({ step: 1 })}>
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <button className={btnPrimary} onClick={() => patch({ step: 3 })}>
+          Next: Edit video <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const step4 = (
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_1fr]">
+        {/* preview */}
+        <div className={card}>
+          <div className="flex justify-center rounded-xl bg-black p-2">
+            <canvas
+              ref={canvasRef}
+              width={dims.w}
+              height={dims.h}
+              className="max-h-[480px] w-auto max-w-full rounded-lg"
+              style={{ aspectRatio: `${dims.w} / ${dims.h}` }}
+            />
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <button className={btnPrimary} onClick={() => (playing ? pause() : playFrom(timeRef.current))} disabled={!p.scenes.length}>
+              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+              {playing ? 'Pause' : 'Play'}
+            </button>
+            <input
+              type="range"
+              className="flex-1"
+              min={0}
+              max={Math.max(0.1, total)}
+              step={0.05}
+              value={Math.min(time, total)}
+              onChange={(e) => seek(Number(e.target.value))}
+            />
+            <span className="w-20 text-right font-mono text-xs text-slate-400">
+              {time.toFixed(1)}/{total.toFixed(1)}s
             </span>
           </div>
-          <span className="text-[11px] text-slate-400">
-            Aapka channel link hai, direct 1-click se upload kar sakte hain
-          </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-          {/* YouTube */}
-          {(() => {
-            const acc = socialAccounts.find(a => a.platform === 'youtube');
-            const isConn = acc?.isConnected ?? true; // Default auto-connected for user
-            return (
-              <div className="p-2.5 rounded-xl bg-slate-900/90 border border-red-500/30 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-red-500/20 text-red-500 flex items-center justify-center">
-                    <Youtube className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-white leading-tight">YouTube Channel</h5>
-                    <p className="text-[10px] text-red-300 font-mono">{acc?.accountHandle || '@BeshaanVibe'}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (isConn) {
-                      toast.success('YouTube channel @BeshaanVibe already connected!');
-                    } else {
-                      handleConnectSocialAccount('youtube', '@BeshaanVibe', '');
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${
-                    isConn ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-red-600 text-white'
-                  }`}
-                >
-                  {isConn ? '✓ CONNECTED' : 'Sign In'}
-                </button>
+        {/* controls */}
+        <div className="space-y-4">
+          <div className={card}>
+            <h4 className="mb-2 text-sm font-bold text-white">Look & transitions</h4>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              <div>
+                <span className={label}>Transition</span>
+                <select className={input} value={p.edit.transition} onChange={(e) => patchEdit({ transition: e.target.value as Transition })}>
+                  <option value="none">None (cut)</option>
+                  <option value="fade">Fade</option>
+                  <option value="slide">Slide</option>
+                  <option value="zoom">Zoom in</option>
+                </select>
               </div>
-            );
-          })()}
+              <div>
+                <span className={label}>Color effect</span>
+                <select className={input} value={p.edit.filter} onChange={(e) => patchEdit({ filter: e.target.value as VideoFilter })}>
+                  <option value="none">None</option>
+                  <option value="warm">Warm</option>
+                  <option value="cool">Cool</option>
+                  <option value="bw">Black & white</option>
+                  <option value="vignette">Vignette</option>
+                </select>
+              </div>
+              <label className="flex items-end gap-2 pb-2 text-sm text-slate-200">
+                <input type="checkbox" checked={p.edit.motion} onChange={(e) => patchEdit({ motion: e.target.checked })} />
+                Camera motion (slow zoom/pan)
+              </label>
+            </div>
+          </div>
 
-          {/* Instagram */}
-          {(() => {
-            const acc = socialAccounts.find(a => a.platform === 'instagram');
-            const isConn = acc?.isConnected ?? true; // Default auto-connected for user
-            return (
-              <div className="p-2.5 rounded-xl bg-slate-900/90 border border-pink-500/30 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-pink-500/20 text-pink-500 flex items-center justify-center">
-                    <Instagram className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-white leading-tight">Instagram Reels</h5>
-                    <p className="text-[10px] text-pink-300 font-mono">{acc?.accountHandle || '@beshaan_vibe'}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (isConn) {
-                      toast.success('Instagram @beshaan_vibe already connected!');
-                    } else {
-                      handleConnectSocialAccount('instagram', '@beshaan_vibe', '');
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${
-                    isConn ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-pink-600 text-white'
-                  }`}
-                >
-                  {isConn ? '✓ CONNECTED' : 'Sign In'}
-                </button>
+          <div className={card}>
+            <h4 className="mb-2 text-sm font-bold text-white">Subtitles</h4>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <label className="flex items-end gap-2 pb-2 text-sm text-slate-200">
+                <input type="checkbox" checked={p.edit.capShow} onChange={(e) => patchEdit({ capShow: e.target.checked })} /> Show
+              </label>
+              <div>
+                <span className={label}>Position</span>
+                <select className={input} value={p.edit.capPos} onChange={(e) => patchEdit({ capPos: e.target.value as EditSettings['capPos'] })}>
+                  <option value="top">Top</option>
+                  <option value="middle">Middle</option>
+                  <option value="bottom">Bottom</option>
+                </select>
               </div>
-            );
-          })()}
+              <div>
+                <span className={label}>Size {p.edit.capSize}</span>
+                <input type="range" min={24} max={80} value={p.edit.capSize} onChange={(e) => patchEdit({ capSize: Number(e.target.value) })} className="w-full" />
+              </div>
+              <div>
+                <span className={label}>Color</span>
+                <input type="color" value={p.edit.capColor} onChange={(e) => patchEdit({ capColor: e.target.value })} className="h-9 w-full rounded bg-transparent" />
+              </div>
+            </div>
+          </div>
 
-          {/* Facebook */}
-          {(() => {
-            const acc = socialAccounts.find(a => a.platform === 'facebook');
-            const isConn = acc?.isConnected ?? true;
-            return (
-              <div className="p-2.5 rounded-xl bg-slate-900/90 border border-blue-500/30 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-500 flex items-center justify-center">
-                    <Facebook className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-white leading-tight">Facebook Page</h5>
-                    <p className="text-[10px] text-blue-300 font-mono">{acc?.accountHandle || 'Beshaan Family'}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (isConn) {
-                      toast.success('Facebook Page Beshaan Family already connected!');
-                    } else {
-                      handleConnectSocialAccount('facebook', 'Beshaan Family', '');
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${
-                    isConn ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-blue-600 text-white'
-                  }`}
-                >
-                  {isConn ? '✓ CONNECTED' : 'Sign In'}
+          <div className={card}>
+            <h4 className="mb-2 text-sm font-bold text-white">Audio</h4>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <span className={label}>Voiceover language</span>
+                <select className={input} value={p.voiceLang} onChange={(e) => patch({ voiceLang: e.target.value })}>
+                  <option value="en-US">English (US)</option>
+                  <option value="en-GB">English (UK)</option>
+                  <option value="hi-IN">Hindi (best for Urdu)</option>
+                </select>
+                <button className={`${btnGhost} mt-2`} disabled={!!busy} onClick={makeAllVoices}>
+                  <Spin on={busy === 'voices'}>
+                    <Volume2 className="h-4 w-4" />
+                  </Spin>
+                  Generate all voiceovers {busy === 'voices' ? `${Math.round(progress)}%` : ''}
                 </button>
               </div>
-            );
-          })()}
+              <div>
+                <span className={label}>Background music</span>
+                <label className={`${btnGhost} cursor-pointer`}>
+                  <Upload className="h-4 w-4" /> {p.music ? p.music.name.slice(0, 24) : 'Upload audio'}
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) patch({ music: { name: f.name, blob: f } });
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                {p.music && (
+                  <button className={`${btnGhost} ml-2`} onClick={() => patch({ music: undefined })}>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <div>
+                <span className={label}>Voice volume {Math.round(p.edit.voiceVol * 100)}%</span>
+                <input type="range" min={0} max={1.5} step={0.05} value={p.edit.voiceVol} onChange={(e) => patchEdit({ voiceVol: Number(e.target.value) })} className="w-full" />
+              </div>
+              <div>
+                <span className={label}>Music volume {Math.round(p.edit.musicVol * 100)}%</span>
+                <input type="range" min={0} max={1} step={0.05} value={p.edit.musicVol} onChange={(e) => patchEdit({ musicVol: Number(e.target.value) })} className="w-full" />
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">Lip-sync is not generated here: voices are timed to each scene. For true lip-synced characters, use the copied scene prompt in a tool such as Veo or Kling.</p>
+          </div>
 
-          {/* TikTok */}
-          {(() => {
-            const acc = socialAccounts.find(a => a.platform === 'tiktok');
-            const isConn = acc?.isConnected ?? true;
-            return (
-              <div className="p-2.5 rounded-xl bg-slate-900/90 border border-cyan-500/30 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center">
-                    <TikTok className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-white leading-tight">TikTok Creator</h5>
-                    <p className="text-[10px] text-cyan-300 font-mono">{acc?.accountHandle || '@beshaan'}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    if (isConn) {
-                      toast.success('TikTok @beshaan already connected!');
-                    } else {
-                      handleConnectSocialAccount('tiktok', '@beshaan', '');
-                    }
-                  }}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition ${
-                    isConn ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-cyan-600 text-white'
-                  }`}
-                >
-                  {isConn ? '✓ CONNECTED' : 'Sign In'}
-                </button>
+          <div className={card}>
+            <h4 className="mb-2 text-sm font-bold text-white">Logo / watermark (optional)</h4>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="col-span-2 md:col-span-1">
+                <label className={`${btnGhost} cursor-pointer`}>
+                  <Upload className="h-4 w-4" /> {p.logo ? 'Replace' : 'Upload logo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (f) patch({ logo: await fileToDataUrl(f) });
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                {p.logo && (
+                  <button className={`${btnGhost} ml-2`} onClick={() => patch({ logo: undefined })}>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
-            );
-          })()}
+              <div>
+                <span className={label}>Corner</span>
+                <select className={input} value={p.edit.logoPos} onChange={(e) => patchEdit({ logoPos: e.target.value as Corner })}>
+                  <option value="tl">Top left</option>
+                  <option value="tr">Top right</option>
+                  <option value="bl">Bottom left</option>
+                  <option value="br">Bottom right</option>
+                </select>
+              </div>
+              <div>
+                <span className={label}>Size {p.edit.logoSize}%</span>
+                <input type="range" min={5} max={40} value={p.edit.logoSize} onChange={(e) => patchEdit({ logoSize: Number(e.target.value) })} className="w-full" />
+              </div>
+              <div>
+                <span className={label}>Opacity {Math.round(p.edit.logoOpacity * 100)}%</span>
+                <input type="range" min={0.1} max={1} step={0.05} value={p.edit.logoOpacity} onChange={(e) => patchEdit({ logoOpacity: Number(e.target.value) })} className="w-full" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Channel Profile Selector Bar */}
-      <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Tv className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-bold text-white uppercase tracking-wider">
-              Select Active Channel Profile
-            </span>
-          </div>
-          <button
-            onClick={() => setIsEditingChannel(!isEditingChannel)}
-            className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
-          >
-            <Edit3 className="w-3 h-3" /> {isEditingChannel ? 'Done Customizing' : 'Customize Channel Info'}
-          </button>
+      {/* timeline */}
+      <div className={card}>
+        <div className="mb-2 flex items-center justify-between">
+          <h4 className="text-sm font-bold text-white">Timeline</h4>
+          <label className={`${btnGhost} cursor-pointer !py-1 text-xs`}>
+            <Plus className="h-3.5 w-3.5" /> Add my images
+            <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addImagesAsScenes(e.target.files); e.target.value = ''; }} />
+          </label>
         </div>
-
-        {/* Channel Cards Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          {CHANNEL_PROFILES.map((ch) => {
-            const isSel = activeChannelId === ch.id;
+        {!p.scenes.length && <p className="text-sm text-slate-400">No scenes yet. Add your own images here, or create a video in the AI Video Studio tab.</p>}
+        <div className="flex gap-1 overflow-x-auto pb-2">
+          {p.scenes.map((s, i) => {
+            let start = 0;
+            for (let k = 0; k < i; k++) start += p.scenes[k].duration;
+            const active = time >= start && time < start + s.duration;
             return (
-              <div
-                key={ch.id}
-                onClick={() => handleSelectChannel(ch)}
-                className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
-                  isSel
-                    ? 'border-amber-500 bg-amber-950/40 ring-1 ring-amber-500 shadow-md'
-                    : 'border-slate-800 bg-slate-950/70 hover:border-slate-700'
+              <button
+                key={s.id}
+                onClick={() => {
+                  setSelectedId(s.id);
+                  seek(start);
+                }}
+                style={{ width: Math.max(64, s.duration * 24) }}
+                className={`relative h-16 shrink-0 overflow-hidden rounded-lg border text-left ${
+                  selected?.id === s.id ? 'border-indigo-400' : active ? 'border-emerald-500' : 'border-slate-700'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-lg">{ch.avatarIcon}</span>
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-800 ${isSel ? 'text-amber-300' : 'text-slate-400'}`}>
-                    {ch.badge.split(' ')[0]}
-                  </span>
-                </div>
-                <h4 className="text-xs font-bold text-white truncate">{ch.name}</h4>
-                <p className="text-[10px] text-slate-400 font-mono truncate">{ch.handle}</p>
-              </div>
+                {s.image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={s.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" />
+                )}
+                <span className="relative z-10 m-1 inline-block rounded bg-black/60 px-1 text-[10px] font-bold text-white">
+                  {i + 1} · {s.duration}s {s.voice ? '🔊' : ''}
+                </span>
+              </button>
             );
           })}
         </div>
-
-        {/* Channel Info Editor Drawer */}
-        {isEditingChannel && (
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">Custom Channel Name</label>
+        {selected && (
+          <div className="mt-3 grid gap-3 border-t border-slate-700/60 pt-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <span className={label}>Scene {p.scenes.indexOf(selected) + 1}: subtitle text</span>
+              <input className={input} value={selected.caption} onChange={(e) => patchScene(selected.id, { caption: e.target.value })} />
+              <span className={label}>Trim / length: {selected.duration}s</span>
               <input
-                type="text"
-                value={channelName}
-                onChange={e => setChannelName(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                type="range"
+                min={1}
+                max={20}
+                step={0.5}
+                value={selected.duration}
+                onChange={(e) => patchScene(selected.id, { duration: Number(e.target.value) })}
+                className="w-full"
               />
             </div>
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">Channel Tone / Persona</label>
-              <input
-                type="text"
-                value={channelTone}
-                onChange={e => setChannelTone(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-              />
+            <div className="space-y-2">
+              <span className={label}>Narration</span>
+              <input className={input} value={selected.narration} onChange={(e) => patchScene(selected.id, { narration: e.target.value })} />
+              <div className="flex flex-wrap gap-2">
+                <button className={btnGhost} disabled={!!busy} onClick={() => makeVoice(selected.id)}>
+                  <Spin on={busy === `voice:${selected.id}`}>
+                    <Volume2 className="h-4 w-4" />
+                  </Spin>
+                  {selected.voice ? 'Redo voice' : 'Generate voice'}
+                </button>
+                <label className={`${btnGhost} cursor-pointer`}>
+                  <Upload className="h-4 w-4" /> My voice
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadVoice(selected.id, f);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                {selected.voice && (
+                  <button className={btnGhost} onClick={() => patchScene(selected.id, { voice: undefined })}>
+                    Remove voice
+                  </button>
+                )}
+                <button className={btnGhost} onClick={() => moveScene(selected.id, -1)}>
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <button className={btnGhost} onClick={() => moveScene(selected.id, 1)}>
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <button className={`${btnGhost} text-red-400`} onClick={() => removeScene(selected.id)}>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Navigation Sub-Tabs */}
-      <div className="flex items-center p-1.5 rounded-xl bg-slate-900 border border-slate-800 max-w-3xl mx-auto overflow-x-auto">
-        {[
-          { id: 'topics', label: 'Self-Generated Topics', icon: Sparkles },
-          { id: 'flow', label: 'Scene-by-Scene Flow', icon: Layers },
-          { id: 'player', label: 'Live Video Preview', icon: Play },
-          { id: 'publisher', label: '1-Click Multi-Platform', icon: Send },
-          { id: 'planner', label: 'Content Plan & Queue', icon: Calendar },
-          { id: 'settings', label: 'Gemini & API Keys', icon: Settings2 },
-        ].map(t => {
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id as any)}
-              className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === t.id
-                  ? 'bg-gradient-to-r from-amber-500 to-red-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{t.label}</span>
-            </button>
-          );
-        })}
+      <div className="flex justify-between">
+        <button className={btnGhost} onClick={() => patch({ step: 2 })}>
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <button className={btnPrimary} onClick={() => patch({ step: 4 })}>
+          Next: Thumbnail & SEO <ArrowRight className="h-4 w-4" />
+        </button>
       </div>
+    </div>
+  );
 
-      {/* ========================================================================= */}
-      {/* TAB 0: SELF-GENERATED DYNAMIC TOPICS & CURRICULUM DISCOVERY               */}
-      {/* ========================================================================= */}
-      {activeTab === 'topics' && (
-        <div className="space-y-5">
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                <span>{activeProfile.avatarIcon}</span>
-                <span>Self-Generated Video Topics for {channelName}</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Dynamic, non-default viral video concepts tailored to your channel persona ({activeProfile.tone}).
-              </p>
+  const seoNow = p.seo?.[seoTab];
+  const setSeo = (x: Partial<Seo[Platform]>) =>
+    setP((o) => (o.seo ? { ...o, seo: { ...o.seo, [seoTab]: { ...o.seo[seoTab], ...x } } } : o));
+  const platformMeta = PLATFORMS.find((x) => x.id === seoTab)!;
+
+  const step5 = (
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className={card}>
+          <h3 className="mb-3 text-base font-bold text-white">Thumbnail</h3>
+          <div className="mb-3 flex justify-center rounded-xl bg-black p-2">
+            <canvas ref={thumbRef} className="max-h-[360px] w-auto max-w-full rounded-lg" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <span className={label}>Headline</span>
+              <input className={input} value={p.thumb.headline} onChange={(e) => patchThumb({ headline: e.target.value.toUpperCase() })} />
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => fetchChannelTopics()}
-                disabled={isLoadingTopics}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs flex items-center gap-1.5 border border-slate-700 cursor-pointer disabled:opacity-50"
+            <div className="col-span-2">
+              <span className={label}>Badge</span>
+              <input className={input} value={p.thumb.badge} onChange={(e) => patchThumb({ badge: e.target.value.toUpperCase() })} />
+            </div>
+            <div>
+              <span className={label}>Text color</span>
+              <input type="color" className="h-9 w-full rounded bg-transparent" value={p.thumb.textColor} onChange={(e) => patchThumb({ textColor: e.target.value })} />
+            </div>
+            <div>
+              <span className={label}>Badge color</span>
+              <input type="color" className="h-9 w-full rounded bg-transparent" value={p.thumb.accent} onChange={(e) => patchThumb({ accent: e.target.value })} />
+            </div>
+            <div>
+              <span className={label}>Text position</span>
+              <select className={input} value={p.thumb.position} onChange={(e) => patchThumb({ position: e.target.value as Thumb['position'] })}>
+                <option value="top">Top</option>
+                <option value="center">Center</option>
+                <option value="bottom">Bottom</option>
+              </select>
+            </div>
+            <div>
+              <span className={label}>Background from scene</span>
+              <select
+                className={input}
+                value=""
+                onChange={(e) => {
+                  const sc = p.scenes.find((s) => s.id === e.target.value);
+                  if (sc?.image) patchThumb({ bg: sc.image });
+                }}
               >
-                {isLoadingTopics ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shuffle className="w-3.5 h-3.5 text-amber-400" />}
-                <span>Shuffle / Generate New Topics</span>
-              </button>
-
-              <button
-                onClick={handleBatchScheduleToQueue}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
-              >
-                <Calendar className="w-3.5 h-3.5 text-black" />
-                <span>Batch Schedule to 7-Day Queue</span>
-              </button>
+                <option value="">Choose…</option>
+                {p.scenes.map((s, i) => (
+                  <option key={s.id} value={s.id} disabled={!s.image}>
+                    Scene {i + 1}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className={btnPrimary} disabled={!!busy} onClick={generateThumbBg}>
+              <Spin on={busy === 'thumb'}>
+                <Sparkles className="h-4 w-4" />
+              </Spin>
+              AI thumbnail background
+            </button>
+            <label className={`${btnGhost} cursor-pointer`}>
+              <Upload className="h-4 w-4" /> Upload
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadImageTo(f, (url) => patchThumb({ bg: url }));
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            <button className={btnGhost} onClick={downloadThumb}>
+              <Download className="h-4 w-4" /> PNG
+            </button>
+          </div>
+        </div>
 
-          {/* Topics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {selfGeneratedTopics.map((item, idx) => (
-              <div
-                key={item.id}
-                className="p-4 rounded-2xl bg-slate-950 border border-slate-800 hover:border-amber-500/60 transition-all flex flex-col justify-between space-y-3 group"
+        <div className={card}>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-base font-bold text-white">Title, description & hashtags</h3>
+            <button className={btnGhost} disabled={!!busy} onClick={generateSeo}>
+              <Spin on={busy === 'seo'}>
+                <RefreshCw className="h-4 w-4" />
+              </Spin>
+              Regenerate
+            </button>
+          </div>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {PLATFORMS.map((pl) => (
+              <button
+                key={pl.id}
+                onClick={() => setSeoTab(pl.id)}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  seoTab === pl.id ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
               >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 uppercase tracking-wider">
-                      #{idx + 1} {item.badge}
-                    </span>
-                    <div className="flex items-center gap-1 text-[11px] font-mono text-emerald-400 font-bold">
-                      <TrendingUp className="w-3.5 h-3.5" />
-                      <span>{item.viralScore}/100</span>
-                    </div>
-                  </div>
-
-                  <h4 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">
-                    {item.title}
-                  </h4>
-                  <p className="text-xs text-slate-400 mt-1.5 line-clamp-2">
-                    "{item.hook}"
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-slate-900">
-                  <span className="text-[11px] text-slate-500 font-mono">
-                    Format: 9:16 Shorts • ~35s
-                  </span>
-                  <button
-                    onClick={() => handleGenerateAutomation(item.title, item.niche)}
-                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow cursor-pointer transition-all"
-                  >
-                    <Zap className="w-3 h-3 fill-current" />
-                    <span>Auto-Produce Video</span>
-                  </button>
-                </div>
-              </div>
+                {pl.label}
+              </button>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 1: SCENE-BY-SCENE FLOW BUILDER                                        */}
-      {/* ========================================================================= */}
-      {activeTab === 'flow' && (
-        <div className="space-y-6">
-          {/* Quick Generator Controls Card */}
-          <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-3">
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Series Arc Mode</label>
-                <select
-                  value={seriesParts}
-                  onChange={e => {
-                    const p = parseInt(e.target.value) as 1 | 5 | 10;
-                    setSeriesParts(p);
-                    setActivePartTab(1);
-                  }}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-pink-400 font-bold focus:outline-none focus:border-pink-500"
-                >
-                  <option value={1}>🎬 Single Clip</option>
-                  <option value={5}>💖 5-Part Story Series (25 Scenes)</option>
-                  <option value={10}>🔥 10-Part Epic Story (50 Scenes)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Scenes / Prompts</label>
-                <select
-                  value={seriesParts > 1 ? seriesParts * 5 : sceneCountChoice}
-                  disabled={seriesParts > 1}
-                  onChange={e => setSceneCountChoice(parseInt(e.target.value))}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-cyan-300 font-bold focus:outline-none focus:border-cyan-500 disabled:opacity-75"
-                >
-                  {seriesParts > 1 ? (
-                    <option value={seriesParts * 5}>{seriesParts * 5} Prompts ({seriesParts} Parts x 5)</option>
-                  ) : (
-                    <>
-                      <option value={5}>5 Scenes (5 Prompts)</option>
-                      <option value={6}>6 Scenes (6 Prompts)</option>
-                      <option value={7}>7 Scenes (7 Prompts 🌟)</option>
-                      <option value={8}>8 Scenes (8 Prompts)</option>
-                      <option value={10}>10 Scenes (10 Prompts)</option>
-                    </>
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Visual Art Style</label>
-                <select
-                  value={visualStyle}
-                  onChange={e => setVisualStyle(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-amber-300 font-semibold focus:outline-none focus:border-amber-500"
-                >
-                  <option value="cinematic anime-style">🌸 Cinematic Anime (Bisma Style ❤️)</option>
-                  <option value="photorealistic 8k">📸 Photorealistic 8K Cinema</option>
-                  <option value="korean drama cinematic">🎎 Korean Drama Romance</option>
-                  <option value="3d pixar disney style">✨ 3D Pixar Animation</option>
-                  <option value="cyberpunk retro neon">🌆 Cyberpunk Neon Noir</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Niche Curriculum</label>
-                <select
-                  value={selectedNiche}
-                  onChange={e => {
-                    const n = e.target.value;
-                    setSelectedNiche(n);
-                    fetchChannelTopics(n);
-                  }}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
-                >
-                  <option value="romantic_anime">💖 Romantic Anime Story (Bisma 🦟)</option>
-                  <option value="beshaan_trio">🎀 Beshaan (Fashion, Lifestyle, Gaming)</option>
-                  <option value="ai_tech">🤖 AI & Developer Engineering</option>
-                  <option value="wealth_business">💰 High-Income Wealth & Micro-SaaS</option>
-                  <option value="dark_psychology">🧠 Dark Psychology & Influence</option>
-                  <option value="stoicism_mindset">⚡ High-Performance Stoicism</option>
-                  <option value="science_space">🌌 Space & Cosmic Physics</option>
-                  <option value="mystery_facts">🎙️ Curious Facts & Hidden History</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Dialogue / Voiceover</label>
-                <select
-                  value={scriptLanguage}
-                  onChange={e => setScriptLanguage(e.target.value as any)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-emerald-400 font-bold focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="roman_urdu">🇵🇰 Roman Urdu (رومن اردو dialogues)</option>
-                  <option value="english">🌐 English (Global dialogues)</option>
-                  <option value="urdu">🇵🇰 Urdu Script (اردو)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-400 block mb-1">Format</label>
-                <select
-                  value={targetFormat}
-                  onChange={e => setTargetFormat(e.target.value as any)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
-                >
-                  <option value="shorts_9_16">📱 Vertical 9:16 (Shorts/Reels)</option>
-                  <option value="video_16_9">🖥️ Horizontal 16:9 (YouTube Video)</option>
-                </select>
-              </div>
-
-              <div className="flex items-end">
-                <button
-                  onClick={() => handleGenerateAutomation()}
-                  disabled={isGenerating}
-                  className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:from-pink-400 hover:to-amber-400 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
-                >
-                  {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  <span>{seriesParts > 1 ? `Generate ${seriesParts}-Part Arc` : 'Generate Script'}</span>
-                </button>
-              </div>
+          {busy === 'seo' && !seoNow ? (
+            <div className="flex items-center gap-2 py-10 text-sm text-slate-400">
+              <Loader2 className="h-4 w-4 animate-spin" /> Writing SEO for all 4 platforms…
             </div>
-
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">
-                Story Premise / Reference Prompt (e.g. Bisma's "Little girl in lavender on university floor...")
-              </label>
-              <input
-                type="text"
-                value={customPrompt}
-                onChange={e => setCustomPrompt(e.target.value)}
-                placeholder="Type story outline (e.g. Two childhood friends meet on university floor, emotional promise...)"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white"
-              />
-            </div>
-          </div>
-
-          {/* Series Navigation Tabs if seriesParts > 1 or storyParts.length > 0 */}
-          {((seriesParts > 1) || storyParts.length > 1) && (
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-pink-950/40 via-purple-950/40 to-slate-950 border border-pink-500/30 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-full bg-pink-500/20 text-pink-300 font-bold text-xs">
-                    🎭 Multi-Part Story Series ({seriesParts} Parts Active)
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    Showing 5-6 scenes per episode with complete 10-second AI Video Prompts
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      const currentPartScenes = scenes.filter(s => (s.partNumber || 1) === activePartTab);
-                      const bundle = currentPartScenes.map((s, i) => `=== SCENE ${s.sceneNumber} (${s.durationSeconds}s) ===\n${s.aiVideoPrompt || s.visualPrompt}\n`).join('\n\n');
-                      navigator.clipboard.writeText(bundle);
-                      toast.success(`Copied all ${currentPartScenes.length} AI Video Prompts for Part ${activePartTab}!`);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/40 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy All Part {activePartTab} Prompts</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      const fullBundle = scenes.map(s => `[Part ${s.partNumber || 1} - Scene ${s.sceneNumber}]\n${s.aiVideoPrompt || s.visualPrompt}\n`).join('\n---\n\n');
-                      navigator.clipboard.writeText(fullBundle);
-                      toast.success(`Copied entire story series (${scenes.length} scenes) for AI video engines!`);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy Full Series ({scenes.length} Prompts)</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Part selector buttons */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {Array.from({ length: seriesParts }, (_, i) => i + 1).map(pNum => {
-                  const partObj = storyParts.find(sp => sp.partNumber === pNum);
-                  const isCurrent = activePartTab === pNum;
-                  return (
-                    <button
-                      key={pNum}
-                      onClick={() => setActivePartTab(pNum)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
-                        isCurrent
-                          ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/30'
-                          : 'bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
-                      <span>Part {pNum}</span>
-                      {partObj && <span className="opacity-75 font-normal">({partObj.partTitle})</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Title & SEO High-CTR Selection */}
-          <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
-            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider block">
-              High-CTR Clickbait Viral Titles (AI Generated)
-            </span>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-              {titleOptions.map((t, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => setSelectedTitle(t)}
-                  className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
-                    selectedTitle === t 
-                      ? 'bg-amber-500/15 border-amber-500 text-white font-bold ring-1 ring-amber-500' 
-                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                  }`}
-                >
-                  <span>{t}</span>
-                  {selectedTitle === t && <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 ml-2" />}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Scene-by-Scene Timeline Cards */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <span className="text-xs font-bold text-slate-300 uppercase font-mono">
-                Storyboard Pipeline ({scenes.length} Scenes • {totalDuration}s Total Duration)
-              </span>
-              <button
-                onClick={() => {
-                  const newNum = scenes.length + 1;
-                  setScenes([
-                    ...scenes,
-                    {
-                      sceneNumber: newNum,
-                      durationSeconds: 6,
-                      visualPrompt: 'Cinematic dynamic visual prompt',
-                      voiceoverText: 'Spoken voiceover script for scene ' + newNum,
-                      onScreenCaption: 'NEW VIRAL HOOK',
-                      soundEffect: 'Whoosh',
-                      brollKeyword: 'technology'
-                    }
-                  ]);
-                }}
-                className="text-xs text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Scene
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3.5">
-              {scenes
-                .filter(sc => !seriesParts || seriesParts <= 1 || (sc.partNumber || 1) === activePartTab)
-                .map((sc, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all space-y-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-900 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono text-xs font-bold">
-                        Scene #{sc.sceneNumber}
-                      </span>
-                      {sc.partNumber && (
-                        <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 font-mono text-xs font-bold">
-                          Part {sc.partNumber}
-                        </span>
-                      )}
-                      <span className="text-xs text-slate-400 font-mono">
-                        {sc.durationSeconds}s duration
-                      </span>
-                      <span className="text-xs text-slate-500">•</span>
-                      <span className="text-xs text-slate-400 font-mono">
-                        SFX: <strong className="text-slate-300">{sc.soundEffect}</strong>
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => playSceneVoiceover(sc.voiceoverText)}
-                        className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-300 font-medium text-xs flex items-center gap-1 cursor-pointer border border-slate-800 hover:border-amber-500/40"
-                        title="Preview Speech Narration"
-                      >
-                        <Volume2 className="w-3.5 h-3.5 text-amber-400" />
-                        <span>{scriptLanguage === 'roman_urdu' ? 'Roman Urdu VO' : scriptLanguage === 'urdu' ? 'Urdu VO' : 'Narration'}</span>
-                      </button>
-
-                      <button
-                        onClick={() => setScenes(scenes.filter((_, i) => i !== idx))}
-                        className="p-1 rounded-lg text-slate-500 hover:text-red-400 cursor-pointer"
-                        title="Delete Scene"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* AI Video Prompt (10s Engine - Kling / Runway / Luma / Sora) */}
-                  <div className="p-3.5 rounded-xl bg-gradient-to-r from-pink-950/30 via-purple-950/30 to-slate-900 border border-pink-500/30 space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-pink-300 flex items-center gap-1">
-                          <span>🎬 AI Video Prompt (10s Clip Engine)</span>
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-pink-500/20 text-pink-200 font-mono">
-                          Kling • Runway Gen-3 • Luma • Sora
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => {
-                            const pText = sc.aiVideoPrompt || sc.visualPrompt;
-                            navigator.clipboard.writeText(pText);
-                            setCopiedPromptIdx(sc.sceneNumber);
-                            setTimeout(() => setCopiedPromptIdx(null), 2000);
-                            toast.success(`Copied Scene #${sc.sceneNumber} 10s AI Video Prompt!`);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-all shadow"
-                        >
-                          {copiedPromptIdx === sc.sceneNumber ? <CheckCircle2 className="w-3 h-3 text-white" /> : <Copy className="w-3 h-3" />}
-                          <span>{copiedPromptIdx === sc.sceneNumber ? 'Copied!' : 'Copy 10s Prompt'}</span>
-                        </button>
-
-                        <a
-                          href="https://klingai.com"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium"
-                        >
-                          Kling AI ↗
-                        </a>
-                        <a
-                          href="https://runwayml.com"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-medium"
-                        >
-                          Runway Gen-3 ↗
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* Formatted Text Box */}
-                    <div className="relative">
-                      <textarea
-                        rows={6}
-                        value={sc.aiVideoPrompt || sc.visualPrompt}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setScenes(scenes.map((s, i) => i === idx ? { ...s, aiVideoPrompt: val } : s));
-                        }}
-                        className="w-full bg-black/60 border border-pink-500/20 rounded-lg p-2.5 text-pink-100 font-mono text-[11px] leading-relaxed focus:border-pink-500 focus:outline-none"
-                      />
-                    </div>
-
-                    {/* Dialogues Chips Preview if available */}
-                    {sc.dialogues && sc.dialogues.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {sc.dialogues.map((dlg, dIdx) => (
-                          <div key={dIdx} className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] text-slate-300 flex items-center gap-1.5">
-                            <span className="font-bold text-pink-400">{dlg.emoji || '💬'} {dlg.speaker}</span>
-                            {dlg.emotion && <span className="text-slate-500 text-[10px]">({dlg.emotion}):</span>}
-                            <span className="text-white italic">"{dlg.dialogue}"</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bisma Shootable Script & Metadata Pack */}
-                  <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5 text-xs">
-                    {/* Hook Options */}
-                    {sc.hookOptions && sc.hookOptions.length > 0 && (
-                      <div>
-                        <span className="text-[11px] font-bold text-pink-400 block mb-1">
-                          🎯 Hook Options (Pehle 3 Sec - Pick 1):
-                        </span>
-                        <ul className="space-y-1 text-slate-300 pl-3 list-disc marker:text-pink-500">
-                          {sc.hookOptions.map((h: string, hIdx: number) => (
-                            <li key={hIdx} className="leading-snug">{h}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* On-Screen Text */}
-                    {sc.onScreenTexts && sc.onScreenTexts.length > 0 && (
-                      <div>
-                        <span className="text-[11px] font-bold text-cyan-400 block mb-1">
-                          📱 On-Screen Text (Mute par samajh aane ke liye):
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {sc.onScreenTexts.map((txt: string, tIdx: number) => (
-                            <span key={tIdx} className="px-2 py-0.5 rounded bg-slate-800 text-cyan-200 font-mono text-[11px]">
-                              {tIdx + 1}. {txt}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Visual Direction & CTA Loop */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] pt-1">
-                      <div>
-                        <strong className="text-amber-400 block mb-0.5">🎬 Visual Direction:</strong>
-                        <span className="text-slate-300">{sc.visualDirection || sc.visualPrompt}</span>
-                      </div>
-                      <div>
-                        <strong className="text-purple-400 block mb-0.5">🔄 CTA / Loop:</strong>
-                        <span className="text-slate-300">{sc.ctaLoop || 'End call-to-action seamlessly loops back to start.'}</span>
-                      </div>
-                    </div>
-
-                    {/* Metadata Pack: Title, Description, Hashtags, Thumbnail */}
-                    <div className="p-3 rounded-lg bg-black/60 border border-slate-800 space-y-2 pt-2.5">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                        <span className="text-[11px] font-bold text-emerald-400">
-                          🚀 Ready to Publish: Title, Description &amp; Hashtags
-                        </span>
-                        <button
-                          onClick={() => {
-                            const metaBundle = `Title: ${sc.title || sc.onScreenCaption}\n\nDescription:\n${sc.description || sc.voiceoverText}\n\nTags: ${(sc.tags || []).join(', ')}\n\nHashtags: ${(sc.hashtags || []).join(' ')}`;
-                            navigator.clipboard.writeText(metaBundle);
-                            toast.success(`Copied Title, Description & Hashtags for Scene #${sc.sceneNumber}!`);
-                          }}
-                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>Copy Metadata</span>
-                        </button>
-                      </div>
-
-                      <div className="space-y-1.5 text-[11px]">
-                        <div>
-                          <span className="text-slate-400">Title: </span>
-                          <span className="text-white font-bold">{sc.title || `${sc.onScreenCaption} 🥹❤️ #Shorts`}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Description: </span>
-                          <span className="text-slate-300">{sc.description || sc.voiceoverText}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Hashtags: </span>
-                          <span className="text-pink-400 font-mono">{(sc.hashtags || ['#Shorts', '#Reels', '#Anime', '#Viral']).join(' ')}</span>
-                        </div>
-                        {sc.thumbnailConcept && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <span className="text-slate-400">🖼️ Thumbnail Concept:</span>
-                            <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-200 font-bold text-[10px]">
-                              Headline: "{sc.thumbnailConcept.headline}" ({sc.thumbnailConcept.subtext})
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Scene Fields */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                    <div>
-                      <label className="text-[11px] text-slate-500 block mb-1">Visual Prompt (Image Diffusion)</label>
-                      <textarea
-                        rows={3}
-                        value={sc.visualPrompt}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setScenes(scenes.map((s, i) => i === idx ? { ...s, visualPrompt: val } : s));
-                        }}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] text-slate-500 block mb-1 flex items-center justify-between">
-                        <span>Voiceover Narration Script</span>
-                        <span className="text-[10px] text-amber-400 font-mono">
-                          {scriptLanguage === 'roman_urdu' ? '🇵🇰 Roman Urdu' : scriptLanguage === 'urdu' ? '🇵🇰 Urdu' : '🌐 English'}
-                        </span>
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={sc.voiceoverText}
-                        onChange={e => {
-                          const val = e.target.value;
-                          setScenes(scenes.map((s, i) => i === idx ? { ...s, voiceoverText: val } : s));
-                        }}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-200"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div>
-                        <label className="text-[11px] text-slate-500 block mb-1">Hormozi Pop Caption</label>
-                        <input
-                          type="text"
-                          value={sc.onScreenCaption}
-                          onChange={e => {
-                            const val = e.target.value;
-                            setScenes(scenes.map((s, i) => i === idx ? { ...s, onScreenCaption: val } : s));
-                          }}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-amber-300 font-bold"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] text-slate-500 block mb-1">B-Roll Keyword</label>
-                        <input
-                          type="text"
-                          value={sc.brollKeyword}
-                          onChange={e => {
-                            const val = e.target.value;
-                            setScenes(scenes.map((s, i) => i === idx ? { ...s, brollKeyword: val } : s));
-                          }}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-slate-300"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 2: LIVE VIDEO SIMULATION PLAYER                                       */}
-      {/* ========================================================================= */}
-      {activeTab === 'player' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-6 flex flex-col items-center">
-            <div className="relative rounded-2xl overflow-hidden border-2 border-slate-800 bg-black shadow-2xl w-full max-w-sm aspect-[9/16]">
-              <canvas
-                ref={canvasRef}
-                width={720}
-                height={1280}
-                className="w-full h-full object-cover"
-              />
-
-              <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 text-xs text-white font-mono flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Scene {currentSceneIdx + 1}/{scenes.length}</span>
-              </div>
-
-              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-black/70 backdrop-blur-md px-3 py-2 rounded-xl border border-white/10 text-xs">
-                <span className="font-mono text-amber-400 font-bold">
-                  {currentTime.toFixed(1)}s / {totalDuration}s
-                </span>
-                <span className="text-slate-300 truncate max-w-[140px]">
-                  {scenes[currentSceneIdx]?.soundEffect}
-                </span>
-              </div>
-            </div>
-
-            {/* Playback Controls */}
-            <div className="flex items-center gap-3 mt-4 bg-slate-900 border border-slate-800 px-5 py-2.5 rounded-full shadow-lg">
-              <button
-                onClick={() => {
-                  setCurrentTime(0);
-                  setCurrentSceneIdx(0);
-                }}
-                className="text-slate-400 hover:text-white p-1 rounded cursor-pointer"
-                title="Restart"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="w-10 h-10 rounded-full bg-gradient-to-r from-amber-500 to-red-600 flex items-center justify-center text-white shadow-lg cursor-pointer hover:scale-105 transition-transform"
-              >
-                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
-              </button>
-
-              <button
-                onClick={() => setIsMuted(!isMuted)}
-                className="text-slate-400 hover:text-white p-1 rounded cursor-pointer"
-                title={isMuted ? 'Unmute' : 'Mute'}
-              >
-                {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Right Preview Inspector */}
-          <div className="lg:col-span-6 space-y-4">
-            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider block">
-                Currently Playing Scene #{currentSceneIdx + 1}
-              </span>
-              <div className="space-y-2 text-xs">
-                <div>
-                  <span className="text-slate-500">Narration Script:</span>
-                  <p className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 mt-1 leading-relaxed">
-                    {scenes[currentSceneIdx]?.voiceoverText}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-slate-500">Hormozi Pop Caption:</span>
-                  <p className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 font-black text-base mt-1">
-                    {scenes[currentSceneIdx]?.onScreenCaption}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
-              <span className="text-xs font-bold text-slate-300 uppercase font-mono">
-                Auto-Generated Thumbnail & Cover Concept
-              </span>
-              <div className="p-6 rounded-xl bg-gradient-to-br from-amber-600 via-orange-700 to-red-900 text-center space-y-2 border border-amber-500/40 shadow-inner">
-                <span className="inline-block px-3 py-1 rounded-full bg-black/40 text-amber-200 text-xs font-black tracking-widest uppercase">
-                  {thumbnailBadge}
-                </span>
-                <h3 className="text-2xl font-black text-white uppercase drop-shadow-md">
-                  {thumbnailHeadline}
-                </h3>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 3: ONE-CLICK MULTI-PLATFORM DISPATCHER                                 */}
-      {/* ========================================================================= */}
-      {activeTab === 'publisher' && (
-        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Send className="w-4 h-4 text-amber-400" />
-                <span>One-Click Multi-Platform Video Publisher</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Upload directly to YouTube Shorts, Instagram Reels, and TikTok without any third-party app.
-              </p>
-            </div>
-
-            {/* Mode Switcher: Direct In-App vs Webhook */}
-            <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
-              <button
-                type="button"
-                onClick={() => handlePublishModeChange('direct')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  publishMode === 'direct'
-                    ? 'bg-gradient-to-r from-amber-500 to-red-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 fill-current" />
-                <span>Direct In-App Upload (Khud Karo 🚀)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePublishModeChange('webhook')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  publishMode === 'webhook'
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>Make.com / Webhook (Optional)</span>
-              </button>
-            </div>
-          </div>
-
-          {/* ========================================================================= */}
-          {/* CONNECTED SOCIAL ACCOUNTS & CHANNEL SIGN-IN HUB                           */}
-          {/* ========================================================================= */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/20 border border-amber-500/30 space-y-4 shadow-xl">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-amber-400" />
-                  <h4 className="text-sm font-bold text-white">Connected Social Accounts (Yahan Sign-In / Connect Karein)</h4>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono font-bold">
-                    DATABASE LINKED
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Aapka YouTube (<span className="text-amber-300 font-mono font-semibold">@BeshaanVibe</span>), Instagram aur doosre accounts yahan sign-in hotay hain. Jab channel connect ho jata hai, tabhi videos seedha aapke account par upload hongi.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={fetchSocialAccounts}
-                disabled={isFetchingSocial}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1.5 cursor-pointer border border-slate-700 disabled:opacity-40"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isFetchingSocial ? 'animate-spin' : ''}`} />
-                <span>Sync Accounts</span>
-              </button>
-            </div>
-
-            {/* 4 Social Account Connection Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {[
-                { 
-                  id: 'youtube', 
-                  name: 'YouTube Channel', 
-                  defaultHandle: '@BeshaanVibe',
-                  icon: Youtube, 
-                  color: 'text-red-500', 
-                  border: 'border-red-500/30',
-                  bg: 'bg-red-500/10'
-                },
-                { 
-                  id: 'instagram', 
-                  name: 'Instagram Reels', 
-                  defaultHandle: '@beshaan_vibe',
-                  icon: Instagram, 
-                  color: 'text-pink-500', 
-                  border: 'border-pink-500/30',
-                  bg: 'bg-pink-500/10'
-                },
-                { 
-                  id: 'tiktok', 
-                  name: 'TikTok Creator', 
-                  defaultHandle: '@beshaan',
-                  icon: TikTok, 
-                  color: 'text-cyan-400', 
-                  border: 'border-cyan-500/30',
-                  bg: 'bg-cyan-500/10'
-                },
-                { 
-                  id: 'facebook', 
-                  name: 'Facebook Page', 
-                  defaultHandle: 'Beshaan Family',
-                  icon: Facebook, 
-                  color: 'text-blue-500', 
-                  border: 'border-blue-500/30',
-                  bg: 'bg-blue-500/10'
-                },
-              ].map(item => {
-                const acc = socialAccounts.find(a => a.platform === item.id);
-                const isConnected = acc?.isConnected;
-                const currentHandle = acc?.accountHandle || item.defaultHandle;
-                const hasToken = acc?.hasToken;
-                const Icon = item.icon;
-
-                return (
-                  <div 
-                    key={item.id}
-                    className={`p-3.5 rounded-xl border bg-slate-950/80 flex flex-col justify-between space-y-3 transition-all ${
-                      isConnected ? 'border-emerald-500/40 shadow-sm' : 'border-slate-800'
-                    }`}
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-7 h-7 rounded-lg ${item.bg} flex items-center justify-center ${item.color}`}>
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-bold text-white">{item.name}</span>
-                        </div>
-                        {isConnected ? (
-                          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                            <Check className="w-2.5 h-2.5 text-emerald-400" /> CONNECTED
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-slate-900 text-slate-500 border border-slate-800">
-                            NOT SIGNED IN
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="bg-slate-900/90 rounded-lg p-2 border border-slate-800/80">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-400 font-mono truncate">{currentHandle}</span>
-                          {hasToken && (
-                            <span className="text-[9px] text-amber-300 font-bold bg-amber-500/20 px-1 rounded">API KEY ACTIVE</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 pt-1 border-t border-slate-900">
-                      {isConnected ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingSocialPlatform(item.id);
-                              setConnectHandleInput(currentHandle);
-                              setConnectTokenInput('');
-                            }}
-                            className="flex-1 py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold cursor-pointer text-center"
-                          >
-                            Edit / Re-auth
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDisconnectSocialAccount(item.id)}
-                            className="py-1 px-2 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-300 text-[10px] border border-red-800/40 cursor-pointer"
-                            title="Disconnect channel"
-                          >
-                            Unlink
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingSocialPlatform(item.id);
-                            setConnectHandleInput(currentHandle);
-                            setConnectTokenInput('');
-                          }}
-                          className={`w-full py-1.5 px-2.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow transition-all ${
-                            item.id === 'youtube'
-                              ? 'bg-red-600 hover:bg-red-500 text-white'
-                              : item.id === 'instagram'
-                              ? 'bg-pink-600 hover:bg-pink-500 text-white'
-                              : 'bg-amber-600 hover:bg-amber-500 text-white'
-                          }`}
-                        >
-                          <LogIn className="w-3 h-3" />
-                          <span>Sign In / Connect {item.id === 'youtube' ? 'YouTube' : item.id === 'instagram' ? 'Instagram' : item.name}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Clear Explanation of Upload Mechanism */}
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/90 text-xs space-y-2">
-              <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5 uppercase font-mono">
-                <Zap className="w-3.5 h-3.5" />
-                <span>Upload Kaisy Hoga? (2 Real Methods - No Bullshit):</span>
-              </span>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-slate-300">
-                <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
-                  <strong className="text-white block mb-0.5">Method 1: Direct 1-Click Studio Bridge (Sab Se Asaan & Free)</strong>
-                  <p className="text-slate-400 leading-relaxed">
-                    Aapke Chrome browser mein YouTube (<span className="text-amber-300 font-medium">@BeshaanVibe</span>) pehle se logged-in hota hai. Jab aap "Upload Directly" dabate hain, app Roman Urdu Title, Description aur Tags clipboard par copy karke seedha aapke YouTube Studio upload page par le jata hai. Aap bas video drop karte hain aur 5 second mein publish! Zero API hassle.
-                  </p>
-                </div>
-                <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
-                  <strong className="text-white block mb-0.5">Method 2: Google / Meta OAuth Token (100% Background Silent Upload)</strong>
-                  <p className="text-slate-400 leading-relaxed">
-                    Agar aap Google Cloud Console ya Meta Developer se API token lekar yahan "Sign In / Connect" mein daal detay hain, toh MongoDB mein save ho jayega aur background server bina browser khole YouTube Data API v3 aur Instagram Reels Graph API ke zariye video live post kar dega.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Modal / Dialog for Signing In & Connecting Channel */}
-          {editingSocialPlatform && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-              <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl animate-in fade-in">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    {editingSocialPlatform === 'youtube' && <Youtube className="w-5 h-5 text-red-500" />}
-                    {editingSocialPlatform === 'instagram' && <Instagram className="w-5 h-5 text-pink-500" />}
-                    {editingSocialPlatform === 'tiktok' && <TikTok className="w-5 h-5 text-cyan-400" />}
-                    {editingSocialPlatform === 'facebook' && <Facebook className="w-5 h-5 text-blue-500" />}
-                    <h3 className="text-sm font-bold text-white uppercase">
-                      Connect {editingSocialPlatform} Channel
-                    </h3>
-                  </div>
-                  <button
-                    onClick={() => setEditingSocialPlatform(null)}
-                    className="text-slate-400 hover:text-white text-xs cursor-pointer px-2 py-1"
-                  >
-                    ✕ Close
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs text-slate-300 font-semibold block mb-1">
-                      Channel / Account Handle
-                    </label>
-                    <input
-                      type="text"
-                      value={connectHandleInput}
-                      onChange={e => setConnectHandleInput(e.target.value)}
-                      placeholder={editingSocialPlatform === 'youtube' ? '@BeshaanVibe' : '@beshaan'}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                    />
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-[10px] text-slate-500">Quick preset:</span>
-                      <button
-                        type="button"
-                        onClick={() => setConnectHandleInput(editingSocialPlatform === 'youtube' ? '@BeshaanVibe' : '@beshaan_vibe')}
-                        className="text-[10px] text-amber-400 hover:underline cursor-pointer font-medium"
-                      >
-                        Set as @{editingSocialPlatform === 'youtube' ? 'BeshaanVibe' : 'beshaan_vibe'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs text-slate-300 font-semibold">
-                        OAuth / API Access Token <span className="text-slate-500 font-normal">(Optional)</span>
-                      </label>
-                      <span className="text-[10px] text-emerald-400 font-medium">Bina token bhi bridge ready hai</span>
-                    </div>
-                    <input
-                      type="password"
-                      value={connectTokenInput}
-                      onChange={e => setConnectTokenInput(e.target.value)}
-                      placeholder={editingSocialPlatform === 'youtube' ? 'ya29.a0AfH6SM...' : 'EAA...'}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
-                      Agar Google Cloud ya Meta Developer app se access token generate kiya hai toh yahan paste karein (100% autonomous background server upload ke liye). Agar nahi hai toh sirf handle save karein, hamara 1-Click Studio Bridge aapke logged-in browser se direct upload karwayega!
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setEditingSocialPlatform(null)}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs hover:bg-slate-700 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleConnectSocialAccount(editingSocialPlatform, connectHandleInput, connectTokenInput)}
-                    disabled={isSavingSocial || !connectHandleInput}
-                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 shadow"
-                  >
-                    {isSavingSocial ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                    <span>Save & Authorize Channel</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { id: 'youtube', name: 'YouTube Shorts', icon: Youtube, color: 'text-red-500', desc: 'YouTube @BeshaanVibe' },
-              { id: 'instagram', name: 'Instagram Reels', icon: Instagram, color: 'text-pink-500', desc: 'Reels Direct Post' },
-              { id: 'tiktok', name: 'TikTok', icon: Film, color: 'text-cyan-400', desc: 'Creator Center Short' },
-              { id: 'twitter', name: 'X / Twitter', icon: Share2, color: 'text-blue-400', desc: 'X Media Video Tweet' },
-            ].map(p => {
-              const isSelected = selectedPlatforms.includes(p.id);
-              const Icon = p.icon;
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => {
-                    if (isSelected) {
-                      setSelectedPlatforms(selectedPlatforms.filter(id => id !== p.id));
-                    } else {
-                      setSelectedPlatforms([...selectedPlatforms, p.id]);
-                    }
-                  }}
-                  className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3.5 ${
-                    isSelected 
-                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md' 
-                      : 'bg-slate-950 border-slate-800 text-slate-400'
-                  }`}
-                >
-                  <div className={`w-9 h-9 rounded-lg bg-black/40 flex items-center justify-center ${p.color}`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white">{p.name}</h4>
-                    <span className="text-[10px] text-slate-400">{p.desc}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          ) : seoNow ? (
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-slate-400 block mb-1">Target Video Title (Roman Urdu)</label>
-                <input
-                  type="text"
-                  value={selectedTitle}
-                  onChange={e => setSelectedTitle(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white"
-                />
+                <span className={label}>
+                  Title ({seoNow.title.length}/{platformMeta.titleMax})
+                </span>
+                <input className={input} value={seoNow.title} onChange={(e) => setSeo({ title: e.target.value })} />
               </div>
-
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-slate-400">Description & Hashtags (Roman Urdu)</label>
-                  <button
-                    onClick={() => copyToClipboard(description, 'Description')}
-                    className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Copy className="w-3 h-3" /> Copy
-                  </button>
-                </div>
-                <textarea
-                  rows={6}
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 font-mono"
-                />
+                <span className={label}>Description / caption</span>
+                <textarea className={`${input} min-h-[140px]`} value={seoNow.description} onChange={(e) => setSeo({ description: e.target.value })} />
+              </div>
+              <div>
+                <span className={label}>Hashtags</span>
+                <input className={input} value={seoNow.hashtags} onChange={(e) => setSeo({ hashtags: e.target.value })} />
               </div>
             </div>
-
-            {/* Right Column: Direct Mode vs Webhook Mode */}
-            {publishMode === 'direct' ? (
-              <div className="space-y-3">
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-amber-400 fill-current" />
-                      <span>Direct In-App Upload Engine</span>
-                    </label>
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/40">
-                      NO 3RD PARTY NEEDED
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-slate-400">
-                    Aapko kisi Make.com ya Zapier ki zaroorat nahi hai. Humara app directly video aur metadata ko aapke channels par upload kar dega:
-                  </p>
-
-                  <div className="space-y-2 text-xs">
-                    {/* YouTube Channel Status */}
-                    {(() => {
-                      const yt = socialAccounts.find(a => a.platform === 'youtube');
-                      return (
-                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                          <div className="flex items-center gap-2">
-                            <Youtube className="w-4 h-4 text-red-500" />
-                            <div>
-                              <strong className="text-white block">YouTube Shorts: {yt?.accountHandle || '@BeshaanVibe'}</strong>
-                              <span className="text-[10px] text-slate-400">
-                                {yt?.hasToken 
-                                  ? 'Direct Google API Connected (Silent Background Upload)' 
-                                  : '1-Click Direct Studio Upload Bridge (Zero Keys Needed)'}
-                              </span>
-                            </div>
-                          </div>
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                            yt?.isConnected 
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          }`}>
-                            {yt?.isConnected ? 'CONNECTED' : 'STUDIO BRIDGE'}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Instagram Reels Status */}
-                    {(() => {
-                      const ig = socialAccounts.find(a => a.platform === 'instagram');
-                      return (
-                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                          <div className="flex items-center gap-2">
-                            <Instagram className="w-4 h-4 text-pink-500" />
-                            <div>
-                              <strong className="text-white block">Instagram Reels: {ig?.accountHandle || '@beshaan_vibe'}</strong>
-                              <span className="text-[10px] text-slate-400">
-                                {ig?.hasToken 
-                                  ? 'Meta Graph API Connected' 
-                                  : 'Auto-formatted 9:16 Reels Bridge'}
-                              </span>
-                            </div>
-                          </div>
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                            ig?.isConnected 
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          }`}>
-                            {ig?.isConnected ? 'CONNECTED' : 'REELS BRIDGE'}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                    {/* TikTok Creator Status */}
-                    {(() => {
-                      const tt = socialAccounts.find(a => a.platform === 'tiktok');
-                      return (
-                        <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800">
-                          <div className="flex items-center gap-2">
-                            <TikTok className="w-4 h-4 text-cyan-400" />
-                            <div>
-                              <strong className="text-white block">TikTok Creator Center: {tt?.accountHandle || '@beshaan'}</strong>
-                              <span className="text-[10px] text-slate-400">Direct Creator Dispatch</span>
-                            </div>
-                          </div>
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                            tt?.isConnected 
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
-                              : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                          }`}>
-                            {tt?.isConnected ? 'CONNECTED' : 'CREATOR READY'}
-                          </span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Optional Background API Keys */}
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowApiTokenInputs(!showApiTokenInputs)}
-                      className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 cursor-pointer font-medium"
-                    >
-                      <Settings2 className="w-3 h-3" />
-                      <span>{showApiTokenInputs ? 'Hide Direct API Keys' : 'YouTube & Meta Direct API Keys (Optional: For 100% Silent Background Upload)'}</span>
-                    </button>
-
-                    {showApiTokenInputs && (
-                      <div className="mt-2.5 p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-2 text-xs">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-0.5">Google / YouTube OAuth Token (Optional)</label>
-                          <input
-                            type="password"
-                            value={directYouTubeToken}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setDirectYouTubeToken(val);
-                              if (typeof window !== 'undefined') localStorage.setItem('sol_direct_yt_token', val);
-                            }}
-                            placeholder="ya29.a0AfH6SM..."
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-0.5">Instagram / Meta Graph Token (Optional)</label>
-                          <input
-                            type="password"
-                            value={directInstagramToken}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setDirectInstagramToken(val);
-                              if (typeof window !== 'undefined') localStorage.setItem('sol_direct_ig_token', val);
-                            }}
-                            placeholder="EAA..."
-                            className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1 text-xs text-white font-mono"
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-500">
-                          Agar API key nahi hai, koi fikar nahi! "Publish Directly" dabate hi Roman Urdu metadata clipboard par copy ho kar seedha YouTube Studio upload window khul jayegi.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Hashtag Cloud */}
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                  <span className="text-xs font-semibold text-slate-300">Hashtag Cloud:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {hashtags.map((h, i) => (
-                      <span key={i} className="text-[11px] px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-amber-300 font-mono">
-                        {h}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {/* Automation Bridge Provider Card (Make.com / Zapier) */}
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      <span>No-Code Automation Webhook</span>
-                    </label>
-                    <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => handleProviderChange('make')}
-                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                          webhookProvider === 'make'
-                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        Make.com (1,000 Free ⚡)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleProviderChange('zapier')}
-                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                          webhookProvider === 'zapier'
-                            ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        Zapier (100 Free)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleProviderChange('custom')}
-                        className={`px-2 py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
-                          webhookProvider === 'custom'
-                            ? 'bg-slate-700 text-white'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        Custom
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] text-slate-400">
-                        {webhookProvider === 'make' ? 'Make.com Custom Webhook URL' : webhookProvider === 'zapier' ? 'Zapier Catch Hook URL' : 'Webhook Endpoint URL'}
-                      </span>
-                      <a
-                        href={webhookProvider === 'make' ? 'https://www.make.com' : 'https://zapier.com'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
-                      >
-                        <span>Open {webhookProvider === 'make' ? 'Make.com' : 'Zapier'}</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
-                    </div>
-                    <input
-                      type="url"
-                      value={webhookUrl}
-                      onChange={e => handleWebhookChange(e.target.value)}
-                      placeholder={
-                        webhookProvider === 'make'
-                          ? 'https://hook.eu1.make.com/your-custom-webhook-id'
-                          : 'https://hooks.zapier.com/hooks/catch/12345/abcdef/'
-                      }
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-
-                  {/* Make.com Action Buttons & Helpers */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleTestWebhookPing}
-                      disabled={isTestingWebhook || !webhookUrl}
-                      className="flex-1 py-1.5 px-3 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 transition-all"
-                    >
-                      {isTestingWebhook ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-indigo-400" />}
-                      <span>{isTestingWebhook ? 'Sending Ping...' : 'Send Test Ping to Make.com'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const samplePayload = {
-                          event: 'video_automation.publish',
-                          channel: channelName,
-                          niche: selectedNiche,
-                          language: scriptLanguage,
-                          title: selectedTitle,
-                          description,
-                          hashtags,
-                          scenes,
-                          timestamp: new Date().toISOString()
-                        };
-                        copyToClipboard(JSON.stringify(samplePayload, null, 2), 'Make.com Sample Payload');
-                      }}
-                      className="py-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs flex items-center gap-1 cursor-pointer"
-                    >
-                      <Copy className="w-3 h-3 text-amber-400" />
-                      <span>Copy JSON</span>
-                    </button>
-                  </div>
-
-                  {/* Make.com 5-Step Quick Setup Guide */}
-                  <div className="p-3 rounded-lg bg-indigo-950/20 border border-indigo-500/20 space-y-1.5 text-[11px] text-slate-300">
-                    <span className="font-bold text-indigo-300 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-indigo-400" />
-                      <span>Make.com Setup Guide (1,000 Free Tasks/Month):</span>
-                    </span>
-                    <ol className="list-decimal list-inside space-y-1 text-slate-400 text-[10px]">
-                      <li>Make.com par free account banayein aur naya Scenario create karein.</li>
-                      <li>First trigger module mein <strong className="text-white">Custom Webhook</strong> add karke webhook URL yahan paste karein.</li>
-                      <li>"Send Test Ping" dabayein taake Make.com JSON structure automatically detect kar le.</li>
-                      <li>Next step mein YouTube Data API v3 ya Instagram Reels module connect karein.</li>
-                      <li>Scenario ko <strong className="text-emerald-400">ON</strong> kar dein! Har dafa video khud upload hogi.</li>
-                    </ol>
-                  </div>
-                </div>
-
-                {/* Hashtag Cloud */}
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                  <span className="text-xs font-semibold text-slate-300">Hashtag Cloud:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {hashtags.map((h, i) => (
-                      <span key={i} className="text-[11px] px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-amber-300 font-mono">
-                        {h}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-            <span className="text-xs text-slate-400">
-              Selected {selectedPlatforms.length} social platforms for simultaneous dispatch.
-            </span>
-
-            <button
-              onClick={handlePublishAll}
-              disabled={isPublishing || selectedPlatforms.length === 0}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg cursor-pointer disabled:opacity-40"
-            >
-              {isPublishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 fill-current" />}
-              <span>{isPublishing ? 'Uploading to Channels...' : publishMode === 'direct' ? '🚀 Upload Directly to All Channels (Khud Karo)' : 'Publish to All Platforms Now'}</span>
+          ) : (
+            <button className={btnPrimary} onClick={generateSeo}>
+              <Sparkles className="h-4 w-4" /> Generate SEO
             </button>
-          </div>
-
-          {/* Published Results & Direct Studio Launch Links */}
-          {publishedStatus && (
-            <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Multi-Platform Dispatch Processed Successfully!</span>
-                </span>
-                <span className="text-[10px] text-emerald-400 font-mono">
-                  {publishMode === 'direct' ? 'DIRECT MODE' : 'WEBHOOK DISPATCHED'}
-                </span>
-              </div>
-
-              {/* Direct Launch Buttons for Each Platform */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                {selectedPlatforms.includes('youtube') && (
-                  <div className="p-3 rounded-xl bg-slate-950 border border-red-500/30 space-y-2 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                        <Youtube className="w-4 h-4 text-red-500" />
-                        <span>YouTube Shorts</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Title, description & Roman Urdu tags copied!
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.open('https://studio.youtube.com/channel/videos/upload', '_blank')}
-                      className="w-full py-1.5 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Open YouTube Studio</span>
-                    </button>
-                  </div>
-                )}
-
-                {selectedPlatforms.includes('instagram') && (
-                  <div className="p-3 rounded-xl bg-slate-950 border border-pink-500/30 space-y-2 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                        <Instagram className="w-4 h-4 text-pink-500" />
-                        <span>Instagram Reels</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Caption & hashtags ready for upload.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.open('https://www.instagram.com/', '_blank')}
-                      className="w-full py-1.5 px-3 rounded-lg bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Open Instagram</span>
-                    </button>
-                  </div>
-                )}
-
-                {selectedPlatforms.includes('tiktok') && (
-                  <div className="p-3 rounded-xl bg-slate-950 border border-cyan-500/30 space-y-2 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                        <Film className="w-4 h-4 text-cyan-400" />
-                        <span>TikTok Studio</span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Shorts audio & cues packaged.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.open('https://www.tiktok.com/creator-center/upload', '_blank')}
-                      className="w-full py-1.5 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Open TikTok Studio</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
           )}
         </div>
-      )}
+      </div>
+      <div className="flex justify-between">
+        <button className={btnGhost} onClick={() => patch({ step: 3 })}>
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <button className={btnPrimary} onClick={() => patch({ step: 5 })}>
+          Next: Export <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
 
-      {/* ========================================================================= */}
-      {/* TAB 4: CONTENT PLAN & AUTONOMOUS QUEUE                                    */}
-      {/* ========================================================================= */}
-      {activeTab === 'planner' && (
-        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-amber-400" />
-                <span>Autonomous Content Plan & Production Queue</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Dynamic schedule cycling daily production runs for {channelName}.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleBatchScheduleToQueue}
-                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow cursor-pointer"
-              >
-                <Shuffle className="w-3.5 h-3.5 text-black" />
-                <span>Populate With Self-Generated Topics</span>
+  const step6 = (
+    <div className="space-y-4">
+      <div className={card}>
+        <h3 className="text-base font-bold text-white">1. Render your video</h3>
+        <p className="mt-1 text-sm text-slate-400">
+          The video is rendered in your browser in real time ({total.toFixed(0)}s). Keep this browser window open (you can switch tabs, but do not close or minimize it) until it finishes.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {busy === 'export' ? (
+            <>
+              <div className="h-2 w-64 overflow-hidden rounded-full bg-slate-800">
+                <div className="h-full bg-indigo-500 transition-all" style={{ width: `${progress}%` }} />
+              </div>
+              <span className="text-sm text-slate-300">{Math.round(progress)}%</span>
+              <button className={btnGhost} onClick={() => (cancelRef.current.cancelled = true)}>
+                Cancel
               </button>
-
-              <button
-                onClick={() => {
-                  const newTopic: ContentPlanItem = {
-                    id: Date.now().toString(),
-                    title: `Autonomous Episode #${contentPlan.length + 1}: ${channelName} Special`,
-                    niche: activeProfile.name,
-                    format: '9:16 Shorts',
-                    scheduledTime: 'Scheduled for Tomorrow 7:00 AM UTC',
-                    status: 'ready'
-                  };
-                  setContentPlan([...contentPlan, newTopic]);
-                  toast.success('Added new topic to autonomous queue!');
-                }}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs flex items-center gap-1.5 border border-slate-700 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 text-amber-400" />
-                <span>Add Scheduled Lesson</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400 font-semibold">
-                  <th className="p-2.5">Topic / Episode Title</th>
-                  <th className="p-2.5">Channel / Niche</th>
-                  <th className="p-2.5">Format</th>
-                  <th className="p-2.5">Scheduled Production</th>
-                  <th className="p-2.5 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {contentPlan.map(item => (
-                  <tr key={item.id} className="hover:bg-slate-900/50 transition-colors">
-                    <td className="p-2.5 font-medium text-white flex items-center gap-2">
-                      <Film className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span>{item.title}</span>
-                    </td>
-                    <td className="p-2.5 text-slate-300">{item.niche}</td>
-                    <td className="p-2.5 text-slate-400 font-mono">{item.format}</td>
-                    <td className="p-2.5 text-slate-400 font-mono">{item.scheduledTime}</td>
-                    <td className="p-2.5 text-right">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                        item.status === 'published' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                        item.status === 'ready' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                        'bg-slate-800 text-slate-400'
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            </>
+          ) : (
+            <button className={btnPrimary} onClick={() => runExport()}>
+              <Play className="h-4 w-4" /> {exported ? 'Render again' : 'Render video'}
+            </button>
+          )}
         </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 5: AI ENGINE & PUTER.JS (UNLIMITED 400+ MODELS) CONFIGURATION         */}
-      {/* ========================================================================= */}
-      {activeTab === 'settings' && (
-        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-6 max-w-2xl mx-auto">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Key className="w-4 h-4 text-amber-400" />
-              <span>AI Engine & Unlimited Access Configuration</span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Leverage Puter.js user-pays architecture for free access to 400+ frontier AI models, or configure your own Gemini API key.
-            </p>
+        {exported && (
+          <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
+            <video src={exported.url} controls className="max-h-[360px] w-full rounded-xl bg-black" />
+            <div className="space-y-2 text-sm text-slate-300">
+              <p>
+                Ready: {exported.ext.toUpperCase()} · {(exported.size / 1048576).toFixed(1)} MB
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <a href={exported.url} download={`${(p.title || 'video').replace(/[^\w]+/g, '-').slice(0, 50)}.${exported.ext}`} className={btnPrimary}>
+                  <Download className="h-4 w-4" /> Download video
+                </a>
+                <button className={btnGhost} onClick={() => patch({ step: 4 })}>
+                  <ImageIcon className="h-4 w-4" /> Get thumbnail (step 5)
+                </button>
+              </div>
+              {exported.ext === 'webm' && <p className="text-xs text-slate-500">This browser records WebM. YouTube and Facebook accept it; Instagram/TikTok may need MP4 (Chrome/Edge latest records MP4 directly).</p>}
+            </div>
           </div>
+        )}
+      </div>
 
-          <div className="space-y-4">
-            {/* Puter.js Unlimited AI Card */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-indigo-950/60 via-slate-950 to-purple-950/40 border border-indigo-500/30 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-cyan-400" />
-                  <span className="font-bold text-xs text-white">Puter.js Unlimited AI (Recommended)</span>
+      <div className={card}>
+        <h3 className="text-base font-bold text-white">2. Post to all platforms from here (Buffer)</h3>
+        <p className="mt-1 text-sm text-slate-400">
+          Connect your accounts once inside Buffer, then post to all of them with one click. Buffer free plan allows 3 channels.
+        </p>
+        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+          <input
+            type="password"
+            className={input}
+            placeholder="Studio publish password (STUDIO_PUBLISH_PASSWORD)"
+            value={pubKey}
+            onChange={(e) => savePubKey(e.target.value)}
+          />
+          <button className={btnGhost} disabled={!pubKey || !!busy} onClick={loadChannels}>
+            <Spin on={busy === 'channels'}>
+              <RefreshCw className="h-4 w-4" />
+            </Spin>
+            Load my Buffer channels
+          </button>
+        </div>
+        {channels.length > 0 && (
+          <div className="mt-3 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {channels.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={picked.includes(c.id)}
+                    onChange={(e) => setPicked((o) => (e.target.checked ? [...o, c.id] : o.filter((x) => x !== c.id)))}
+                  />
+                  <span className="font-semibold capitalize text-white">{c.service}</span>
+                  <span className="text-slate-400">{c.displayName || c.name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <select className={`${input} !w-auto`} value={postWhen} onChange={(e) => setPostWhen(e.target.value as typeof postWhen)}>
+                <option value="now">Post now</option>
+                <option value="queue">Add to Buffer queue</option>
+                <option value="schedule">Schedule…</option>
+              </select>
+              {postWhen === 'schedule' && (
+                <input type="datetime-local" className={`${input} !w-auto`} value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+              )}
+              <button className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-500`} disabled={!!busy || !exported} onClick={postEverywhere}>
+                <Spin on={busy === 'post'}>
+                  <Upload className="h-4 w-4" />
+                </Spin>
+                {busy === 'post' ? (progress > 0 ? `Uploading ${Math.round(progress)}%` : 'Posting…') : 'Upload video & post'}
+              </button>
+              {!exported && <span className="text-xs text-amber-400">Render the video first.</span>}
+            </div>
+          </div>
+        )}
+        {postLog.length > 0 && (
+          <ul className="mt-3 space-y-1 text-sm">
+            {postLog.map((l, i) => (
+              <li key={i} className={l.ok ? 'text-emerald-400' : 'text-red-400'}>
+                {l.ok ? '✓' : '✗'} {l.label}: {l.msg}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className={card}>
+        <h3 className="text-base font-bold text-white">3. Or post manually</h3>
+        <p className="mt-1 text-sm text-slate-400">
+          Copy each platform’s text, then open its upload page and add the downloaded video. Posting happens on the platform itself, so no
+          passwords or tokens are stored here.
+        </p>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {PLATFORMS.map((pl) => {
+            const s = p.seo?.[pl.id];
+            return (
+              <div key={pl.id} className="rounded-xl border border-slate-700 bg-slate-950 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">{pl.label}</span>
+                  <a href={pl.uploadUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-300 hover:underline">
+                    Open upload page <ExternalLink className="h-3 w-3" />
+                  </a>
                 </div>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-                  ZERO DEVELOPER COST
-                </span>
+                {s ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button className={`${btnGhost} !py-1 text-xs`} onClick={() => copy(s.title, 'Title')}>
+                      <Copy className="h-3 w-3" /> Title
+                    </button>
+                    <button className={`${btnGhost} !py-1 text-xs`} onClick={() => copy(s.description, 'Description')}>
+                      <Copy className="h-3 w-3" /> Description
+                    </button>
+                    <button className={`${btnGhost} !py-1 text-xs`} onClick={() => copy(s.hashtags, 'Hashtags')}>
+                      <Copy className="h-3 w-3" /> Hashtags
+                    </button>
+                    <button className={`${btnPrimary} !py-1 text-xs`} onClick={() => copy(`${s.title}\n\n${s.description}\n\n${s.hashtags}`, 'Full post')}>
+                      <Check className="h-3 w-3" /> Copy all
+                    </button>
+                  </div>
+                ) : (
+                  <button className={`${btnGhost} text-xs`} onClick={() => patch({ step: 4 })}>
+                    Generate SEO in step 5
+                  </button>
+                )}
               </div>
-              <p className="text-[11px] text-slate-300">
-                Puter.js provides client-side access to <strong>GPT-4o, Claude 3.5 Sonnet, Gemini 1.5 Pro, DeepSeek V3, and Llama 3.1</strong> without requiring server API keys. Users authenticate with their own Puter accounts to cover usage with free monthly allowances.
-              </p>
-              
-              <div className="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-indigo-500/20">
-                <div className="flex items-center gap-2">
-                  <label className="text-[11px] text-slate-400">Selected Model:</label>
-                  <select
-                    value={selectedPuterModel}
-                    onChange={(e) => setSelectedPuterModel(e.target.value)}
-                    className="bg-slate-900 border border-slate-700 text-xs text-cyan-300 rounded-lg px-2 py-1 font-mono"
-                  >
-                    {POPULAR_PUTER_MODELS.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
-                    ))}
-                  </select>
-                </div>
-                <PuterAuthBadge selectedModel={selectedPuterModel} onModelSelect={setSelectedPuterModel} />
+            );
+          })}
+        </div>
+      </div>
+      <div className="flex justify-between">
+        <button className={btnGhost} onClick={() => patch({ step: 4 })}>
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <button className={btnGhost} onClick={resetAll}>
+          <RotateCcw className="h-4 w-4" /> New project
+        </button>
+      </div>
+    </div>
+  );
+
+  const stepViews = [step1, step2, step3, step4, step5, step6];
+
+  return (
+    <div className="space-y-5 text-slate-100">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-white">{mode === 'editor' ? 'Video Editor' : 'AI Video Studio'}</h2>
+          <p className="text-sm text-slate-400">Prompt → characters → scenes → edit → thumbnail & SEO → export</p>
+        </div>
+        {p.scenes.length > 0 && (
+          <button className={btnGhost} onClick={resetAll}>
+            <RotateCcw className="h-4 w-4" /> New project
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto pb-1">
+        {STEPS.map((name, i) => (
+          <button
+            key={name}
+            onClick={() => goto(i)}
+            className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+              p.step === i ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${p.step === i ? 'bg-white/20' : 'bg-slate-700'}`}>
+              {i + 1}
+            </span>
+            {name}
+          </button>
+        ))}
+      </div>
+
+      {stepViews[p.step]}
+
+      {autoMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center">
+            <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-emerald-400" />
+            <p className="text-sm font-semibold text-white">{autoMsg}</p>
+            {progress > 0 && (
+              <div className="mx-auto mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
               </div>
-            </div>
-
-            {/* Gemini API Key Fallback */}
-            <div>
-              <label className="text-xs text-slate-400 block mb-1">Google Gemini API Key (Optional Server Fallback)</label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={e => setApiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">
-                If both Puter and Gemini are offline, the built-in procedural engine creates curated viral storylines with 100% zero downtime.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs text-slate-300">
-              <span className="font-bold text-amber-400">Supported Autonomous Features:</span>
-              <ul className="list-disc pl-4 space-y-1 text-slate-400 text-[11px]">
-                <li>Dynamic Channel Topic Self-Generation (Non-default viral ideas)</li>
-                <li>Scene-by-scene script generator for 30s-40s vertical shorts</li>
-                <li>Hormozi / MrBeast bold on-screen pop captions</li>
-                <li>Visual B-roll prompts for image & video diffusion</li>
-                <li>Multi-platform packaging (YouTube Shorts, Instagram Reels, TikTok)</li>
-              </ul>
-            </div>
+            )}
+            <p className="mt-3 text-xs text-slate-400">Automatic mode: you get the finished video at the end. You can edit anything afterwards.</p>
+            <button
+              className={`${btnGhost} mt-4`}
+              onClick={() => {
+                autoCancel.current = true;
+                cancelRef.current.cancelled = true;
+                setAutoMsg('');
+              }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
