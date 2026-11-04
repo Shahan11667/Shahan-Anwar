@@ -17,7 +17,12 @@ export async function POST(req: NextRequest) {
     timestamp: Math.round(Date.now() / 1000),
     folder: 'ai-video-studio',
   };
-  if (convert) params.eager = 'f_mp4,vc_h264,ac_aac';
+  // "pad": produce the final 9:16 (or 16:9) H.264 MP4 DURING the upload, so the link is complete before Buffer reads it
+  const V = 'c_pad,w_1080,h_1920,b_black,vc_h264,ac_aac,f_mp4';
+  const L = 'c_pad,w_1920,h_1080,b_black,vc_h264,ac_aac,f_mp4';
+  const pad = body?.pad === 'vertical' ? V : body?.pad === 'horizontal' ? L : body?.pad === 'both' ? `${V}|${L}` : '';
+  if (pad) params.eager = pad;
+  else if (convert) params.eager = 'f_mp4,vc_h264,ac_aac';
   const signature = cloudinary.utils.api_sign_request(params, CLOUDINARY_API_SECRET);
   return NextResponse.json({
     success: true,

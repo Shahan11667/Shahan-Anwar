@@ -331,6 +331,7 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
   const [autoMsg, setAutoMsg] = useState<string>('');
   const autoCancel = useRef(false);
   const [postError, setPostError] = useState('');
+  const [postStage, setPostStage] = useState('');
   const [exported, setExported] = useState<{ url: string; ext: string; size: number; blob: Blob } | null>(null);
   const [pubKey, setPubKey] = useState<string>(() => {
     try {
@@ -975,23 +976,37 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     }
   };
 
-  /** Width/height of a video file (to know if it is vertical). */
-  const videoSize = (url: string) =>
-    new Promise<{ w: number; h: number }>((resolve) => {
+  /** Width, height and length of a video file. */
+  const videoInfo = (url: string) =>
+    new Promise<{ w: number; h: number; dur: number }>((resolve) => {
       const v = document.createElement('video');
       v.preload = 'metadata';
-      v.onloadedmetadata = () => resolve({ w: v.videoWidth, h: v.videoHeight });
-      v.onerror = () => resolve({ w: 0, h: 0 });
+      v.muted = true;
+      v.onerror = () => resolve({ w: 0, h: 0, dur: 0 });
+      v.onloadedmetadata = () => {
+        if (Number.isFinite(v.duration) && v.duration > 0) return resolve({ w: v.videoWidth, h: v.videoHeight, dur: v.duration });
+        // Browser-recorded WebM files have no length in their header: seek to the end so the browser works it out
+        const done = () => {
+          if (Number.isFinite(v.duration) && v.duration > 0) {
+            clearTimeout(timer);
+            v.ondurationchange = null;
+            resolve({ w: v.videoWidth, h: v.videoHeight, dur: v.duration });
+          }
+        };
+        const timer = setTimeout(() => resolve({ w: v.videoWidth, h: v.videoHeight, dur: 0 }), 15000);
+        v.ondurationchange = done;
+        v.onseeked = done;
+        v.currentTime = 1e7;
+      };
       v.src = url;
     });
 
   /**
-   * Uploads the video to Cloudinary and returns a public MP4 link that every platform accepts:
-   * H.264/AAC, padded to exactly 1080x1920 (vertical) or 1920x1080 (horizontal) so Facebook/Instagram Reels
-   * size and aspect-ratio rules are always met.
+   * Uploads the video to Cloudinary. During the upload Cloudinary also makes the final file(s): H.264/AAC MP4
+   * padded to 1080x1920 (and 1920x1080 for a landscape source). The links are complete before Buffer reads them.
    */
-  const uploadToCloudinary = async (blob: Blob, ext: string, vertical: boolean): Promise<string> => {
-    const t = await studioFetch('/api/admin/automation/cloudinary-sign', { convertToMp4: false });
+  const uploadToCloudinary = async (blob: Blob, ext: string, landscape: boolean): Promise<{ vertical: string; horizontal: string }> => {
+    const t = await studioFetch('/api/admin/automation/cloudinary-sign', { pad: landscape ? 'both' : 'vertical' });
     const fd = new FormData();
     fd.append('file', blob, `video.${ext}`);
     fd.append('api_key', t.apiKey);
@@ -1000,8 +1015,12 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     const r: any = await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `https://api.cloudinary.com/v1_1/${t.cloudName}/video/upload`);
-      xhr.upload.onprogress = (e) => e.lengthComputable && setProgress((e.loaded / e.total) * 100);
-      xhr.onerror = () => reject(new Error('Upload failed (network)'));
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        setProgress((e.loaded / e.total) * 100);
+        if (e.loaded >= e.total) setPostStage('Converting to 1080x1920 MP4 (can take up to a minute)…');
+      };
+      xhr.onerror = () => reject(new Error('Upload failed (network). Check your internet and try again.'));
       xhr.onload = () => {
         try {
           const j = JSON.parse(xhr.responseText);
@@ -1013,19 +1032,17 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       };
       xhr.send(fd);
     });
-    const size = vertical ? 'c_pad,w_1080,h_1920,b_black' : 'c_pad,w_1920,h_1080,b_black';
-    const url = `https://res.cloudinary.com/${t.cloudName}/video/upload/${size}/vc_h264,ac_aac/v${r.version}/${r.public_id}.mp4`;
-    // ask Cloudinary to prepare the converted file now, so Buffer can download it straight away
-    for (let i = 0; i < 20; i++) {
-      try {
-        const h = await fetch(url, { method: 'HEAD' });
-        if (h.ok) break;
-      } catch {
-        /* retry */
-      }
-      await new Promise((res) => setTimeout(res, 4000));
-    }
-    return url;
+    const eager: string[] = (r.eager || []).map((x: any) => x.secure_url).filter(Boolean);
+    if (!eager.length) throw new Error('Cloudinary did not return the converted MP4. Try again.');
+    return { vertical: eager[0], horizontal: landscape ? eager[1] || eager[0] : eager[0] };
+  };
+
+  // Platform rules checked BEFORE uploading, so you get a clear reason instead of a Buffer error
+  const RULES: Record<string, { min: number; max: number; name: string }> = {
+    facebook: { min: 3, max: 90, name: 'Facebook Reels' },
+    instagram: { min: 3, max: 900, name: 'Instagram Reels' },
+    youtube: { min: 1, max: 43200, name: 'YouTube' },
+    tiktok: { min: 3, max: 600, name: 'TikTok' },
   };
 
   const postEverywhere = async () => {
@@ -1034,50 +1051,73 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       toast.error(m);
     };
     setPostError('');
+    setPostStage('');
     if (!exported) return stop('No video yet: join your clips in "Join Videos" or pick your finished video file above.');
     if (!p.seo) return stop('Title, description and tags are missing: press "Write title, description, tags & thumbnail text" above.');
     const targets = channels.filter((c) => picked.includes(c.id));
     if (!targets.length) return stop('Pick at least one channel.');
     if (postWhen === 'schedule' && !dueAt) return stop('Choose a date and time.');
-    if (exported.size > 100 * 1048576) return stop(`The video is ${(exported.size / 1048576).toFixed(0)} MB. Cloudinary's free plan accepts up to 100 MB per video.`);
+    if (postWhen === 'schedule' && new Date(dueAt).getTime() < Date.now() + 60_000) return stop('The scheduled time must be in the future.');
+    if (exported.size > 100 * 1048576) return stop(`The video is ${(exported.size / 1048576).toFixed(0)} MB. Cloudinary's free plan accepts up to 100 MB per video. Export it smaller.`);
+    const info = await videoInfo(exported.url);
+    if (!info.w || !info.dur) return stop('This video file cannot be read by the browser. Export it again as MP4.');
+    const tooShortOrLong = targets
+      .map((c) => {
+        const rule = RULES[c.service];
+        if (!rule) return '';
+        if (info.dur < rule.min) return `${rule.name} needs at least ${rule.min} seconds (your video is ${info.dur.toFixed(1)} s).`;
+        if (info.dur > rule.max) return `${rule.name} allows at most ${rule.max} seconds (your video is ${Math.round(info.dur)} s). Untick it or shorten the video.`;
+        return '';
+      })
+      .filter(Boolean);
+    if (tooShortOrLong.length) return stop(tooShortOrLong.join(' '));
+    const landscape = info.w > info.h;
+
     setBusy('post');
     setPostLog([]);
     setProgress(0);
     try {
-      const dim = await videoSize(exported.url);
-      const vertical = dim.w && dim.h ? dim.h >= dim.w : p.format === 'vertical';
-      const videoUrl = await uploadToCloudinary(exported.blob, exported.ext, vertical);
+      setPostStage('Uploading video…');
+      const urls = await uploadToCloudinary(exported.blob, exported.ext, landscape);
       setProgress(0);
+      setPostStage('Sending to Buffer…');
       const log: { label: string; ok: boolean; msg: string }[] = [];
       const nl = String.fromCharCode(10, 10);
+      const okIds: string[] = [];
       for (let i = 0; i < targets.length; i++) {
         const c = targets[i];
-        const meta = p.seo[c.service as Platform];
+        const meta = p.seo[c.service as Platform] || p.seo.youtube;
         const label = `${c.service} · ${c.displayName || c.name}`;
+        const caption = ((c.service === 'youtube' ? '' : meta.title + nl) + meta.description + nl + meta.hashtags).slice(0, 2200);
         try {
           const r = await studioFetch('/api/admin/automation/buffer', {
             action: 'post',
             channelId: c.id,
             service: c.service,
-            title: meta.title,
-            text: (c.service === 'youtube' ? '' : meta.title + nl) + meta.description + nl + meta.hashtags,
-            videoUrl,
+            title: meta.title.replace(/[<>]/g, '').slice(0, 100) || p.title.slice(0, 100) || 'New video',
+            text: caption,
+            // Reels must be vertical; a landscape video stays landscape on YouTube
+            videoUrl: c.service === 'youtube' ? urls.horizontal : urls.vertical,
             mode: postWhen === 'queue' ? 'queue' : 'now',
             dueAt: postWhen === 'schedule' ? new Date(dueAt).toISOString() : undefined,
           });
+          okIds.push(c.id);
           log.push({ label, ok: true, msg: `Sent to Buffer (post ${r.postId || 'created'})` });
         } catch (e: any) {
           log.push({ label, ok: false, msg: e?.message || 'Failed' });
         }
         setPostLog(log.slice());
       }
+      // untick the channels that worked, so pressing the button again does not post twice
+      setPicked((o) => o.filter((id) => !okIds.includes(id)));
       if (log.every((l) => l.ok)) toast.success('All posts sent');
-      else toast.error('Some posts failed. See details.');
+      else toast.error('Some posts failed. See the red lines.');
     } catch (e: any) {
       stop(`Upload failed: ${e?.message || 'unknown error'}`);
     } finally {
       setBusy('');
       setProgress(0);
+      setPostStage('');
     }
   };
 
@@ -2308,7 +2348,27 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         {exported ? (
           <div className="mt-2 space-y-2">
             <video src={exported.url} controls className="max-h-[360px] w-full rounded-xl bg-black" />
-            <a href={exported.url} download={`${(p.title || 'video').replace(/[^\w]+/g, '-').slice(0, 50)}.${exported.ext}`} className={btnGhost}>Download</a>
+            <div className="flex flex-wrap gap-2">
+              <a href={exported.url} download={`${(p.title || 'video').replace(/[^\w]+/g, '-').slice(0, 50)}.${exported.ext}`} className={btnGhost}>Download</a>
+              <label className={`${btnGhost} cursor-pointer`}>
+                <Upload className="h-4 w-4" /> Change video
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!f) return;
+                    URL.revokeObjectURL(exported.url);
+                    const ext = (f.name.split('.').pop() || 'mp4').toLowerCase();
+                    setExported({ url: URL.createObjectURL(f), ext, size: f.size, blob: f });
+                    setPostError('');
+                    setPostLog([]);
+                  }}
+                />
+              </label>
+            </div>
           </div>
         ) : (
           <p className="mt-1 text-sm text-slate-400">
@@ -2384,7 +2444,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
                 <Spin on={busy === 'post'}>
                   <Upload className="h-4 w-4" />
                 </Spin>
-                {busy === 'post' ? (progress > 0 ? `Uploading ${Math.round(progress)}%` : 'Posting…') : 'Upload video & post'}
+                {busy === 'post' ? (progress > 0 && progress < 100 ? `Uploading ${Math.round(progress)}%` : 'Working…') : 'Upload video & post'}
               </button>
               <span className="text-xs text-slate-400">
                 Video {exported ? '✅' : '❌'} · Title & tags {p.seo ? '✅' : '❌'}
@@ -2392,6 +2452,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
             </div>
           </div>
         )}
+        {postStage && <p className="mt-3 text-sm text-indigo-300">{postStage}</p>}
         {postError && <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{postError}</p>}
         {postLog.length > 0 && (
           <ul className="mt-3 space-y-1 text-sm">
