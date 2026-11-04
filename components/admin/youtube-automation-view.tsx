@@ -30,6 +30,7 @@ import {
   fileToDataUrl,
   toJpegDataUrl,
   generateImage,
+  imageDefaults,
   generateSpeech,
   decodeAudio,
   downloadBlob,
@@ -104,6 +105,11 @@ interface Project {
   cast: string;
   idea: string;
   sceneCount: number;
+  promptEdited: boolean;
+  seriesParts: 1 | 5 | 10;
+  series: { key: string; title: string; summary: string; parts: { title: string; summary: string }[] } | null;
+  partIdx: number;
+  ideaHistory: string[];
   style: string;
   format: 'vertical' | 'horizontal';
   language: 'roman_urdu' | 'english' | 'urdu';
@@ -133,6 +139,15 @@ const STYLES = [
 const BESHAAN = 'Beshaan (Fashion • Lifestyle • Gaming)';
 const BESHAAN_CONTEXT =
   'CHANNEL: BESHAAN. Tagline: Three Creators | Three Personalities | One Amazing Journey. Two girls and one boy blending fashion, lifestyle vibes and gaming entertainment. Tone: energetic trio banter, friendly, trendy, fun, positive, family-safe. The three recurring characters have distinct personalities (e.g. the stylish fashion girl, the bubbly lifestyle girl, the funny gamer boy) and stay the same in every video. Content ideas: outfit challenges, styling battles, room/lifestyle vlogs, gaming nights, challenges and playful rivalry between the trio.';
+const ANGLES = [
+  'Eid / festival prep', 'shopping haul', 'surprise makeover', 'harmless prank', 'budget vs expensive', 'gaming tournament',
+  'room / wardrobe tour', 'road trip', 'cooking disaster', 'birthday surprise', 'swap roles for a day', 'mystery to solve',
+  'college life', 'rainy day', 'fashion show at home', 'thrift flip', '24-hour challenge', 'recreate a viral trend',
+  'rivalry between friends', 'learning a new skill', 'secret revealed', 'lost-and-found adventure',
+];
+const pickAngles = (n: number) => ANGLES.slice().sort(() => Math.random() - 0.5).slice(0, n).join(', ');
+const seriesKey = (q: { genre: string; idea: string; seriesParts: number; cast: string; setting: string }) => `${q.genre}|${q.idea.trim()}|${q.seriesParts}|${q.cast}|${q.setting}`;
+
 const GENRES = [BESHAAN, 'Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming'];
 const MOODS = ['Fun & energetic', 'Emotional', 'Funny', 'Suspenseful', 'Epic', 'Heartwarming', 'Dark', 'Cute & light'];
 const SETTINGS = ['Fashion studio / bedroom', 'Shopping mall', 'Home lifestyle vlog', 'Rooftop at sunset', 'College campus', 'Rainy city street', 'Village & fields', 'Futuristic city', 'Haunted house', 'Beach', 'Mountains', 'Cafe', 'Gaming room', 'Wedding'];
@@ -162,6 +177,11 @@ function newProject(): Project {
     cast: '2 girls + 1 boy',
     idea: '',
     sceneCount: 7,
+    promptEdited: false,
+    seriesParts: 1,
+    series: null,
+    partIdx: 0,
+    ideaHistory: [],
     style: STYLES[0],
     format: 'vertical',
     language: 'roman_urdu',
@@ -202,6 +222,51 @@ function newProject(): Project {
 
 // Keeps the project alive when the admin switches dashboard tabs (component unmounts) during one session.
 let projectCache: Project | null = null;
+
+/** Loads a Daily Content Pack into the AI Video Studio (it opens at the Scenes step). */
+export function importPackToStudio(pack: {
+  title: string;
+  idea: string;
+  story: string;
+  characters: { name: string; description: string }[];
+  scenes: { prompt: string; narration: string; caption: string; duration: number }[];
+  thumbnail: { headline: string; badge: string };
+  seo: Record<Platform, { title: string; description: string; hashtags: string; tags?: string }>;
+}) {
+  const base = newProject();
+  const chars = [0, 1, 2].map((i) => ({ name: pack.characters[i]?.name || '', description: pack.characters[i]?.description || '' }));
+  projectCache = {
+    ...base,
+    step: 2,
+    prompt: pack.idea,
+    title: pack.title,
+    story: pack.story,
+    characters: chars,
+    scenes: pack.scenes.map((sc) => ({ id: uid(), prompt: sc.prompt, narration: sc.narration, caption: sc.caption, duration: sc.duration })),
+    thumb: { ...base.thumb, headline: pack.thumbnail.headline, badge: pack.thumbnail.badge },
+    seo: {
+      youtube: { title: pack.seo.youtube.title, description: pack.seo.youtube.description, hashtags: pack.seo.youtube.hashtags },
+      tiktok: { title: pack.seo.tiktok.title, description: pack.seo.tiktok.description, hashtags: pack.seo.tiktok.hashtags },
+      instagram: { title: pack.seo.instagram.title, description: pack.seo.instagram.description, hashtags: pack.seo.instagram.hashtags },
+      facebook: { title: pack.seo.facebook.title, description: pack.seo.facebook.description, hashtags: pack.seo.facebook.hashtags },
+    },
+  };
+}
+
+/** Lets the Video Editor tab import the scenes made in the AI Video Studio. */
+export function getStudioProject() {
+  if (!projectCache || !projectCache.scenes.length) return null;
+  return {
+    format: projectCache.format,
+    title: projectCache.title,
+    scenes: projectCache.scenes.map((sc) => ({
+      image: sc.image,
+      voice: sc.voice,
+      caption: sc.caption,
+      duration: sc.duration,
+    })),
+  };
+}
 
 const uid = () => `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -267,6 +332,15 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
   useEffect(() => {
     projectCache = p;
   }, [p]);
+
+  // images follow the project format, and one stable seed keeps the look similar between scenes
+  useEffect(() => {
+    imageDefaults.aspect = p.format === 'vertical' ? 'vertical' : 'horizontal';
+    let h = 7;
+    const src = p.characters.map((c) => c.name + c.description).join('|');
+    for (let i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) % 1000003;
+    imageDefaults.seed = h;
+  }, [p.format, p.characters]);
 
   useEffect(() => {
     if (mode === 'editor') setP((o) => ({ ...o, step: Math.max(o.step, 3) }));
@@ -413,6 +487,7 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
     '"prompt": a COMPLETE detailed AI video prompt for this scene (setting, characters by name with their fixed look, actions, dialogue lines, facial expressions, camera movement, lighting, background music mood, lip-sync note, duration, visual style), "narration": the exact spoken dialogue/voiceover for this scene, "caption": a short subtitle line (max 12 words), "duration": seconds (4-8)';
 
   const buildPrompt = async (): Promise<string> => {
+    const p = pRef.current;
     const system =
       'You are a creative director for AI videos. Write ONE complete, vivid video prompt in plain English (150-250 words): story, characters with fixed looks, dialogues, expressions, camera movements, lighting, background music, lip-sync, duration and visual style. Output ONLY the prompt text.';
     const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}Genre: ${p.genre}
@@ -423,22 +498,60 @@ Visual style: ${p.style}
 Format: ${formatLabel}
 Dialogue language: ${LANG_LABEL[p.language]}
 ${p.idea.trim() ? `User's extra idea: ${p.idea}
-` : ''}Invent an original, engaging story with a strong hook and satisfying ending.`;
+` : ''}Take creative inspiration from: ${pickAngles(3)}.
+Do NOT reuse these earlier ideas: ${p.ideaHistory.slice(-25).join(' | ') || '(none)'}.
+Invent an original, engaging story with a strong hook and satisfying ending.`;
     return (await ask(system, user)).trim();
   };
 
   const suggestIdeas = async () => {
+    const p = pRef.current;
     setBusy('ideas');
     try {
       const system = 'You are a viral short-video idea generator. Reply with ONLY valid JSON, no markdown.';
       const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}Genre: ${p.genre}. Mood: ${p.mood}. Setting: ${p.setting}. Cast: ${p.cast}. Format: ${formatLabel}.
-Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, max 25 words). Return {"ideas":["...","..."]}`;
+${p.idea.trim() ? `The creator is searching for ideas about: "${p.idea.trim()}". Every idea must be about this topic.\n` : `Draw inspiration from: ${pickAngles(5)}.\n`}Already suggested (do not repeat): ${p.ideaHistory.slice(-30).join(' | ') || '(none)'}.\nGive 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, max 25 words). Return {"ideas":["...","..."]}`;
       const data = extractJson<any>(await ask(system, user));
       const list: string[] = (data.ideas || []).map((x: any) => String(x)).filter(Boolean).slice(0, 20);
       if (!list.length) throw new Error('No ideas returned. Try again.');
       setIdeaList(list);
+      setP((o) => ({ ...o, ideaHistory: o.ideaHistory.concat(list).slice(-80) }));
     } catch (e: any) {
       toast.error(e?.message || 'Could not get ideas');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const planSeries = async (): Promise<boolean> => {
+    const p = pRef.current;
+    const n = p.seriesParts;
+    setBusy('series');
+    try {
+      const system = 'You are a head writer for a short-video series. Reply with ONLY valid JSON, no markdown.';
+      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}Genre: ${p.genre}. Mood: ${p.mood}. Setting: ${p.setting}. Cast: ${p.cast}. Style: ${p.style}. Dialogue language: ${LANG_LABEL[p.language]}.
+${p.idea.trim() ? `Series idea from the creator: ${p.idea}` : `Inspiration: ${pickAngles(3)}.`}
+Already used ideas (do not repeat): ${p.ideaHistory.slice(-25).join(' | ') || '(none)'}.
+Plan ONE story told across exactly ${n} short episodes (parts). Each part must be a complete mini-episode with its own hook, and end with a cliffhanger leading to the next; the last part resolves everything. Return {"title":"series title","summary":"2-3 sentence overall story","characters":[{"name":"","description":"fixed appearance"}],"parts":[{"title":"episode title","summary":"3-4 sentences of what happens in this part"}]} (max 3 characters).`;
+      const data = extractJson<any>(await ask(system, user));
+      const parts: { title: string; summary: string }[] = (data.parts || []).slice(0, n).map((x: any) => ({ title: String(x.title || ''), summary: String(x.summary || '') }));
+      if (parts.length < 2) throw new Error('The series plan came back incomplete. Try again.');
+      setP((o) => ({
+        ...o,
+        series: { key: seriesKey(o), title: String(data.title || 'Series'), summary: String(data.summary || ''), parts },
+        partIdx: 0,
+        characters: [0, 1, 2].map((i) => ({
+          ...o.characters[i],
+          name: o.characters[i].name || String((data.characters || [])[i]?.name || ''),
+          description: o.characters[i].description || String((data.characters || [])[i]?.description || ''),
+        })),
+        ideaHistory: o.ideaHistory.concat(String(data.title || '')).slice(-80),
+      }));
+      toast.success(`${parts.length}-part series planned`);
+      return true;
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not plan the series');
+      return false;
     } finally {
       setBusy('');
     }
@@ -447,7 +560,7 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
   const createPrompt = async () => {
     setBusy('idea');
     try {
-      patch({ prompt: await buildPrompt() });
+      patch({ prompt: await buildPrompt(), promptEdited: false });
       toast.success('Prompt ready. Edit it if you like, then generate scenes.');
     } catch (e: any) {
       toast.error(e?.message || 'Could not create prompt');
@@ -456,17 +569,27 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
     }
   };
 
-  const generatePlan = async () => {
+  const generatePlan = async (partOverride?: number) => {
+    const p = pRef.current;
     setBusy('plan');
     try {
       let mainPrompt = p.prompt.trim();
-      if (!mainPrompt) {
+      let seriesCtx = '';
+      const inSeries = p.seriesParts > 1 && !!p.series;
+      const part = inSeries ? Math.min(partOverride ?? p.partIdx, p.series!.parts.length - 1) : -1;
+      if (inSeries && part >= 0) {
+        const sr = p.series!;
+        const sp = sr.parts[part];
+        mainPrompt = `${sr.title}: ${sr.summary} THIS VIDEO IS PART ${part + 1} OF ${sr.parts.length}: "${sp.title}". ${sp.summary}`;
+        seriesCtx = `SERIES OUTLINE: ${sr.parts.map((x, i) => `Part ${i + 1} - ${x.title}: ${x.summary}`).join(' || ')}. Continue naturally from the previous part and ${part + 1 === sr.parts.length ? 'give a satisfying final ending' : 'end with a hook for the next part'}. Keep the same characters and looks.\n`;
+      } else if (!mainPrompt || !p.promptEdited) {
+        // a new prompt every time, unless the user typed their own
         mainPrompt = await buildPrompt();
-        patch({ prompt: mainPrompt });
+        patch({ prompt: mainPrompt, promptEdited: false });
       }
       const system =
         'You are a senior AI video director. You turn ONE video idea into connected scenes for an AI video generator. Characters must keep the same fixed appearance in every scene. Reply with ONLY valid JSON, no markdown.';
-      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}VIDEO IDEA:\n${mainPrompt}\n\nNumber of scenes: ${p.sceneCount}\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
+      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\n\nNumber of scenes: ${p.sceneCount}\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
       const text = await ask(system, user);
       const data = extractJson<any>(text);
       const scenes: Scene[] = (data.scenes || []).slice(0, 30).map((s: any) => ({
@@ -493,6 +616,9 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
         characters: chars,
         scenes,
         seo: null,
+        thumb: { ...o.thumb, bg: '', headline: '', badge: '' },
+        partIdx: part >= 0 ? part : 0,
+        ideaHistory: o.ideaHistory.concat(String(data.title || '')).slice(-80),
         step: 1,
       }));
       setSelectedId(scenes[0].id);
@@ -573,7 +699,7 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
       const { dataUrl, usedReference } = await generateImage(sceneImagePrompt(sc), refs);
       patchScene(id, { image: dataUrl });
       if (!silent && refs.length && !usedReference)
-        toast('Reference images were not accepted by the image model. Scene made from text descriptions only.', { icon: '⚠️' });
+        toast('The free image generator cannot use reference images, so characters are kept consistent only through their text descriptions. For true reference-based consistency add GEMINI_API_KEY (see env.example).', { icon: '⚠️' });
     } catch (e: any) {
       toast.error(e?.message || 'Image generation failed');
       throw e;
@@ -820,16 +946,34 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
   };
   const tick = () => new Promise((r) => setTimeout(r, 80));
 
-  const autoAll = async () => {
+  const autoAll = async (opts?: { idea?: string; part?: number }) => {
     autoCancel.current = false;
+    if (exported) {
+      URL.revokeObjectURL(exported.url);
+      setExported(null);
+    }
+    if (opts?.idea !== undefined) {
+      patch({ idea: opts.idea, prompt: '', promptEdited: false, series: null, partIdx: 0 });
+      await tick();
+    }
     const stop = () => autoCancel.current;
     const fail = (m: string) => {
       toast.error(m);
       setAutoMsg('');
     };
     try {
-      setAutoMsg('1/6 Writing story, scenes and characters…');
-      if (!(await generatePlan())) return setAutoMsg('');
+      let part: number | undefined;
+      if (pRef.current.seriesParts > 1) {
+        const cur = pRef.current;
+        if (!cur.series || cur.series.key !== seriesKey(cur)) {
+          setAutoMsg(`0/6 Planning your ${cur.seriesParts}-part series…`);
+          if (!(await planSeries())) return setAutoMsg('');
+          await tick();
+        }
+        part = opts?.part ?? pRef.current.partIdx;
+      }
+      setAutoMsg(part !== undefined ? `1/6 Writing part ${part + 1} of ${pRef.current.seriesParts}…` : '1/6 Writing story, scenes and characters…');
+      if (!(await generatePlan(part))) return setAutoMsg('');
       await tick();
       if (stop()) return setAutoMsg('');
 
@@ -1175,29 +1319,46 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
           </div>
         </div>
         <div className="mb-4">
-          <span className={label}>Your idea (type your own, or pick one below)</span>
-          <input className={input} placeholder="e.g. a shy boy finally confesses on the last day of college" value={p.idea} onChange={(e) => patch({ idea: e.target.value })} />
+          <span className={label}>Search for an idea, or type your own</span>
+          <input
+            className={input}
+            placeholder="Type a topic or keyword (e.g. Eid outfit challenge, gaming prank, college love story) and press Enter"
+            value={p.idea}
+            onChange={(e) => patch({ idea: e.target.value, prompt: p.promptEdited ? p.prompt : '', series: null })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !busy) suggestIdeas();
+            }}
+          />
         </div>
         <div className="mb-4">
           <button className={btnGhost} disabled={!!busy} onClick={suggestIdeas}>
             <Spin on={busy === 'ideas'}><Sparkles className="h-4 w-4" /></Spin>
-            {ideaList.length ? 'Suggest 15 new ideas' : 'Suggest 15 ideas for me'}
+            {p.idea.trim() ? 'Find 15 ideas about this' : ideaList.length ? 'Suggest 15 new ideas' : 'Suggest 15 ideas for me'}
           </button>
           {ideaList.length > 0 && (
             <div className="mt-2 grid gap-1.5 md:grid-cols-2">
               {ideaList.map((idea, i) => (
-                <button
+                <div
                   key={i}
-                  onClick={() => patch({ idea })}
-                  className={`rounded-lg border px-3 py-2 text-left text-sm transition ${p.idea === idea ? 'border-indigo-500 bg-indigo-600/20 text-white' : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500'}`}
+                  className={`flex items-stretch gap-1 rounded-lg border transition ${p.idea === idea ? 'border-indigo-500 bg-indigo-600/20' : 'border-slate-700 bg-slate-950 hover:border-slate-500'}`}
                 >
-                  <span className="mr-1 font-bold text-indigo-300">{i + 1}.</span>
-                  {idea}
-                </button>
+                  <button onClick={() => patch({ idea, prompt: p.promptEdited ? p.prompt : '', series: null })} className="flex-1 px-3 py-2 text-left text-sm text-slate-200">
+                    <span className="mr-1 font-bold text-indigo-300">{i + 1}.</span>
+                    {idea}
+                  </button>
+                  <button
+                    disabled={!!busy || !!autoMsg}
+                    onClick={() => autoAll({ idea })}
+                    title="Create the full video from this idea"
+                    className="m-1 shrink-0 rounded-md bg-emerald-600 px-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
+                  >
+                    ▶ Make
+                  </button>
+                </div>
               ))}
             </div>
           )}
-          <p className="mt-1 text-xs text-slate-500">Click an idea to use it, or type your own above.</p>
+          <p className="mt-1 text-xs text-slate-500">Click an idea to pick it, or press ▶ Make to build the whole video from it. Every search gives new ideas.</p>
         </div>
         <div className="mb-4 flex flex-wrap gap-2">
           <button className={btnGhost} disabled={!!busy} onClick={createPrompt}>
@@ -1210,9 +1371,9 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
           className={`${input} min-h-[160px]`}
           placeholder="Leave empty: the prompt, scenes and character images are all created for you from the options above."
           value={p.prompt}
-          onChange={(e) => patch({ prompt: e.target.value })}
+          onChange={(e) => patch({ prompt: e.target.value, promptEdited: true })}
         />
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
           <div>
             <span className={label}>Scenes / parts</span>
             <select className={input} value={p.sceneCount} onChange={(e) => patch({ sceneCount: Number(e.target.value) })}>
@@ -1221,6 +1382,14 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
                   {n} scenes
                 </option>
               ))}
+            </select>
+          </div>
+          <div>
+            <span className={label}>Video type</span>
+            <select className={input} value={p.seriesParts} onChange={(e) => patch({ seriesParts: Number(e.target.value) as 1 | 5 | 10, series: null, partIdx: 0 })}>
+              <option value={1}>Single video</option>
+              <option value={5}>5-part series</option>
+              <option value={10}>10-part series</option>
             </select>
           </div>
           <div>
@@ -1248,10 +1417,10 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-500`} disabled={!!busy || !!autoMsg} onClick={autoAll}>
+          <button className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-500`} disabled={!!busy || !!autoMsg} onClick={() => autoAll()}>
             <Sparkles className="h-4 w-4" /> Auto-create full video (everything)
           </button>
-          <button className={btnGhost} disabled={!!busy || !!autoMsg} onClick={generatePlan}>
+          <button className={btnGhost} disabled={!!busy || !!autoMsg} onClick={() => generatePlan()}>
             <Spin on={busy === 'plan'}>
               <Sparkles className="h-4 w-4" />
             </Spin>
@@ -1265,6 +1434,29 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
           <span className="text-xs text-slate-500">Uses your Puter AI sign-in. No API key needed.</span>
         </div>
       </div>
+      {p.series && p.seriesParts > 1 && (
+        <div className={card}>
+          <h3 className="text-base font-bold text-white">
+            {p.series.title} <span className="text-xs font-normal text-slate-400">({p.series.parts.length}-part series)</span>
+          </h3>
+          <p className="mb-3 text-sm text-slate-400">{p.series.summary}</p>
+          <div className="space-y-1.5">
+            {p.series.parts.map((part, i) => (
+              <div key={i} className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 ${i === p.partIdx && p.scenes.length ? 'border-indigo-500 bg-indigo-600/10' : 'border-slate-700 bg-slate-950'}`}>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-white">
+                    Part {i + 1}: {part.title}
+                  </div>
+                  <div className="truncate text-xs text-slate-400">{part.summary}</div>
+                </div>
+                <button className={`${btnPrimary} shrink-0 !py-1 text-xs`} disabled={!!busy || !!autoMsg} onClick={() => autoAll({ part: i })}>
+                  ▶ Make part {i + 1}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {p.story && (
         <div className={card}>
           <input className={`${input} mb-2 font-bold`} value={p.title} onChange={(e) => patch({ title: e.target.value })} />
@@ -2105,6 +2297,20 @@ Give 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, 
         ))}
       </div>
 
+      {p.step === 5 && p.series && p.seriesParts > 1 && (
+        <div className={`${card} flex flex-wrap items-center justify-between gap-2`}>
+          <span className="text-sm text-slate-300">
+            Part {p.partIdx + 1} of {p.series.parts.length} done? Download it above, then continue the story.
+          </span>
+          {p.partIdx + 1 < p.series.parts.length ? (
+            <button className={btnPrimary} disabled={!!busy || !!autoMsg} onClick={() => autoAll({ part: p.partIdx + 1 })}>
+              ▶ Make part {p.partIdx + 2} automatically
+            </button>
+          ) : (
+            <span className="text-sm font-semibold text-emerald-400">That was the final part 🎉</span>
+          )}
+        </div>
+      )}
       {stepViews[p.step]}
 
       {autoMsg && (

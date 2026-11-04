@@ -17,6 +17,8 @@ import ContactInfoForm from './contact-info-form'
 import CVParserForm from './cv-parser-form'
 import AnalyticsDashboard from './analytics-dashboard'
 import YoutubeAutomationView from './youtube-automation-view'
+import VideoEditorPro from './video-editor-pro'
+import DailyPackView from './daily-pack-view'
 import { IProject } from '@/models/Project'
 
 interface Project {
@@ -44,7 +46,7 @@ interface Contact {
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser' | 'analytics' | 'automation' | 'video-studio'>('hero')
+  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser' | 'analytics' | 'automation' | 'video-studio' | 'daily-pack'>('hero')
   const [projects, setProjects] = useState<Project[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [chatUsers, setChatUsers] = useState<any[]>([])
@@ -411,6 +413,15 @@ const AdminDashboard = () => {
           >
             <Bot className="h-4 w-4 mr-2 text-red-400" />
             AI Video Automation &amp; Channels 🎬
+          </Button>
+          <Button
+            variant={activeTab === 'daily-pack' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('daily-pack')}
+            size="sm"
+            className={activeTab === 'daily-pack' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-0 shadow-md shadow-emerald-500/20' : ''}
+          >
+            <Film className="h-4 w-4 mr-2 text-emerald-400" />
+            Daily Pack
           </Button>
           <Button
             variant={activeTab === 'video-studio' ? 'default' : 'outline'}
@@ -1522,10 +1533,17 @@ const AdminDashboard = () => {
           </div>
         )}
 
+        {/* Daily Content Pack Tab */}
+        {activeTab === 'daily-pack' && (
+          <div>
+            <DailyPackView onOpenStudio={() => setActiveTab('automation')} />
+          </div>
+        )}
+
         {/* CapCut Studio Pro Tab */}
         {activeTab === 'video-studio' && (
           <div>
-            <YoutubeAutomationView mode="editor" />
+            <VideoEditorPro />
           </div>
         )}
       </div>

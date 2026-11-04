@@ -266,7 +266,7 @@ export function pickMime(): { mime: string; ext: string } {
   return { mime: '', ext: 'webm' };
 }
 
-function makeTicker(ms: number, cb: () => void): () => void {
+export function makeTicker(ms: number, cb: () => void): () => void {
   try {
     const url = URL.createObjectURL(new Blob([`setInterval(function(){postMessage(0)},${ms})`], { type: 'application/javascript' }));
     const w = new Worker(url);

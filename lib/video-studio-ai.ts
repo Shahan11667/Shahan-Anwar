@@ -65,33 +65,80 @@ export interface GeneratedImage {
   usedReference: boolean;
 }
 
+export type ImageAspect = 'vertical' | 'horizontal' | 'square';
+
+/** Set by the studio so every image uses the project's format and a stable seed (same look between scenes). */
+export const imageDefaults: { aspect: ImageAspect; seed: number } = { aspect: 'vertical', seed: 7 };
+
+const SIZES: Record<ImageAspect, [number, number]> = { vertical: [720, 1280], horizontal: [1280, 720], square: [1024, 1024] };
+
+function studioKey(): string {
+  try {
+    return sessionStorage.getItem('studioKey') || '';
+  } catch {
+    return '';
+  }
+}
+
 /**
- * Generates an image. When reference images are given, they are sent to an image-editing capable model
- * so characters keep the same face / clothes / style. Falls back to text-only generation if unsupported.
+ * Generates an image. Tries, in order:
+ *  1. Gemini on the server (accepts reference images, best character consistency). Needs GEMINI_API_KEY + studio password.
+ *  2. Pollinations (free, no key, text only).
+ *  3. Puter (may require a paid plan).
  */
-export async function generateImage(prompt: string, references: string[] = []): Promise<GeneratedImage> {
-  const puter = await loadPuter();
-  if (!puter?.ai?.txt2img) throw new Error('Puter image generation is not available. Sign in to Puter first.');
-  let result: any = null;
-  let usedReference = false;
-  if (references.length) {
+export async function generateImage(prompt: string, references: string[] = [], opts: { aspect?: ImageAspect; seed?: number } = {}): Promise<GeneratedImage> {
+  const aspect = opts.aspect || imageDefaults.aspect;
+  const seed = opts.seed ?? imageDefaults.seed;
+  const errors: string[] = [];
+
+  // 1. Gemini via our server route (reference images supported)
+  if (studioKey()) {
     try {
-      const b64 = await referenceSheet(references);
-      result = await puter.ai.txt2img(prompt, {
-        model: 'gemini-2.5-flash-image-preview',
-        input_image: b64,
-        input_image_mime_type: 'image/jpeg',
+      const res = await fetch('/api/admin/automation/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-studio-key': studioKey() },
+        body: JSON.stringify({ prompt: `${prompt}
+Aspect ratio: ${aspect === 'vertical' ? '9:16 vertical' : aspect === 'horizontal' ? '16:9 horizontal' : '1:1'}.`, references }),
       });
-      usedReference = true;
-    } catch (e) {
-      console.warn('Reference-based generation failed, falling back to text-only:', e);
-      result = null;
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j.success && j.dataUrl) return { dataUrl: await toJpegDataUrl(j.dataUrl), usedReference: references.length > 0 };
+      errors.push(`Gemini: ${j.error || res.status}`);
+    } catch (e: any) {
+      errors.push(`Gemini: ${e?.message}`);
     }
   }
-  if (!result) result = await puter.ai.txt2img(prompt);
-  const src: string = typeof result === 'string' ? result : result?.src;
-  if (!src) throw new Error('Image generation returned nothing');
-  return { dataUrl: await toJpegDataUrl(src), usedReference };
+
+  // 2. Pollinations (free)
+  try {
+    const [w, h] = SIZES[aspect];
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 1400))}?width=${w}&height=${h}&model=flux&nologo=true&private=true&seed=${seed}`;
+    return { dataUrl: await toJpegDataUrl(url), usedReference: false };
+  } catch (e: any) {
+    errors.push(`Pollinations: ${e?.message}`);
+  }
+
+  // 3. Puter
+  try {
+    const puter = await loadPuter();
+    if (!puter?.ai?.txt2img) throw new Error('not available');
+    let result: any = null;
+    let usedReference = false;
+    if (references.length) {
+      try {
+        result = await puter.ai.txt2img(prompt, { model: 'gemini-2.5-flash-image-preview', input_image: await referenceSheet(references), input_image_mime_type: 'image/jpeg' });
+        usedReference = true;
+      } catch {
+        result = null;
+      }
+    }
+    if (!result) result = await puter.ai.txt2img(prompt);
+    const src: string = typeof result === 'string' ? result : result?.src;
+    if (!src) throw new Error('nothing returned');
+    return { dataUrl: await toJpegDataUrl(src), usedReference };
+  } catch (e: any) {
+    errors.push(`Puter: ${e?.message || 'failed'}`);
+  }
+  throw new Error(`Image generation failed. ${errors.join(' | ')}`);
 }
 
 /** Text-to-speech through Puter. Returns an audio Blob. */
