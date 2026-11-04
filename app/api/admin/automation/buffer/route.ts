@@ -58,7 +58,16 @@ export async function POST(req: NextRequest) {
       const { channelId, service, text, title, videoUrl, mode, dueAt } = body;
       if (!channelId || !videoUrl) throw new Error('channelId and videoUrl are required');
       const metadata: Record<string, unknown> = {};
-      if (service === 'youtube') metadata.youtube = { title: String(title || '').slice(0, 100), privacy: 'public', madeForKids: false };
+      if (service === 'youtube')
+        metadata.youtube = {
+          title: String(title || '').slice(0, 100),
+          privacy: 'public',
+          madeForKids: false,
+          // YouTube requires a category. 24 = Entertainment (22 People & Blogs, 20 Gaming, 26 Howto & Style)
+          categoryId: String(body.categoryId || process.env.YOUTUBE_CATEGORY_ID || '24'),
+          // the clips are made with Google Flow (AI), which YouTube asks creators to disclose
+          isAiGenerated: true,
+        };
       if (service === 'instagram') metadata.instagram = { type: 'reel', shouldShareToFeed: true };
       if (service === 'facebook') metadata.facebook = { type: 'reel' };
       if (service === 'tiktok') metadata.tiktok = { title: String(title || '').slice(0, 150) };

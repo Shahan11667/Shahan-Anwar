@@ -975,31 +975,57 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     }
   };
 
-  const uploadToCloudinary = async (blob: Blob, ext: string): Promise<string> => {
-    const isMp4 = ext === 'mp4';
-    const t = await studioFetch('/api/admin/automation/cloudinary-sign', { convertToMp4: !isMp4 });
+  /** Width/height of a video file (to know if it is vertical). */
+  const videoSize = (url: string) =>
+    new Promise<{ w: number; h: number }>((resolve) => {
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      v.onloadedmetadata = () => resolve({ w: v.videoWidth, h: v.videoHeight });
+      v.onerror = () => resolve({ w: 0, h: 0 });
+      v.src = url;
+    });
+
+  /**
+   * Uploads the video to Cloudinary and returns a public MP4 link that every platform accepts:
+   * H.264/AAC, padded to exactly 1080x1920 (vertical) or 1920x1080 (horizontal) so Facebook/Instagram Reels
+   * size and aspect-ratio rules are always met.
+   */
+  const uploadToCloudinary = async (blob: Blob, ext: string, vertical: boolean): Promise<string> => {
+    const t = await studioFetch('/api/admin/automation/cloudinary-sign', { convertToMp4: false });
     const fd = new FormData();
     fd.append('file', blob, `video.${ext}`);
     fd.append('api_key', t.apiKey);
     fd.append('signature', t.signature);
     Object.keys(t.params).forEach((k) => fd.append(k, String(t.params[k])));
-    return new Promise<string>((resolve, reject) => {
+    const r: any = await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `https://api.cloudinary.com/v1_1/${t.cloudName}/video/upload`);
       xhr.upload.onprogress = (e) => e.lengthComputable && setProgress((e.loaded / e.total) * 100);
       xhr.onerror = () => reject(new Error('Upload failed (network)'));
       xhr.onload = () => {
         try {
-          const r = JSON.parse(xhr.responseText);
-          if (xhr.status >= 300) return reject(new Error(r?.error?.message || 'Cloudinary rejected the upload'));
-          const mp4 = r.eager?.[0]?.secure_url;
-          resolve(isMp4 ? r.secure_url : mp4 || String(r.secure_url).replace(/[.][a-z0-9]+$/i, '.mp4'));
+          const j = JSON.parse(xhr.responseText);
+          if (xhr.status >= 300) return reject(new Error(j?.error?.message || 'Cloudinary rejected the upload'));
+          resolve(j);
         } catch {
           reject(new Error('Bad response from Cloudinary'));
         }
       };
       xhr.send(fd);
     });
+    const size = vertical ? 'c_pad,w_1080,h_1920,b_black' : 'c_pad,w_1920,h_1080,b_black';
+    const url = `https://res.cloudinary.com/${t.cloudName}/video/upload/${size}/vc_h264,ac_aac/v${r.version}/${r.public_id}.mp4`;
+    // ask Cloudinary to prepare the converted file now, so Buffer can download it straight away
+    for (let i = 0; i < 20; i++) {
+      try {
+        const h = await fetch(url, { method: 'HEAD' });
+        if (h.ok) break;
+      } catch {
+        /* retry */
+      }
+      await new Promise((res) => setTimeout(res, 4000));
+    }
+    return url;
   };
 
   const postEverywhere = async () => {
@@ -1018,7 +1044,9 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     setPostLog([]);
     setProgress(0);
     try {
-      const videoUrl = await uploadToCloudinary(exported.blob, exported.ext);
+      const dim = await videoSize(exported.url);
+      const vertical = dim.w && dim.h ? dim.h >= dim.w : p.format === 'vertical';
+      const videoUrl = await uploadToCloudinary(exported.blob, exported.ext, vertical);
       setProgress(0);
       const log: { label: string; ok: boolean; msg: string }[] = [];
       const nl = String.fromCharCode(10, 10);
