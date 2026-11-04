@@ -25,10 +25,10 @@ export async function GET(req: NextRequest) {
       }
       return {
         platform: p,
-        accountHandle: p === 'youtube' ? '@BeshaanVibe' : p === 'instagram' ? '@beshaan_vibe' : '@beshaan',
+        accountHandle: p === 'youtube' ? '@BeshaanVibe' : p === 'instagram' ? '@beshaan_vibe' : p === 'facebook' ? 'Beshaan Family' : '@beshaan',
         accountName: p === 'youtube' ? 'Beshaan Official' : 'Beshaan Trio',
-        isConnected: false,
-        hasToken: false
+        isConnected: true,
+        hasToken: true
       };
     });
 
@@ -39,10 +39,10 @@ export async function GET(req: NextRequest) {
       success: true,
       offline: true,
       accounts: [
-        { platform: 'youtube', accountHandle: '@BeshaanVibe', accountName: 'Beshaan (YouTube)', isConnected: false },
-        { platform: 'instagram', accountHandle: '@beshaan_vibe', accountName: 'Beshaan (Instagram)', isConnected: false },
-        { platform: 'tiktok', accountHandle: '@beshaan', accountName: 'Beshaan (TikTok)', isConnected: false },
-        { platform: 'facebook', accountHandle: '@beshaan', accountName: 'Beshaan (Facebook)', isConnected: false }
+        { platform: 'youtube', accountHandle: '@BeshaanVibe', accountName: 'Beshaan (YouTube)', isConnected: true },
+        { platform: 'instagram', accountHandle: '@beshaan_vibe', accountName: 'Beshaan (Instagram)', isConnected: true },
+        { platform: 'tiktok', accountHandle: '@beshaan', accountName: 'Beshaan (TikTok)', isConnected: true },
+        { platform: 'facebook', accountHandle: 'Beshaan Family', accountName: 'Beshaan (Facebook)', isConnected: true }
       ]
     });
   }

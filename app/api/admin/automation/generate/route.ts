@@ -437,6 +437,20 @@ For EVERY scene, generate "aiVideoPrompt" formatted as a 10-second production pr
                   durationSeconds: sc.durationSeconds || 10
                 });
 
+            const hookOptions = sc.hookOptions || [
+              `"${sc.voiceoverText?.split('.')[0] || sc.onScreenCaption} — pata hai kyun?"`,
+              `"${sc.onScreenCaption} — yeh dekh kar aap heran reh jayenge!"`,
+              `"Agar aap ne yeh nahi dekha toh aap bohot kuch miss kar rahe hain!"`
+            ];
+
+            const onScreenTexts = sc.onScreenTexts || [
+              sc.onScreenCaption || 'TRENDING UPDATE ⚡',
+              `Scene ${sceneNum}: ${sc.durationSeconds || 10}s`,
+              sc.voiceoverText?.slice(0, 40) || 'Dil Ki Baat',
+              'Agle scene me dekho kya hota hai!',
+              'Comment me apni raye zaroor batao!'
+            ];
+
             return {
               ...sc,
               sceneNumber: sceneNum,
@@ -444,7 +458,21 @@ For EVERY scene, generate "aiVideoPrompt" formatted as a 10-second production pr
               partTitle,
               durationSeconds: sc.durationSeconds || 10,
               dialogues,
-              aiVideoPrompt
+              aiVideoPrompt,
+              hookOptions,
+              onScreenTexts,
+              visualDirection: sc.visualDirection || `${sc.visualPrompt || 'Cinematic footage'}. Mobile vertical 9:16 format, high definition.`,
+              ctaLoop: sc.ctaLoop || 'End "Comment karo" se start ke opening visual par loop wapas aaye.',
+              title: sc.title || `${sc.onScreenCaption || 'Viral Story'} 🚀 #Shorts`,
+              description: sc.description || `${sc.voiceoverText || ''}\n\nFollow for more daily content!\n\n#Shorts #Reels #Viral`,
+              tags: sc.tags || ['viral shorts', 'roman urdu', 'pakistan news'],
+              hashtags: sc.hashtags || ['#Shorts', '#Reels', '#Pakistan', '#Viral'],
+              thumbnailConcept: sc.thumbnailConcept || {
+                headline: sc.onScreenCaption || 'MUST WATCH',
+                subtext: 'EXCLUSIVE',
+                colorTheme: '#ec4899'
+              },
+              safetyNote: 'Real match/drama footage mat use karein. Altered/Synthetic content flag lagayein.'
             };
           });
 
@@ -1045,12 +1073,49 @@ function finalizeAutomationResult(
       durationSeconds: sc.durationSeconds || 10
     });
 
+    const hookOptions = sc.hookOptions || [
+      `"${sc.voiceoverText?.split('.')[0] || sc.onScreenCaption} — pata hai kyun?"`,
+      `"${sc.onScreenCaption} — yeh video dekh kar aap heran reh jayenge!"`,
+      `"Agar aap ne yeh nahi dekha, toh aap bohot kuch miss kar rahe hain!"`
+    ];
+
+    const onScreenTexts = sc.onScreenTexts || [
+      sc.onScreenCaption || 'VIRAL MOMENT 🔥',
+      `Scene ${sc.sceneNumber}: ${sc.durationSeconds || 10}s 9:16`,
+      sc.voiceoverText?.slice(0, 45) || 'Important Update',
+      'Asar kya hoga? Dekhein!',
+      'Aapka kya khayal hai? Comment karo!'
+    ];
+
+    const visualDirection = sc.visualDirection || `${sc.visualPrompt || 'Cinematic footage'}. High-resolution visuals, mobile vertical 9:16 framing.`;
+    const ctaLoop = sc.ctaLoop || 'End "Comment mein batao" se start ke opening frame par loop wapas aaye.';
+    const title = sc.title || `${sc.onScreenCaption} | ${result.selectedTitle || 'Viral Short'} 🚀 #Shorts`;
+    const description = sc.description || `${result.selectedTitle}\n\n${sc.voiceoverText}\n\nFollow for more daily updates!\n\n#Shorts #Reels #Pakistan #Viral`;
+    const tags = sc.tags || result.tags || ['viral shorts', 'roman urdu', 'pakistan news', 'trending'];
+    const hashtags = sc.hashtags || result.hashtags || ['#Shorts', '#Reels', '#Pakistan', '#Viral'];
+    const thumbnailConcept = sc.thumbnailConcept || {
+      headline: sc.onScreenCaption || 'MUST WATCH',
+      subtext: result.channelName || 'EXCLUSIVE',
+      colorTheme: '#ea580c'
+    };
+    const safetyNote = sc.safetyNote || 'Real match/drama footage ya copyright songs mat use karein. Altered/Synthetic content flag lagayein.';
+
     return {
       ...sc,
       dialogues,
       aiVideoPrompt,
       partNumber: sc.partNumber || 1,
-      partTitle: sc.partTitle || 'Part 1'
+      partTitle: sc.partTitle || 'Part 1',
+      hookOptions,
+      onScreenTexts,
+      visualDirection,
+      ctaLoop,
+      title,
+      description,
+      tags,
+      hashtags,
+      thumbnailConcept,
+      safetyNote
     };
   });
 

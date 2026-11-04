@@ -61,6 +61,14 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     checkAuth()
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const tabParam = urlParams.get('tab')
+      const hash = window.location.hash.replace('#', '')
+      if (tabParam === 'automation' || hash === 'automation') {
+        setActiveTab('automation')
+      }
+    }
   }, [])
 
   const checkAuth = async () => {
@@ -400,10 +408,10 @@ const AdminDashboard = () => {
             variant={activeTab === 'automation' ? 'default' : 'outline'}
             onClick={() => setActiveTab('automation')}
             size="sm"
-            className={activeTab === 'automation' ? 'bg-gradient-to-r from-red-600 to-amber-600 text-white border-0 shadow-md shadow-red-500/20' : ''}
+            className={activeTab === 'automation' ? 'bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white font-bold border-0 shadow-lg shadow-red-500/30' : 'bg-red-950/40 border-red-500/50 text-red-200 hover:bg-red-900/50 font-bold'}
           >
             <Bot className="h-4 w-4 mr-2 text-red-400" />
-            AI Video Automation
+            AI Video Automation &amp; Channels 🎬
           </Button>
           <Button
             variant={activeTab === 'video-studio' ? 'default' : 'outline'}
@@ -724,6 +732,30 @@ const AdminDashboard = () => {
         {/* Settings Tab */}
         {activeTab === 'settings' && (
           <div className="space-y-6">
+            {/* Quick Link Banner to AI Video Automation & Pre-Connected Social Hub */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/80 via-slate-900 to-amber-950/60 border-2 border-red-500/50 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-600/20 text-red-400 flex items-center justify-center shrink-0">
+                  <Film className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>🎬 YouTube, Instagram &amp; AI Video Automation</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold">ALL CHANNELS PRE-CONNECTED ✅</span>
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Beshaan YouTube (@BeshaanVibe), Instagram Reels (@beshaan_vibe), TikTok &amp; Facebook Page are already connected. Click below to generate Bisma Shootable Shorts &amp; 10s AI prompts.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setActiveTab('automation')}
+                className="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs shrink-0 shadow-lg cursor-pointer"
+              >
+                Open AI Video Automation ➔
+              </Button>
+            </div>
+
             <div className="mb-6">
               <h2 className="text-xl font-semibold mb-1">Platform Feature & Tool Settings</h2>
               <p className="text-sm text-muted-foreground">
