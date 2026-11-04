@@ -533,6 +533,94 @@ export default function VideoEditorClient() {
                         ))}
                       </div>
                     )}
+
+                    {/* Bisma Shootable Script & Metadata Pack */}
+                    <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5 text-xs">
+                      {/* Hook Options */}
+                      {sc.hookOptions && sc.hookOptions.length > 0 && (
+                        <div>
+                          <span className="text-[11px] font-bold text-pink-400 block mb-1">
+                            🎯 Hook Options (Pehle 3 Sec - Pick 1):
+                          </span>
+                          <ul className="space-y-1 text-slate-300 pl-3 list-disc marker:text-pink-500">
+                            {sc.hookOptions.map((h: string, hIdx: number) => (
+                              <li key={hIdx} className="leading-snug">{h}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* On-Screen Text */}
+                      {sc.onScreenTexts && sc.onScreenTexts.length > 0 && (
+                        <div>
+                          <span className="text-[11px] font-bold text-cyan-400 block mb-1">
+                            📱 On-Screen Text (Mute par samajh aane ke liye):
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {sc.onScreenTexts.map((txt: string, tIdx: number) => (
+                              <span key={tIdx} className="px-2 py-0.5 rounded bg-slate-800 text-cyan-200 font-mono text-[11px]">
+                                {tIdx + 1}. {txt}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Visual Direction & CTA Loop */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] pt-1">
+                        <div>
+                          <strong className="text-amber-400 block mb-0.5">🎬 Visual Direction:</strong>
+                          <span className="text-slate-300">{sc.visualDirection || sc.visualPrompt}</span>
+                        </div>
+                        <div>
+                          <strong className="text-purple-400 block mb-0.5">🔄 CTA / Loop:</strong>
+                          <span className="text-slate-300">{sc.ctaLoop || 'End call-to-action seamlessly loops back to start.'}</span>
+                        </div>
+                      </div>
+
+                      {/* Metadata Pack: Title, Description, Hashtags, Thumbnail */}
+                      <div className="p-3 rounded-lg bg-black/60 border border-slate-800 space-y-2 pt-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                          <span className="text-[11px] font-bold text-emerald-400">
+                            🚀 Ready to Publish: Title, Description &amp; Hashtags
+                          </span>
+                          <button
+                            onClick={() => {
+                              const metaBundle = `Title: ${sc.title || sc.onScreenCaption}\n\nDescription:\n${sc.description || sc.voiceoverText}\n\nTags: ${(sc.tags || []).join(', ')}\n\nHashtags: ${(sc.hashtags || []).join(' ')}`;
+                              navigator.clipboard.writeText(metaBundle);
+                              toast.success(`Copied Title, Description & Hashtags for Scene #${sc.sceneNumber}!`);
+                            }}
+                            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer"
+                          >
+                            <Copy className="w-3 h-3" />
+                            <span>Copy Metadata</span>
+                          </button>
+                        </div>
+
+                        <div className="space-y-1.5 text-[11px]">
+                          <div>
+                            <span className="text-slate-400">Title: </span>
+                            <span className="text-white font-bold">{sc.title || `${sc.onScreenCaption} 🥹❤️ #Shorts`}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Description: </span>
+                            <span className="text-slate-300">{sc.description || sc.voiceoverText}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Hashtags: </span>
+                            <span className="text-pink-400 font-mono">{(sc.hashtags || ['#Shorts', '#Reels', '#Anime', '#Viral']).join(' ')}</span>
+                          </div>
+                          {sc.thumbnailConcept && (
+                            <div className="flex items-center gap-2 pt-1">
+                              <span className="text-slate-400">🖼️ Thumbnail Concept:</span>
+                              <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-200 font-bold text-[10px]">
+                                Headline: "{sc.thumbnailConcept.headline}" ({sc.thumbnailConcept.subtext})
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))}
             </div>

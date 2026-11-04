@@ -20,6 +20,22 @@ export interface SceneItem {
   aiVideoPrompt?: string;
   dialogues?: CharacterDialogue[];
   actionSummary?: string;
+
+  // Bisma Complete Content Plan Fields
+  hookOptions?: string[]; // 3 Hook Options (Pick 1)
+  onScreenTexts?: string[]; // Scene by scene mute reading text
+  visualDirection?: string; // B-roll / Visual direction for shooting
+  ctaLoop?: string; // CTA & Seamless loop instruction
+  title?: string; // Platform optimized title
+  description?: string; // Platform description
+  tags?: string[]; // SEO tags
+  hashtags?: string[]; // Platform hashtags (#Shorts, #Reels)
+  thumbnailConcept?: {
+    headline: string;
+    subtext: string;
+    colorTheme: string;
+  };
+  safetyNote?: string; // Copyright & AI safety notes
 }
 
 export interface StoryPart {
@@ -909,7 +925,7 @@ function buildRomanticAnimeSeries(
     }];
   }
 
-  // Flatten scenes and build production AI Video Prompts
+  // Flatten scenes and build production AI Video Prompts with full Bisma Content Plan
   const allScenes: SceneItem[] = [];
   selectedParts.forEach(part => {
     part.scenes.forEach(sc => {
@@ -922,11 +938,40 @@ function buildRomanticAnimeSeries(
         durationSeconds: 10
       });
 
+      // Bisma Complete Content Plan Structure
+      const hookOptions = [
+        `"Agar hum kabhi kisi waja sy dur ho gay, toh kya tum mujhe bhool toh nahi jao ge?" 🥹❤️`,
+        `"Yeh lavender ribbon sirf ek kapra nahi... hamara aakhri wada hai." 🎀✨`,
+        `"5 saal guzar gaye, lekin woh university ka floor aaj bhi waisa hi hai..." ⏳🌸`
+      ];
+
+      const onScreenTexts = [
+        sc.onScreenCaption || 'HAMARA WADA 🥹❤️',
+        `Scene ${sc.sceneNumber}: ${sc.durationSeconds || 10}s 9:16`,
+        sc.dialogues?.[0] ? `${sc.dialogues[0].character}: "${sc.dialogues[0].text}"` : 'Dil Ki Baat',
+        sc.dialogues?.[1] ? `${sc.dialogues[1].character}: "${sc.dialogues[1].text}"` : 'Wada Nibhana',
+        'Aapki kahani me aisi yaad hai? Comment karo!'
+      ];
+
       allScenes.push({
         ...sc,
         partNumber: part.partNumber,
         partTitle: part.partTitle,
-        aiVideoPrompt: formattedAiPrompt
+        aiVideoPrompt: formattedAiPrompt,
+        hookOptions,
+        onScreenTexts,
+        visualDirection: `${sc.visualPrompt}. Soft lighting, natural cinematic camera movement, 9:16 vertical mobile aspect ratio.`,
+        ctaLoop: 'End "Comment mein batao" se start ke first romantic eye contact shot par loop wapas aaye.',
+        title: `${part.partTitle} | Scene #${sc.sceneNumber} 🥹❤️ #Shorts`,
+        description: `🌸 ${part.partTitle} (Scene #${sc.sceneNumber})\n\n${sc.voiceoverText}\n\nAI Video Prompt included for Kling AI, Runway Gen-3 & Sora!\n\n#Shorts #Anime #LoveStory #Pakistan #KlingAI #Reels`,
+        tags: ['anime love story', 'kling ai prompt', 'runway gen 3', 'roman urdu', 'pakistan shorts', 'emotional story'],
+        hashtags: ['#Shorts', '#Anime', '#LoveStory', '#Pakistan', '#KlingAI', '#Viral'],
+        thumbnailConcept: {
+          headline: sc.onScreenCaption || 'AGAR HUM DUR HO GAYE?',
+          subtext: 'ANIME LOVE STORY',
+          colorTheme: '#ec4899'
+        },
+        safetyNote: 'Keep character consistency with reference image. Use synthetic media tag on YouTube.'
       });
     });
   });
