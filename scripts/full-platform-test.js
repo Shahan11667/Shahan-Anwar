@@ -88,7 +88,7 @@ function httpRequest(urlPath, method = 'GET', postData = null) {
         let json = null;
         try {
           json = JSON.parse(body);
-        } catch (_) {}
+        } catch (_) { }
         resolve({
           path: urlPath,
           status: res.statusCode,
@@ -164,7 +164,7 @@ async function runAllTests() {
 
   // SECTION 4: AI YouTube & Reels Video Automation APIs
   console.log('\n📌 4. VERIFYING AI VIDEO AUTOMATION PIPELINE');
-  
+
   // 4a. Script & Scene Generator
   const generatePayload = JSON.stringify({
     topic: '5 Mindset Shifts for Young Entrepreneurs',
