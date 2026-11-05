@@ -227,8 +227,22 @@ const pickAngles = (n: number, pool: string[] = ANGLES) => pickFrom(pool, n).joi
 const seriesKey = (q: { genre: string; idea: string; seriesParts: number; cast: string; setting: string }) => `${q.genre}|${q.idea.trim()}|${q.seriesParts}|${q.cast}|${q.setting}`;
 
 const GENRES = [BESHAAN, 'Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming', 'Romantic Anime Story (Bisma)', 'AI & Developer Engineering', 'High-Income Wealth & Micro-SaaS', 'Dark Psychology & Influence', 'High-Performance Stoicism', 'Space & Cosmic Physics', 'Curious Facts & Hidden History'];
-const NICHES = [BESHAAN, 'Romantic Anime Story (Bisma)', 'AI & Developer Engineering', 'High-Income Wealth & Micro-SaaS', 'Dark Psychology & Influence', 'High-Performance Stoicism', 'Space & Cosmic Physics', 'Curious Facts & Hidden History'];
-const NICHE_ICON: Record<string, string> = { [BESHAAN]: '🎀', 'Romantic Anime Story (Bisma)': '💖', 'AI & Developer Engineering': '🤖', 'High-Income Wealth & Micro-SaaS': '💰', 'Dark Psychology & Influence': '🧠', 'High-Performance Stoicism': '⚡', 'Space & Cosmic Physics': '🌌', 'Curious Facts & Hidden History': '🎙️' };
+type NicheOption = { id: string; icon: string; label: string; genre: string; focus?: string; desc: string };
+const NICHE_OPTIONS: NicheOption[] = [
+  { id: 'beshaan-life', icon: '💡', label: 'Beshaan Life Stories', genre: BESHAAN, focus: 'Life lessons', desc: 'Life-based stories with a lesson: everyday drama, pranks and challenges that people relate to. 2 girls + 1 boy.' },
+  { id: 'beshaan-fashion', icon: '👗', label: 'Beshaan Fashion', genre: BESHAAN, focus: 'Fashion', desc: 'Fashion-only stories with a lesson: outfits, shopping, style confidence, outfit challenges and pranks.' },
+  { id: 'beshaan-lifestyle', icon: '🏠', label: 'Beshaan Lifestyle', genre: BESHAAN, focus: 'Lifestyle', desc: 'Lifestyle-only stories with a lesson: home, routines, habits, money, food and family life.' },
+  { id: 'beshaan-gaming', icon: '🎮', label: 'Beshaan Gaming', genre: BESHAAN, focus: 'Gaming', desc: 'Gaming-only stories with a lesson: playing with friends, online games, studies vs games, family.' },
+  { id: 'romantic', icon: '💖', label: 'Romantic Anime Story (Bisma)', genre: 'Romantic Anime Story (Bisma)', desc: 'Cute, emotional anime love stories with heartfelt dialogue.' },
+  { id: 'ai-dev', icon: '🤖', label: 'AI & Developer Engineering', genre: 'AI & Developer Engineering', desc: 'AI tools, coding and developer tips explained simply.' },
+  { id: 'wealth', icon: '💰', label: 'High-Income Wealth & Micro-SaaS', genre: 'High-Income Wealth & Micro-SaaS', desc: 'Money, online income and small software business ideas.' },
+  { id: 'psychology', icon: '🧠', label: 'Dark Psychology & Influence', genre: 'Dark Psychology & Influence', desc: 'How people think and influence each other, with real-life examples.' },
+  { id: 'stoicism', icon: '⚡', label: 'High-Performance Stoicism', genre: 'High-Performance Stoicism', desc: 'Discipline, calm and mindset lessons for daily life.' },
+  { id: 'space', icon: '🌌', label: 'Space & Cosmic Physics', genre: 'Space & Cosmic Physics', desc: 'Amazing space and physics facts, explained visually.' },
+  { id: 'facts', icon: '🎙️', label: 'Curious Facts & Hidden History', genre: 'Curious Facts & Hidden History', desc: 'Surprising facts and untold history stories.' },
+];
+const nicheOf = (q: { genre: string; focus?: string }) =>
+  NICHE_OPTIONS.find((n) => n.genre === q.genre && (n.genre !== BESHAAN || n.focus === (q.focus || 'Life lessons')));
 const MOODS = ['Fun & energetic', 'Emotional', 'Funny', 'Suspenseful', 'Epic', 'Heartwarming', 'Dark', 'Cute & light'];
 const SETTINGS = ['Fashion studio / bedroom', 'Shopping mall', 'Home lifestyle vlog', 'Rooftop at sunset', 'College campus', 'Rainy city street', 'Village & fields', 'Futuristic city', 'Haunted house', 'Beach', 'Mountains', 'Cafe', 'Gaming room', 'Wedding'];
 const NOT_FOR_BESHAAN = ['Suspenseful', 'Epic', 'Dark', 'Futuristic city', 'Haunted house', 'Hero vs villain', '1 hero alone'];
@@ -1578,31 +1592,26 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
           <h3 className="text-base font-bold text-white">Describe your video</h3>
         </div>
         <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div>
+          <div className="md:col-span-2">
             <span className={label}>Niche Curriculum</span>
             <select
               className={input}
-              value={NICHES.includes(p.genre) ? p.genre : ''}
-              onChange={(e) => e.target.value && patch(e.target.value === BESHAAN ? { genre: e.target.value, cast: '2 girls + 1 boy', mood: 'Fun & energetic' } : { genre: e.target.value })}
+              value={nicheOf(p)?.id || ''}
+              onChange={(e) => {
+                const n = NICHE_OPTIONS.find((x) => x.id === e.target.value);
+                if (!n) return;
+                patch(n.genre === BESHAAN ? { genre: n.genre, focus: n.focus, cast: '2 girls + 1 boy', mood: 'Fun & energetic', series: null } : { genre: n.genre, series: null });
+              }}
             >
-              {!NICHES.includes(p.genre) && <option value="">Custom genre (below)</option>}
-              {NICHES.map((n) => (
-                <option key={n} value={n}>{NICHE_ICON[n]} {n}</option>
+              {!nicheOf(p) && <option value="">Custom genre (below)</option>}
+              {NICHE_OPTIONS.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.icon} {n.label}
+                </option>
               ))}
             </select>
+            {nicheOf(p) && <p className="mt-1 text-xs text-slate-400">{nicheOf(p)!.desc}</p>}
           </div>
-          {p.genre === BESHAAN && (
-            <div>
-              <span className={label}>Topic of this video (one only)</span>
-              <select className={input} value={p.focus || 'Life lessons'} onChange={(e) => patch({ focus: e.target.value, series: null })}>
-                {FOCUS.map((f) => (
-                  <option key={f} value={f}>
-                    {f === 'Life lessons' ? '💡 Life lessons (relatable stories)' : f === 'Fashion' ? '👗 Fashion' : f === 'Lifestyle' ? '🏠 Lifestyle' : '🎮 Gaming'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
           <div>
             <span className={label}>Dialogue / Voiceover</span>
             <select className={input} value={p.language} onChange={(e) => patch({ language: e.target.value as Project['language'] })}>
@@ -1617,7 +1626,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
           <div className="flex flex-wrap gap-1.5">
             {GENRES.map((g) => (
               <button key={g} onClick={() => patch(g === BESHAAN ? { genre: g, cast: '2 girls + 1 boy', mood: 'Fun & energetic' } : { genre: g })} className={`rounded-full px-3 py-1 text-xs font-semibold ${p.genre === g ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
-                {g}
+                {g === BESHAAN ? 'Beshaan' : g}
               </button>
             ))}
           </div>
