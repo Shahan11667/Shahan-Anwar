@@ -40,6 +40,21 @@ interface Seo {
   hashtags: string;
 }
 
+/** One beat of the story = one scene. `endsWith` is the last moment of that clip; the next scene starts from it. */
+interface Beat {
+  what: string;
+  who: string;
+  emotion: string;
+  endsWith: string;
+}
+
+/** The story plan every scene is written from, so the scenes connect (same place, same outfits, cause -> effect). */
+interface Blueprint {
+  setting: string;
+  props: string;
+  beats: Beat[];
+}
+
 interface Project {
   step: number;
   prompt: string;
@@ -66,6 +81,7 @@ interface Project {
   scenes: Scene[];
   thumb: Thumb;
   seo: Seo | null;
+  blueprint: Blueprint | null;
 }
 
 /* step numbers (the Characters step was removed: the AI writes the characters, each scene repeats their look) */
@@ -202,6 +218,7 @@ function newProject(): Project {
       position: 'bottom',
     },
     seo: null,
+    blueprint: null,
   };
 }
 
@@ -329,6 +346,7 @@ export default function YoutubeAutomationView() {
   const [busy, setBusy] = useState<string>('');
   const [progress, setProgress] = useState<number>(0);
   const [ideaList, setIdeaList] = useState<string[]>([]);
+  const [planMsg, setPlanMsg] = useState('');
   const [postError, setPostError] = useState('');
   const [postStage, setPostStage] = useState('');
   const [exported, setExported] = useState<{ url: string; ext: string; size: number; blob: Blob } | null>(null);
@@ -491,16 +509,25 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         mainPrompt = await buildPrompt();
         patch({ prompt: mainPrompt, promptEdited: false });
       }
-      const system =
-        'You are a senior AI video director. You turn ONE video idea into connected scenes for an AI video generator. Characters must keep the same fixed appearance in every scene. Reply with ONLY valid JSON, no markdown.';
-      const user = `${ctx(p)}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\n\nNumber of scenes: EXACTLY ${p.sceneCount} (the scenes array must contain exactly ${p.sceneCount} items)\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks (return them in the same order): ${charactersText(p.characters)}\n` : ''}\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
-      const data = extractJson<any>(await aiText(system, user));
-      const rawScenes: any[] = (data.scenes || []).slice(0, 30);
-      const scenes: Scene[] = rawScenes.map((s: any, i: number) => {
-        const f = flowPrompt(s, i, rawScenes.length, p.style, p.format === 'vertical');
-        return { id: uid(), prompt: f.prompt, dialogue: f.dialogue, duration: f.duration };
-      });
-      if (!scenes.length) throw new Error('No scenes returned. Try again.');
+      const N = p.sceneCount;
+      const vertical = p.format === 'vertical';
+
+      // STAGE 1: the story blueprint (arc, one place, fixed outfits, what each clip ends with)
+      setPlanMsg('Writing the story…');
+      const bpSystem =
+        'You are the head writer of short story videos. You write tight, believable stories where every scene is caused by the one before it. Reply with ONLY valid JSON, no markdown.';
+      const bpUser = `${ctx(p)}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\nLength: exactly ${N} scenes of about 8 seconds each. Every scene is a separate clip made by an AI video tool.\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks: ${charactersText(p.characters)}\n` : ''}\nWrite the STORY BLUEPRINT first. Rules:\n- ONE story with a clear arc over exactly ${N} beats: beat 1 is the hook (something interesting happens in the first seconds), then the everyday situation, the mistake or conflict, it gets worse, the turning point, the resolution, and the LAST beat shows the lesson, said by a character in short, natural everyday words (never a speech, never the lesson sentence word for word).\n- Every beat is caused by the one before it ("because of that...", "so..."). No random jumps, no new unrelated characters or events.
+- KEEP IT SIMPLE: ONE problem, and only the main characters on screen (no side characters, nobody off-screen: other people can only be a phone call or a message). A viewer must be able to retell the story in one sentence.\n- ONE single room or place for the WHOLE video, no second location. Describe its layout and furniture once in "setting" and never add, move or rename furniture later. EVERY beat happens inside that same place (characters may talk about other places, but we never go there). Same time of day. The SAME outfit for every character in every scene.\n- "endsWith" is the exact last moment of that clip (positions, expressions, the last spoken line). The next beat starts from exactly that moment.\n\nReturn JSON: {"title":"video title","story":"3-4 sentence story","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed look: age, face, hair, the outfit worn in this whole video, art style"}],"setting":"the ONE location in detail: layout, furniture, colors, objects, lighting, time of day","props":"the important objects and where they are","beats":[{"what":"what happens (2 sentences)","who":"characters on screen","emotion":"main emotion","endsWith":"the last moment of the clip"}]}\nUse at most 3 characters and exactly ${N} beats.`;
+      let data: any = null;
+      let bpErr = '';
+      for (let attempt = 0; attempt < 2 && !(Array.isArray(data?.beats) && data.beats.length === N); attempt++) {
+        try {
+          data = extractJson<any>(await aiText(bpSystem, attempt ? `${bpUser}\nIMPORTANT: the beats array must have EXACTLY ${N} items.` : bpUser));
+        } catch (e: any) {
+          bpErr = e?.message || '';
+        }
+      }
+      if (!Array.isArray(data?.beats) || data.beats.length !== N) throw new Error(`The story came back incomplete. Try again. ${bpErr}`);
       const chars = [0, 1, 2].map((i) => {
         const old = p.characters[i];
         const ai = (data.characters || [])[i];
@@ -509,6 +536,36 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
           description: old.description || String(ai?.description || ''),
         };
       });
+      const beats: Beat[] = data.beats.map((b: any) => ({ what: String(b.what || ''), who: String(b.who || ''), emotion: String(b.emotion || ''), endsWith: String(b.endsWith || '') }));
+      const outline = beats.map((b, i) => `${i + 1}. ${b.what}`).join('\n');
+
+      // STAGE 2: one scene at a time, each one starting exactly where the previous one ended
+      const sceneSystem =
+        'You are a senior AI video director. You write ONE scene prompt for one clip. It continues the previous clip with no jump: same place, same outfits, same time of day. Reply with ONLY valid JSON, no markdown.';
+      const scenes: Scene[] = [];
+      let prevEnd = '';
+      let prevLine = '';
+      for (let i = 0; i < N; i++) {
+        setPlanMsg(`Writing scene ${i + 1} of ${N}…`);
+        const b = beats[i];
+        const next = beats[i + 1];
+        const sceneUser = `${ctx(p)}STORY: ${data.title}: ${data.story}\nLESSON: ${data.lesson}\nCHARACTERS (same face and the same outfit in EVERY scene):\n${charactersText(chars)}\nSETTING (describe it again inside this scene): ${data.setting}\nPROPS: ${data.props}\nFULL OUTLINE:\n${outline}\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n\nNOW WRITE SCENE ${i + 1} of ${N}.\nWhat happens: ${b.what}\nOn screen: ${b.who}. Emotion: ${b.emotion}.\n${i === 0 ? 'This is the opening: something catches the viewer in the first 3 seconds.' : `The previous scene ended with: ${prevEnd}${prevLine ? ` (last line spoken: "${prevLine}")` : ''}. Start from exactly that moment: same place, same outfits, same time of day, same positions. Your first sentence describes the same frame the previous scene ended on, then the action continues. The first spoken line must react to that last line.`}\n${next ? `End this scene with: ${b.endsWith}, so that scene ${i + 2} (${next.what}) can start right away.` : `This is the FINAL scene: resolve the story and let a character say the lesson in short, natural everyday words (idea: ${data.lesson}), not word for word and not as a speech.`}\n\nReturn {${scenePromptSchema}}`;
+        let raw: any = null;
+        let lastErr = '';
+        for (let attempt = 0; attempt < 2 && !raw; attempt++) {
+          try {
+            raw = extractJson<any>(await aiText(sceneSystem, sceneUser));
+          } catch (e: any) {
+            lastErr = e?.message || '';
+          }
+        }
+        if (!raw) throw new Error(`Scene ${i + 1} could not be written. ${lastErr}`);
+        const f = flowPrompt(raw, i, N, p.style, vertical);
+        scenes.push({ id: uid(), prompt: f.prompt, dialogue: f.dialogue, duration: f.duration });
+        prevEnd = String(raw.ending || b.endsWith || '');
+        const spoken = (Array.isArray(raw.dialogue) ? raw.dialogue : []).filter((d: any) => d && String(d.line || '').trim());
+        prevLine = spoken.length ? String(spoken[spoken.length - 1].line).trim() : '';
+      }
       setP((o) => ({
         ...o,
         title: String(data.title || o.title),
@@ -516,6 +573,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         lesson: String(data.lesson || ''),
         characters: chars,
         scenes,
+        blueprint: { setting: String(data.setting || ''), props: String(data.props || ''), beats },
         seo: null,
         thumb: { ...o.thumb, bg: '', headline: '', badge: '' },
         partIdx: part >= 0 ? part : 0,
@@ -529,6 +587,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       return false;
     } finally {
       setBusy('');
+      setPlanMsg('');
     }
   };
 
@@ -540,7 +599,11 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       const sc = p.scenes[idx];
       const system =
         'You are a senior AI video director. Rewrite ONE scene so it stays connected to the story. Reply with ONLY valid JSON, no markdown.';
-      const user = `STORY: ${p.story || p.prompt}\nMAIN IDEA: ${p.prompt}\nCHARACTERS:\n${charactersText(p.characters)}\nStyle: ${p.style}\nLanguage: ${LANG_LABEL[p.language]}\nPrevious scene: ${p.scenes[idx - 1]?.prompt.slice(0, 400) || '(none, this is the opening)'}\nNext scene: ${p.scenes[idx + 1]?.prompt.slice(0, 400) || '(none, this is the ending)'}\nCurrent scene ${idx + 1} of ${p.scenes.length}: ${sc.prompt}\n\nWrite a fresh, better version. Return {${scenePromptSchema}}`;
+      const bp = p.blueprint && p.blueprint.beats.length === p.scenes.length ? p.blueprint : null;
+      const beat = bp?.beats[idx];
+      const prevTail = p.scenes[idx - 1]?.prompt.slice(-700);
+      const nextHead = p.scenes[idx + 1]?.prompt.slice(0, 600);
+      const user = `${ctx(p)}STORY: ${p.story || p.prompt}\nLESSON: ${p.lesson || '(none)'}\nCHARACTERS (same face and the same outfit in every scene):\n${charactersText(p.characters)}\n${bp ? `SETTING (describe it again inside this scene): ${bp.setting}\nPROPS: ${bp.props}\nOUTLINE:\n${bp.beats.map((b, i) => `${i + 1}. ${b.what}`).join('\n')}\n` : ''}Style: ${p.style}\nLanguage: ${LANG_LABEL[p.language]}\n${prevTail ? `The PREVIOUS scene ended like this (start from exactly this moment: same place, same outfits, the first line reacts to its last line): ...${prevTail}\n` : 'This is the opening scene: hook the viewer in the first 3 seconds.\n'}${nextHead ? `The NEXT scene starts like this (this scene must lead straight into it): ${nextHead}\n` : 'This is the final scene: resolve the story and say the lesson naturally.\n'}${beat ? `What must happen in this scene: ${beat.what}\n` : ''}Current scene ${idx + 1} of ${p.scenes.length}: ${sc.prompt}\n\nWrite a fresh, better version that fits exactly between the previous and the next scene. Return {${scenePromptSchema}}`;
       const data = extractJson<any>(await aiText(system, user));
       const f = flowPrompt(data, idx, p.scenes.length, p.style, p.format === 'vertical');
       patchScene(id, {
@@ -1087,6 +1150,18 @@ Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"ma
         </div>
       </div>
 
+      {p.blueprint && p.blueprint.beats.length > 0 && (
+        <details className={card}>
+          <summary className="cursor-pointer text-sm font-bold text-white">Story outline ({p.blueprint.beats.length} beats): check that it makes sense</summary>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-300">
+            {p.blueprint.beats.map((b, i) => (
+              <li key={i}>{b.what}</li>
+            ))}
+          </ol>
+          <p className="mt-2 text-xs text-slate-500">Place: {p.blueprint.setting}</p>
+        </details>
+      )}
+
       {p.scenes.map((s, i) => (
         <div key={s.id} className={card}>
           <div className="space-y-2">
@@ -1551,6 +1626,11 @@ Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"ma
         ))}
       </div>
 
+      {planMsg && (
+        <div className="flex items-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-sm text-indigo-200">
+          <Loader2 className="h-4 w-4 animate-spin" /> {planMsg}
+        </div>
+      )}
       {stepViews[p.step]}
     </div>
   );

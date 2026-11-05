@@ -57,7 +57,7 @@ export const ANGLES = [
 
 /** Every story: relatable, realistic, one clear lesson (applies to all niches). */
 export const STORY_RULES =
-  'STORY RULES: Tell ONE relatable story that real viewers (teens to adults, 13+) can see themselves in: something that really happens in everyday life. Structure: a hook in the first 3 seconds, a real everyday problem, a mistake or conflict, a turning point, and a clear LESSON at the end, said naturally by a character (not preachy). Even a challenge or prank must have this lesson. No content made for small children, no cartoonish nonsense.';
+  'STORY RULES: Tell ONE relatable story that real viewers (teens to adults, 13+) can see themselves in: something that really happens in everyday life. Structure: a hook in the first 3 seconds, a real everyday problem, a mistake or conflict, a turning point, and a clear LESSON at the end, said naturally by a character (not preachy). Even a challenge or prank must have this lesson. No crime or anything illegal (theft, violence, drugs): the mistake is an ordinary everyday one like lying, showing off, ignoring someone or breaking a promise. No content made for small children, no cartoonish nonsense.';
 
 export const beshaanRules = (focus: string) =>
   `TOPIC FOR THIS VIDEO: ${focus} (${FOCUS_HINT[focus] || focus}). Stay on this ONE topic only: do NOT mix fashion, lifestyle and gaming in the same video. Realistic everyday Pakistani settings (home, college, family, friends, market, office, social media). NO horror, ghosts, fantasy, superpowers, fights, villains, explosions or action-movie scenes.`;

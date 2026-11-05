@@ -59,9 +59,17 @@ Dialogue/narration/captions language: ${language}.
 
 The scenes will be pasted one by one into Google Flow / Veo (an AI video generator), each in a separate generation. So EVERY scene prompt must be fully SELF-CONTAINED: repeat each character's fixed look (age, face, hair, outfit, colors), the location, the action, facial expressions, camera movement, lighting, sound/music mood, and the exact spoken dialogue with who says it. Each scene is 8 seconds. Visual style: vibrant cinematic, consistent across scenes. No text overlays inside the video.
 
+CONNECTED STORY (very important): write the "beats" BEFORE the scenes and follow them exactly.
+- ONE story arc over exactly ${sceneCount} beats: beat 1 is the hook, then the everyday situation, the mistake or conflict, it gets worse, the turning point, the resolution, and the last beat shows the lesson said naturally by a character.
+- Every beat is caused by the one before it. No random jumps, no new unrelated characters or events.
+- ONE main location for the whole video, the same time of day, and the SAME outfit for every character in every scene.
+- Scene N starts exactly where scene N-1 ended (same place, same outfits, same positions) and its first spoken line reacts to the last line of the previous scene.
+
 Return ONLY JSON:
 {"title":"catchy title","idea":"one-line concept","story":"2-3 sentence summary ending with: Lesson: <the lesson>",
-"characters":[{"name":"","description":"fixed appearance"}],
+"characters":[{"name":"","description":"fixed appearance including the outfit worn in the whole video"}],
+"continuity":{"setting":"the main location in detail, time of day","props":"important objects"},
+"beats":[{"what":"what happens","endsWith":"the exact last moment of that clip (positions, expressions, last spoken line)"}] (exactly ${sceneCount}),
 "scenes":[{"prompt":"full self-contained video prompt","narration":"spoken dialogue lines","caption":"short subtitle <=12 words","duration":8}] (exactly ${sceneCount}),
 "thumbnail":{"headline":"max 4 words ALL CAPS","badge":"max 3 words","imagePrompt":"detailed prompt for an eye-catching thumbnail image, no text in the image"},
 "seo":{"title":"<=100 chars, keyword first, include #Shorts","description":"hook + 2-3 lines + a question + CTA","hashtags":"8-12 hashtags separated by spaces"}}
