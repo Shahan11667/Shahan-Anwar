@@ -1,13 +1,6 @@
 import { generateText } from '@/lib/llm';
 import DailyPack, { IDailyPack } from '@/models/DailyPack';
-
-export const BESHAAN_CONTEXT =
-  'CHANNEL: BESHAAN. Three young Pakistani creators (two girls, one boy) act out short, real-life stories. Tone: warm, natural, funny where it fits, family-safe. The three recurring characters always look the same.';
-
-const STORY_RULES =
-  'STORY RULES: Tell ONE relatable story that real viewers (teens to adults, 13+) can see themselves in: something that really happens in everyday life. Structure: a hook in the first 3 seconds, a real everyday problem, a mistake or conflict, a turning point, and a clear LESSON at the end, said naturally by a character (not preachy). No content made for small children.';
-const focusRules = (focus: string) =>
-  `TOPIC FOR THIS VIDEO: ${focus}. Stay on this ONE topic only: do NOT mix fashion, lifestyle and gaming in the same video. Realistic everyday Pakistani settings. NO horror, ghosts, fantasy, superpowers, fights, villains or action-movie scenes.`;
+import { ANGLES, BESHAAN, FOCUS, FOCUS_THEMES, LANG_LABEL, isBeshaan, storyContext } from '@/lib/beshaan';
 
 export function todayKey(): string {
   // Pakistan time (UTC+5) so "today" matches the creator's day
@@ -19,25 +12,49 @@ function parseJson(text: string): any {
   return JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1));
 }
 
-const LANG: Record<string, string> = {
-  roman_urdu: 'Roman Urdu (Urdu written in English letters)',
-  english: 'English',
-  urdu: 'Urdu (Arabic script)',
-};
+type Recent = { title?: string; idea?: string; focus?: string; theme?: string };
+
+/**
+ * Picks the topic and theme for a new pack so days do not repeat:
+ * - topic: the one used least in the last 8 packs (DAILY_PACK_FOCUS overrides it),
+ * - theme: one that was not used in the last packs (the list is long enough to never run out quickly).
+ */
+function chooseTopicAndTheme(recent: Recent[], genre: string): { focus: string; theme: string } {
+  if (!isBeshaan(genre)) {
+    const fresh = ANGLES.filter((t) => !recent.slice(0, ANGLES.length - 4).some((r) => r.theme === t));
+    const pool = fresh.length ? fresh : ANGLES;
+    return { focus: genre, theme: pool[Math.floor(Math.random() * pool.length)] };
+  }
+  const env = process.env.DAILY_PACK_FOCUS || '';
+  const used = (f: string) => recent.slice(0, 8).filter((r) => r.focus === f).length;
+  const focus = (FOCUS as readonly string[]).includes(env) ? env : [...FOCUS].sort((a, b) => used(a) - used(b))[0];
+  const pool = FOCUS_THEMES[focus];
+  const usedThemes = new Set(recent.slice(0, Math.max(0, pool.length - 4)).map((r) => r.theme));
+  const fresh = pool.filter((t) => !usedThemes.has(t));
+  const options = fresh.length ? fresh : pool;
+  return { focus, theme: options[Math.floor(Math.random() * options.length)] };
+}
 
 export async function generatePack(opts: { source: 'cron' | 'manual'; hint?: string }): Promise<IDailyPack> {
   const sceneCount = Math.min(12, Math.max(3, Number(process.env.DAILY_PACK_SCENES) || 7));
-  const language = LANG[process.env.DAILY_PACK_LANGUAGE || 'roman_urdu'] || LANG.roman_urdu;
-  const genre = process.env.DAILY_PACK_GENRE || 'Beshaan (Fashion, Lifestyle, Gaming)';
-  const focus = process.env.DAILY_PACK_FOCUS || 'Life lessons';
-  const context = (genre.toLowerCase().startsWith('beshaan') ? `${BESHAAN_CONTEXT} ${focusRules(focus)}` : `CHANNEL GENRE: ${genre}.`) + ' ' + STORY_RULES;
+  const langKey = (process.env.DAILY_PACK_LANGUAGE || 'roman_urdu') as keyof typeof LANG_LABEL;
+  const language = LANG_LABEL[langKey] || LANG_LABEL.roman_urdu;
+  const genre = process.env.DAILY_PACK_GENRE || BESHAAN;
 
-  const recent = await DailyPack.find({}).sort({ createdAt: -1 }).limit(20).select('title').lean();
-  const avoid = recent.map((r: any) => r.title).filter(Boolean).join(' | ');
+  const recent = (await DailyPack.find({}).sort({ createdAt: -1 }).limit(60).select('title idea focus theme').lean()) as Recent[];
+  const { focus, theme } = chooseTopicAndTheme(recent, genre);
+  // The full ideas of the last 40 packs, so the AI does not write the same situation or lesson again
+  const avoid = recent
+    .slice(0, 40)
+    .map((r) => (r.idea || r.title || '').slice(0, 160))
+    .filter(Boolean)
+    .join(' | ')
+    .slice(0, 4000);
 
-  const prompt = `${context}
+  const prompt = `${storyContext(genre, focus)}
 Create ONE complete, ready-to-produce short video package for today (vertical 9:16, about ${sceneCount * 8} seconds).
-${opts.hint ? `Creator's hint: ${opts.hint}\n` : ''}Do NOT repeat these earlier videos: ${avoid || '(none yet)'}.
+TODAY'S THEME (the heart of the story, use it): ${theme}.
+${opts.hint ? `Creator's hint: ${opts.hint}\n` : ''}Do NOT repeat or closely copy these earlier videos (same situation, same twist or same lesson): ${avoid || '(none yet)'}.
 Dialogue/narration/captions language: ${language}.
 
 The scenes will be pasted one by one into Google Flow / Veo (an AI video generator), each in a separate generation. So EVERY scene prompt must be fully SELF-CONTAINED: repeat each character's fixed look (age, face, hair, outfit, colors), the location, the action, facial expressions, camera movement, lighting, sound/music mood, and the exact spoken dialogue with who says it. Each scene is 8 seconds. Visual style: vibrant cinematic, consistent across scenes. No text overlays inside the video.
@@ -47,11 +64,8 @@ Return ONLY JSON:
 "characters":[{"name":"","description":"fixed appearance"}],
 "scenes":[{"prompt":"full self-contained video prompt","narration":"spoken dialogue lines","caption":"short subtitle <=12 words","duration":8}] (exactly ${sceneCount}),
 "thumbnail":{"headline":"max 4 words ALL CAPS","badge":"max 3 words","imagePrompt":"detailed prompt for an eye-catching thumbnail image, no text in the image"},
-"youtube":{"title":"<=100 chars incl #Shorts","description":"hook + 2-3 lines + CTA","hashtags":"#a #b (5-8)","tags":"comma separated 10-15 keywords"},
-"tiktok":{"title":"<=150 chars","description":"caption","hashtags":"4-6 hashtags","tags":""},
-"instagram":{"title":"hook line","description":"caption with emojis and CTA","hashtags":"8-12 hashtags","tags":""},
-"facebook":{"title":"title","description":"conversational caption with a question","hashtags":"3-5 hashtags","tags":""}}
-Use at most 3 characters. Use #Beshaan #BeshaanVibe in hashtags when the channel is Beshaan.`;
+"seo":{"title":"<=100 chars, keyword first, include #Shorts","description":"hook + 2-3 lines + a question + CTA","hashtags":"8-12 hashtags separated by spaces"}}
+Use at most 3 characters.${isBeshaan(genre) ? ' Use #Beshaan #BeshaanVibe in the hashtags.' : ''}`;
 
   let data: any = null;
   let lastErr = '';
@@ -65,16 +79,11 @@ Use at most 3 characters. Use #Beshaan #BeshaanVibe in hashtags when the channel
   }
   if (!data?.scenes?.length) throw new Error(`AI did not return a pack. ${lastErr}`);
 
-  const seoOf = (k: string) => ({
-    title: String(data[k]?.title || data.title || ''),
-    description: String(data[k]?.description || ''),
-    hashtags: Array.isArray(data[k]?.hashtags) ? data[k].hashtags.join(' ') : String(data[k]?.hashtags || ''),
-    tags: Array.isArray(data[k]?.tags) ? data[k].tags.join(', ') : String(data[k]?.tags || ''),
-  });
-
   const pack: IDailyPack = {
     dateKey: todayKey(),
     genre,
+    focus,
+    theme,
     title: String(data.title || 'Untitled'),
     idea: String(data.idea || ''),
     story: String(data.story || ''),
@@ -90,7 +99,12 @@ Use at most 3 characters. Use #Beshaan #BeshaanVibe in hashtags when the channel
       badge: String(data.thumbnail?.badge || '').toUpperCase(),
       imagePrompt: String(data.thumbnail?.imagePrompt || ''),
     },
-    seo: { youtube: seoOf('youtube'), tiktok: seoOf('tiktok'), instagram: seoOf('instagram'), facebook: seoOf('facebook') },
+    // one title / description / hashtags for every platform (each platform cuts it to its own length when posting)
+    seo: {
+      title: String(data.seo?.title || data.title || ''),
+      description: String(data.seo?.description || ''),
+      hashtags: Array.isArray(data.seo?.hashtags) ? data.seo.hashtags.join(' ') : String(data.seo?.hashtags || ''),
+    },
     status: 'new',
     source: opts.source,
   };

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Copy, Loader2, RefreshCw, Trash2, Check, Wand2, Calendar, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { importPackToStudio } from '@/components/admin/youtube-automation-view';
+import { importPackToStudio, packSeo } from '@/components/admin/youtube-automation-view';
 
 interface Pack {
   _id: string;
@@ -15,18 +15,13 @@ interface Pack {
   characters: { name: string; description: string }[];
   scenes: { prompt: string; narration: string; caption: string; duration: number }[];
   thumbnail: { headline: string; badge: string; imagePrompt: string };
-  seo: Record<'youtube' | 'tiktok' | 'instagram' | 'facebook', { title: string; description: string; hashtags: string; tags: string }>;
+  focus?: string;
+  theme?: string;
+  seo: { title: string; description: string; hashtags: string } | Record<string, { title: string; description: string; hashtags: string }>;
   status: 'new' | 'used';
   source: 'cron' | 'manual';
   createdAt: string;
 }
-
-const PLATFORMS: { id: 'youtube' | 'tiktok' | 'instagram' | 'facebook'; label: string }[] = [
-  { id: 'youtube', label: 'YouTube Shorts' },
-  { id: 'tiktok', label: 'TikTok' },
-  { id: 'instagram', label: 'Instagram Reels' },
-  { id: 'facebook', label: 'Facebook Reels' },
-];
 
 const card = 'rounded-2xl border border-slate-700/60 bg-slate-900/70 p-4';
 const btn = 'inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50';
@@ -49,7 +44,6 @@ export default function DailyPackView({ onOpenStudio }: { onOpenStudio: () => vo
   const [making, setMaking] = useState(false);
   const [hint, setHint] = useState('');
   const [open, setOpen] = useState<string>('');
-  const [plat, setPlat] = useState<'youtube' | 'tiktok' | 'instagram' | 'facebook'>('youtube');
 
   const api = useCallback(
     async (method: string, body?: unknown, query = '') => {
@@ -151,7 +145,7 @@ export default function DailyPackView({ onOpenStudio }: { onOpenStudio: () => vo
             <Calendar className="h-5 w-5 text-indigo-400" /> Daily Content Pack
           </h2>
           <p className="text-sm text-slate-400">
-            A new video package is prepared for you automatically every day: story, scene prompts to paste into Google Flow, thumbnail and SEO for every platform.
+            A new video package is prepared for you automatically every day: story, scene prompts to paste into Google Flow, thumbnail, and one title, description and tags for all platforms.
           </p>
         </div>
       </div>
@@ -171,7 +165,7 @@ export default function DailyPackView({ onOpenStudio }: { onOpenStudio: () => vo
 
       {packs.map((p) => {
         const isOpen = open === p._id;
-        const seo = p.seo?.[plat];
+        const seo = packSeo(p.seo);
         return (
           <div key={p._id} className={card}>
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -247,13 +241,6 @@ export default function DailyPackView({ onOpenStudio }: { onOpenStudio: () => vo
 
                 <div>
                   <h4 className="mb-2 text-sm font-bold text-white">3. Title, description & tags</h4>
-                  <div className="mb-2 flex flex-wrap gap-1.5">
-                    {PLATFORMS.map((pl) => (
-                      <button key={pl.id} onClick={() => setPlat(pl.id)} className={`rounded-full px-3 py-1 text-xs font-semibold ${plat === pl.id ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
-                        {pl.label}
-                      </button>
-                    ))}
-                  </div>
                   {seo && (
                     <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm">
                       {(
@@ -261,7 +248,6 @@ export default function DailyPackView({ onOpenStudio }: { onOpenStudio: () => vo
                           ['Title', seo.title],
                           ['Description', seo.description],
                           ['Hashtags', seo.hashtags],
-                          ...(seo.tags ? [['Tags', seo.tags]] : []),
                         ] as [string, string][]
                       ).map(([name, val]) => (
                         <div key={name}>
@@ -274,8 +260,9 @@ export default function DailyPackView({ onOpenStudio }: { onOpenStudio: () => vo
                           <p className="whitespace-pre-wrap text-slate-200">{val}</p>
                         </div>
                       ))}
+                      <p className="text-xs text-slate-500">The same text goes to every platform. In the studio each platform gets it cut to its own length.</p>
                       <button className={btnPrimary} onClick={() => copy(`${seo.title}${NL}${NL}${seo.description}${NL}${NL}${seo.hashtags}`, 'Full post')}>
-                        <Copy className="h-3 w-3" /> Copy everything for this platform
+                        <Copy className="h-3 w-3" /> Copy everything
                       </button>
                     </div>
                   )}

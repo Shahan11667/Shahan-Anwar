@@ -1,53 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  Sparkles,
-  Play,
-  Pause,
-  Download,
-  Copy,
-  Plus,
-  Trash2,
-  Loader2,
-  RefreshCw,
-  ImageIcon,
-  Check,
-  Upload,
-  Search,
-  ArrowUp,
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  ExternalLink,
-  Volume2,
-  RotateCcw,
-} from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Sparkles, Copy, Plus, Trash2, Check, Upload, Search, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ExternalLink, RotateCcw, Download, ImageIcon, Loader2, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import JoinClips from '@/components/admin/join-clips';
-import {
-  extractJson,
-  fileToDataUrl,
-  toJpegDataUrl,
-  generateImage,
-  imageDefaults,
-  generateSpeech,
-  aiText,
-  decodeAudio,
-  downloadBlob,
-} from '@/lib/video-studio-ai';
-import {
-  RenderScene,
-  RenderSettings,
-  Transition,
-  VideoFilter,
-  Corner,
-  drawFrame,
-  scheduleAudio,
-  exportVideo,
-  totalDuration,
-  loadImage,
-} from '@/lib/video-render';
+import { extractJson, fileToDataUrl, toJpegDataUrl, aiText, downloadBlob } from '@/lib/video-studio-ai';
+import { loadImage } from '@/lib/video-render';
+import { BESHAAN, ANGLES, FOCUS_THEMES, LANG_LABEL, isBeshaan, storyContext } from '@/lib/beshaan';
 
 /* ------------------------------------------------------------------ types */
 
@@ -55,34 +14,14 @@ type Platform = 'youtube' | 'tiktok' | 'instagram' | 'facebook';
 
 interface Scene {
   id: string;
-  prompt: string;
-  narration: string;
-  caption: string;
+  prompt: string; // the full Google Flow prompt (copy-paste)
+  dialogue: string; // spoken lines, used for the SEO text
   duration: number;
-  image?: string; // data URL
-  extraRef?: string; // optional scene-specific reference image
-  voice?: Blob;
 }
 
 interface Character {
   name: string;
   description: string;
-  image?: string;
-}
-
-interface EditSettings {
-  transition: Transition;
-  motion: boolean;
-  filter: VideoFilter;
-  capShow: boolean;
-  capPos: 'top' | 'middle' | 'bottom';
-  capSize: number;
-  capColor: string;
-  logoPos: Corner;
-  logoSize: number;
-  logoOpacity: number;
-  voiceVol: number;
-  musicVol: number;
 }
 
 interface Thumb {
@@ -94,12 +33,17 @@ interface Thumb {
   position: 'top' | 'center' | 'bottom';
 }
 
-type Seo = Record<Platform, { title: string; description: string; hashtags: string }>;
+/** One title, description and hashtags for every platform. */
+interface Seo {
+  title: string;
+  description: string;
+  hashtags: string;
+}
 
 interface Project {
   step: number;
-  model: string;
   prompt: string;
+  promptEdited: boolean;
   genre: string;
   focus: string;
   lesson: string;
@@ -108,28 +52,31 @@ interface Project {
   cast: string;
   idea: string;
   sceneCount: number;
-  promptEdited: boolean;
   seriesParts: 1 | 5 | 10;
   series: { key: string; title: string; summary: string; parts: { title: string; summary: string }[] } | null;
   partIdx: number;
   ideaHistory: string[];
+  usedThemes: string[];
   style: string;
   format: 'vertical' | 'horizontal';
   language: 'roman_urdu' | 'english' | 'urdu';
-  voiceLang: string;
   title: string;
   story: string;
   characters: Character[];
   scenes: Scene[];
-  edit: EditSettings;
-  music?: { name: string; blob: Blob };
-  logo?: string;
   thumb: Thumb;
   seo: Seo | null;
 }
 
+/* step numbers (the Characters step was removed: the AI writes the characters, each scene repeats their look) */
+const STEP_WRITE = 0;
+const STEP_SCENES = 1;
+const STEP_JOIN = 2;
+const STEP_POST = 3;
+const STEPS = ['Write Prompt', 'Scene Prompts', 'Join Videos', 'Post'];
+
 /** Turns the AI's scene fields into one complete, copy-paste prompt for Google Flow / Veo (one clip per scene). */
-function flowPrompt(s: any, i: number, total: number, style: string, vertical: boolean): { prompt: string; narration: string; duration: number } {
+function flowPrompt(s: any, i: number, total: number, style: string, vertical: boolean): { prompt: string; dialogue: string; duration: number } {
   const nl = String.fromCharCode(10);
   const duration = Math.min(10, Math.max(4, Number(s?.duration) || 8));
   const lines: any[] = (Array.isArray(s?.dialogue) ? s.dialogue : []).filter((d: any) => d && String(d.line || '').trim()).slice(0, 4);
@@ -154,12 +101,9 @@ function flowPrompt(s: any, i: number, total: number, style: string, vertical: b
   ]
     .filter(Boolean)
     .join(nl + nl);
-  const narration = lines.map((d) => `${clean(d.speaker) || 'Narrator'}: ${clean(d.line)}`).join(' ') || String(s?.narration || s?.caption || '');
-  return { prompt, narration, duration };
+  const dialogue = lines.map((d) => `${clean(d.speaker) || 'Narrator'}: ${clean(d.line)}`).join(' ');
+  return { prompt, dialogue, duration };
 }
-
-const STEPS = ['Write Prompt', 'Characters', 'Scene Prompts', 'Join Videos', 'Title & Tags', 'Post'];
-const HIDDEN_STEPS = [1];
 
 const STYLES = [
   'cinematic anime style',
@@ -170,63 +114,6 @@ const STYLES = [
   'dark moody cinematic',
 ];
 
-const BESHAAN = 'Beshaan (Fashion • Lifestyle • Gaming)';
-const BESHAAN_CONTEXT =
-  'CHANNEL: BESHAAN. Three young Pakistani creators (two girls, one boy) act out short, real-life stories. Tone: warm, natural, funny where it fits, family-safe. The three recurring characters always look the same.';
-
-/** One topic per video, so the channel feels like ONE kind of content (no fashion + gaming + action mix). */
-const FOCUS = ['Life lessons', 'Fashion', 'Lifestyle', 'Gaming'] as const;
-const FOCUS_HINT: Record<string, string> = {
-  'Life lessons': 'everyday life: family, friends, college, work, money, social media',
-  Fashion: 'clothes, style, shopping, looks and confidence',
-  Lifestyle: 'daily routines, home life, habits, food, health, money',
-  Gaming: 'gaming life: playing with friends, online games, studies vs games, family',
-};
-const FOCUS_THEMES: Record<string, string[]> = {
-  'Life lessons': [
-    'comparing your life with others on social media', 'peer pressure at college', 'lying to parents and getting caught', 'sibling jealousy',
-    'a friend who only calls when they need something', 'exam stress and the temptation to cheat', 'spending pocket money to show off',
-    'judging someone by their looks', 'ignoring parents while on the phone', 'helping a stranger who cannot pay you back', 'breaking a promise to a friend',
-    'trusting someone you only know online', 'putting things off until the last minute', 'gossip that hurts someone', 'being the first to say sorry',
-    'being thankful for what you have', 'fake friends vs real friends', 'first job interview nerves', 'hiding a mistake instead of owning it',
-    'making fun of the quiet classmate', 'a parent working hard without saying it', 'borrowing money and not returning it',
-  ],
-  Fashion: [
-    'expensive brand vs a simple outfit (what really matters)', 'copying a trend that does not suit you', 'people commenting on your body at a wedding',
-    'feeling ashamed to wear thrifted clothes', 'borrowing a friend\'s dress and damaging it', 'dressing for Instagram vs dressing for yourself',
-    'last-minute Eid outfit stress', 'confidence in modest fashion', 'overspending on clothes you wear once', 'laughing at someone\'s simple clothes',
-    'mom\'s old outfit becomes the best look', 'a fake designer bag gets exposed', 'getting ready late because of too many outfit changes',
-  ],
-  Lifestyle: [
-    'phones at the family dinner table', 'saving money vs spending it', 'junk food vs home food', 'never helping mom with chores',
-    'a morning routine that changes your day', 'staying up all night and paying for it', 'a messy room and a surprise guest', 'small acts of kindness at home',
-    'taking parents for granted', 'living on a small budget for a week', 'online shopping addiction', 'making time for grandparents',
-  ],
-  Gaming: [
-    'gaming the night before an exam', 'a toxic teammate online', 'learning to lose gracefully', 'spending real money on game skins',
-    'parents who do not understand gaming', 'a scam inside an online game', 'a gaming friend from another city', 'gaming vs family time',
-    'cheating in a game and getting banned', 'rage quitting and breaking things', 'a younger sibling who wants to play too', 'sharing your account password',
-  ],
-};
-/** Rules for every story: relatable, realistic, one clear lesson (applies to all genres). */
-const STORY_RULES =
-  'STORY RULES: Tell ONE relatable story that real viewers (teens to adults, 13+) can see themselves in: something that really happens in everyday life. Structure: a hook in the first 3 seconds, a real everyday problem, a mistake or conflict, a turning point, and a clear LESSON at the end, said naturally by a character (not preachy). Even a challenge or prank must have this lesson. No content made for small children, no cartoonish nonsense.';
-const beshaanRules = (focus: string) =>
-  `TOPIC FOR THIS VIDEO: ${focus} (${FOCUS_HINT[focus] || focus}). Stay on this ONE topic only: do NOT mix fashion, lifestyle and gaming in the same video. Realistic everyday Pakistani settings (home, college, family, friends, market, office, social media). NO horror, ghosts, fantasy, superpowers, fights, villains, explosions or action-movie scenes.`;
-
-const ANGLES = [
-  'shopping haul', 'camping night', 'cafe date gone wrong', 'talent show', 'DIY craft', 'dance-off', 'detective hunt', 'makeup vs no-makeup', 'street food tour', 'school reunion', 'time-capsule', 'lip-sync battle', 'escape room', 'blind taste test', 'sleepover dares', 'surprise makeover', 'harmless prank', 'budget vs expensive', 'gaming tournament',
-  'room / wardrobe tour', 'road trip', 'cooking disaster', 'birthday surprise', 'swap roles for a day', 'mystery to solve',
-  'college life', 'rainy day', 'fashion show at home', 'thrift flip', '24-hour challenge', 'recreate a viral trend',
-  'rivalry between friends', 'learning a new skill', 'secret revealed', 'lost-and-found adventure',
-];
-const ctx = (q: Project) => `${q.genre === BESHAAN ? `${BESHAAN_CONTEXT} ${beshaanRules(q.focus || 'Life lessons')} ` : ''}${STORY_RULES} `;
-const themePool = (q: Project) => (q.genre === BESHAAN ? FOCUS_THEMES[q.focus || 'Life lessons'] || ANGLES : ANGLES);
-const pickFrom = (pool: string[], n: number) => pool.slice().sort(() => Math.random() - 0.5).slice(0, n);
-const pickAngles = (n: number, pool: string[] = ANGLES) => pickFrom(pool, n).join(', ');
-const seriesKey = (q: { genre: string; idea: string; seriesParts: number; cast: string; setting: string }) => `${q.genre}|${q.idea.trim()}|${q.seriesParts}|${q.cast}|${q.setting}`;
-
-const GENRES = [BESHAAN, 'Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming', 'Romantic Anime Story (Bisma)', 'AI & Developer Engineering', 'High-Income Wealth & Micro-SaaS', 'Dark Psychology & Influence', 'High-Performance Stoicism', 'Space & Cosmic Physics', 'Curious Facts & Hidden History'];
 type NicheOption = { id: string; icon: string; label: string; genre: string; focus?: string; desc: string };
 const NICHE_OPTIONS: NicheOption[] = [
   { id: 'beshaan-life', icon: '💡', label: 'Beshaan Life Stories', genre: BESHAAN, focus: 'Life lessons', desc: 'Life-based stories with a lesson: everyday drama, pranks and challenges that people relate to. 2 girls + 1 boy.' },
@@ -243,29 +130,45 @@ const NICHE_OPTIONS: NicheOption[] = [
 ];
 const nicheOf = (q: { genre: string; focus?: string }) =>
   NICHE_OPTIONS.find((n) => n.genre === q.genre && (n.genre !== BESHAAN || n.focus === (q.focus || 'Life lessons')));
+const GENRES = [BESHAAN, 'Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming', 'Romantic Anime Story (Bisma)', 'AI & Developer Engineering', 'High-Income Wealth & Micro-SaaS', 'Dark Psychology & Influence', 'High-Performance Stoicism', 'Space & Cosmic Physics', 'Curious Facts & Hidden History'];
 const MOODS = ['Fun & energetic', 'Emotional', 'Funny', 'Suspenseful', 'Epic', 'Heartwarming', 'Dark', 'Cute & light'];
 const SETTINGS = ['Fashion studio / bedroom', 'Shopping mall', 'Home lifestyle vlog', 'Rooftop at sunset', 'College campus', 'Rainy city street', 'Village & fields', 'Futuristic city', 'Haunted house', 'Beach', 'Mountains', 'Cafe', 'Gaming room', 'Wedding'];
 const NOT_FOR_BESHAAN = ['Suspenseful', 'Epic', 'Dark', 'Futuristic city', 'Haunted house', 'Hero vs villain', '1 hero alone'];
 const CASTS = ['1 boy + 1 girl', '2 girls + 1 boy', '3 friends', '1 hero alone', 'Family (3 members)', 'Hero vs villain'];
 
+/** titleMax = the title length each platform accepts. The one shared text is cut to these limits when posting. */
 const PLATFORMS: { id: Platform; label: string; titleMax: number; uploadUrl: string }[] = [
   { id: 'youtube', label: 'YouTube Shorts', titleMax: 100, uploadUrl: 'https://studio.youtube.com' },
   { id: 'tiktok', label: 'TikTok', titleMax: 150, uploadUrl: 'https://www.tiktok.com/creator-center/upload' },
   { id: 'instagram', label: 'Instagram Reels', titleMax: 125, uploadUrl: 'https://www.instagram.com/' },
   { id: 'facebook', label: 'Facebook Reels', titleMax: 125, uploadUrl: 'https://www.facebook.com/reels/create' },
 ];
+const CAPTION_MAX = 2200;
 
-const LANG_LABEL: Record<Project['language'], string> = {
-  roman_urdu: 'Roman Urdu (Urdu written in English letters)',
-  english: 'English',
-  urdu: 'Urdu (Arabic script)',
-};
+/** What one platform receives from the shared title / description / hashtags. */
+function platformCopy(seo: Seo, id: Platform) {
+  const cfg = PLATFORMS.find((x) => x.id === id) || PLATFORMS[0];
+  const cleanTitle = seo.title.replace(/[<>]/g, '');
+  const title = cleanTitle.slice(0, cfg.titleMax);
+  const body = `${seo.description}\n\n${seo.hashtags}`.trim();
+  const caption = id === 'youtube' ? body : `${title}\n\n${body}`;
+  return {
+    title,
+    body,
+    caption: caption.slice(0, CAPTION_MAX),
+    titleCut: cleanTitle.length > cfg.titleMax,
+    captionCut: caption.length > CAPTION_MAX,
+  };
+}
+
+const LANG_OPTIONS = ['roman_urdu', 'english', 'urdu'] as const;
 
 function newProject(): Project {
+  const memory = loadMemory();
   return {
-    step: 0,
-    model: 'openai/gpt-4o',
+    step: STEP_WRITE,
     prompt: '',
+    promptEdited: false,
     genre: BESHAAN,
     focus: 'Life lessons',
     lesson: '',
@@ -274,15 +177,14 @@ function newProject(): Project {
     cast: '2 girls + 1 boy',
     idea: '',
     sceneCount: 7,
-    promptEdited: false,
     seriesParts: 1,
     series: null,
     partIdx: 0,
-    ideaHistory: [],
+    ideaHistory: memory.ideas,
+    usedThemes: memory.themes,
     style: STYLES[0],
     format: 'vertical',
     language: 'roman_urdu',
-    voiceLang: 'en-US',
     title: '',
     story: '',
     characters: [
@@ -291,20 +193,6 @@ function newProject(): Project {
       { name: '', description: '' },
     ],
     scenes: [],
-    edit: {
-      transition: 'fade',
-      motion: true,
-      filter: 'none',
-      capShow: true,
-      capPos: 'bottom',
-      capSize: 44,
-      capColor: '#ffffff',
-      logoPos: 'tr',
-      logoSize: 16,
-      logoOpacity: 0.9,
-      voiceVol: 1,
-      musicVol: 0.25,
-    },
     thumb: {
       bg: '',
       headline: '',
@@ -320,7 +208,34 @@ function newProject(): Project {
 // Keeps the project alive when the admin switches dashboard tabs (component unmounts) during one session.
 let projectCache: Project | null = null;
 
-/** Loads a Daily Content Pack into the AI Video Studio (it opens at the Scenes step). */
+/* Ideas already shown are remembered in this browser, so "New ideas" keeps giving new ones after a reload too. */
+const MEMORY_KEY = 'studioIdeaMemory';
+function loadMemory(): { ideas: string[]; themes: string[] } {
+  try {
+    const j = JSON.parse(localStorage.getItem(MEMORY_KEY) || '{}');
+    return {
+      ideas: Array.isArray(j.ideas) ? j.ideas.slice(-150) : [],
+      themes: Array.isArray(j.themes) ? j.themes.slice(-60) : [],
+    };
+  } catch {
+    return { ideas: [], themes: [] };
+  }
+}
+function saveMemory(m: { ideas: string[]; themes: string[] }) {
+  try {
+    localStorage.setItem(MEMORY_KEY, JSON.stringify(m));
+  } catch {
+    /* storage full or blocked: the memory then lasts only for this session */
+  }
+}
+
+/** Reads the SEO of a Daily Pack. Packs made before the single SEO kept one set per platform: use YouTube's. */
+export function packSeo(raw: any): Seo {
+  const s = raw && raw.title !== undefined ? raw : raw?.youtube || {};
+  return { title: String(s.title || ''), description: String(s.description || ''), hashtags: String(s.hashtags || '') };
+}
+
+/** Loads a Daily Content Pack into the AI Video Studio (it opens at the Scene Prompts step). */
 export function importPackToStudio(pack: {
   title: string;
   idea: string;
@@ -328,40 +243,22 @@ export function importPackToStudio(pack: {
   characters: { name: string; description: string }[];
   scenes: { prompt: string; narration: string; caption: string; duration: number }[];
   thumbnail: { headline: string; badge: string };
-  seo: Record<Platform, { title: string; description: string; hashtags: string; tags?: string }>;
+  seo: unknown;
 }) {
   const base = newProject();
   const chars = [0, 1, 2].map((i) => ({ name: pack.characters[i]?.name || '', description: pack.characters[i]?.description || '' }));
+  const lesson = /Lesson:\s*(.+)$/i.exec(pack.story)?.[1]?.trim() || '';
   projectCache = {
     ...base,
-    step: 2,
+    step: STEP_SCENES,
     prompt: pack.idea,
     title: pack.title,
     story: pack.story,
+    lesson,
     characters: chars,
-    scenes: pack.scenes.map((sc) => ({ id: uid(), prompt: sc.prompt, narration: sc.narration, caption: sc.caption, duration: sc.duration })),
+    scenes: pack.scenes.map((sc) => ({ id: uid(), prompt: sc.prompt, dialogue: sc.narration, duration: sc.duration })),
     thumb: { ...base.thumb, headline: pack.thumbnail.headline, badge: pack.thumbnail.badge },
-    seo: {
-      youtube: { title: pack.seo.youtube.title, description: pack.seo.youtube.description, hashtags: pack.seo.youtube.hashtags },
-      tiktok: { title: pack.seo.tiktok.title, description: pack.seo.tiktok.description, hashtags: pack.seo.tiktok.hashtags },
-      instagram: { title: pack.seo.instagram.title, description: pack.seo.instagram.description, hashtags: pack.seo.instagram.hashtags },
-      facebook: { title: pack.seo.facebook.title, description: pack.seo.facebook.description, hashtags: pack.seo.facebook.hashtags },
-    },
-  };
-}
-
-/** Lets the Video Editor tab import the scenes made in the AI Video Studio. */
-export function getStudioProject() {
-  if (!projectCache || !projectCache.scenes.length) return null;
-  return {
-    format: projectCache.format,
-    title: projectCache.title,
-    scenes: projectCache.scenes.map((sc) => ({
-      image: sc.image,
-      voice: sc.voice,
-      caption: sc.caption,
-      duration: sc.duration,
-    })),
+    seo: packSeo(pack.seo),
   };
 }
 
@@ -382,17 +279,56 @@ function Spin({ on, children }: { on: boolean; children: React.ReactNode }) {
   return <>{on ? <Loader2 className="h-4 w-4 animate-spin" /> : children}</>;
 }
 
+/* ------------------------------------------------------------- rules & helpers */
+
+const ctx = (q: Project) => storyContext(q.genre, q.focus || 'Life lessons');
+const themePool = (q: Project) => (isBeshaan(q.genre) ? FOCUS_THEMES[q.focus || 'Life lessons'] || ANGLES : ANGLES);
+const pickFrom = (pool: string[], n: number) => pool.slice().sort(() => Math.random() - 0.5).slice(0, n);
+const pickAngles = (n: number, pool: string[] = ANGLES) => pickFrom(pool, n).join(', ');
+const seriesKey = (q: { genre: string; idea: string; seriesParts: number; cast: string; setting: string }) => `${q.genre}|${q.idea.trim()}|${q.seriesParts}|${q.cast}|${q.setting}`;
+
+/** Video length check per platform, done BEFORE uploading so the reason is clear. */
+const RULES: Record<string, { min: number; max: number; name: string }> = {
+  facebook: { min: 3, max: 90, name: 'Facebook Reels' },
+  instagram: { min: 3, max: 900, name: 'Instagram Reels' },
+  youtube: { min: 1, max: 43200, name: 'YouTube' },
+  tiktok: { min: 3, max: 600, name: 'TikTok' },
+};
+
+/** Width, height and length of a video file. */
+const videoInfo = (url: string) =>
+  new Promise<{ w: number; h: number; dur: number }>((resolve) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.muted = true;
+    v.onerror = () => resolve({ w: 0, h: 0, dur: 0 });
+    v.onloadedmetadata = () => {
+      if (Number.isFinite(v.duration) && v.duration > 0) return resolve({ w: v.videoWidth, h: v.videoHeight, dur: v.duration });
+      // Browser-recorded WebM files have no length in their header: seek to the end so the browser works it out
+      const done = () => {
+        if (Number.isFinite(v.duration) && v.duration > 0) {
+          clearTimeout(timer);
+          v.ondurationchange = null;
+          resolve({ w: v.videoWidth, h: v.videoHeight, dur: v.duration });
+        }
+      };
+      const timer = setTimeout(() => resolve({ w: v.videoWidth, h: v.videoHeight, dur: 0 }), 15000);
+      v.ondurationchange = done;
+      v.onseeked = done;
+      v.currentTime = 1e7;
+    };
+    v.src = url;
+  });
+
+const tick = () => new Promise((r) => setTimeout(r, 80));
+
 /* ---------------------------------------------------------------- component */
 
-export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wizard' | 'editor' }) {
+export default function YoutubeAutomationView() {
   const [p, setP] = useState<Project>(() => projectCache || newProject());
   const [busy, setBusy] = useState<string>('');
   const [progress, setProgress] = useState<number>(0);
-  const [selectedId, setSelectedId] = useState<string>('');
-  const [seoTab, setSeoTab] = useState<Platform>('youtube');
   const [ideaList, setIdeaList] = useState<string[]>([]);
-  const [autoMsg, setAutoMsg] = useState<string>('');
-  const autoCancel = useRef(false);
   const [postError, setPostError] = useState('');
   const [postStage, setPostStage] = useState('');
   const [exported, setExported] = useState<{ url: string; ext: string; size: number; blob: Blob } | null>(null);
@@ -408,216 +344,24 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
   const [postWhen, setPostWhen] = useState<'now' | 'queue' | 'schedule'>('now');
   const [dueAt, setDueAt] = useState<string>('');
   const [postLog, setPostLog] = useState<{ label: string; ok: boolean; msg: string }[]>([]);
-
-  // decoded media
-  const [images, setImages] = useState<Record<string, HTMLImageElement>>({});
-  const [voices, setVoices] = useState<Record<string, { blob: Blob; buf: AudioBuffer }>>({});
-  const [musicBuf, setMusicBuf] = useState<AudioBuffer | null>(null);
-  const [logoImg, setLogoImg] = useState<HTMLImageElement | null>(null);
-
-  // player
-  const [playing, setPlaying] = useState(false);
-  const [time, setTime] = useState(0);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const thumbRef = useRef<HTMLCanvasElement | null>(null);
-  const acRef = useRef<AudioContext | null>(null);
-  const stopAudioRef = useRef<(() => void) | null>(null);
-  const rafRef = useRef<number>(0);
-  const timeRef = useRef(0);
-  const cancelRef = useRef({ cancelled: false });
   const pRef = useRef(p);
-
-  // "My default images": the creator uploads their own pictures once; scenes/characters/thumbnail use them instead of AI images.
-  const LIB_KEY = 'studioDefaultImages';
-  const [lib, setLib] = useState<string[]>([]);
-  const [useLib, setUseLib] = useState(false);
-  const libRef = useRef<{ lib: string[]; on: boolean }>({ lib: [], on: false });
-  useEffect(() => {
-    try {
-      const j = JSON.parse(localStorage.getItem(LIB_KEY) || '{}');
-      const l: string[] = Array.isArray(j.lib) ? j.lib : [];
-      libRef.current = { lib: l, on: !!j.on };
-      setLib(l);
-      setUseLib(!!j.on);
-    } catch {
-      /* no saved images */
-    }
-  }, []);
-  const saveLib = (l: string[], on: boolean) => {
-    libRef.current = { lib: l, on };
-    setLib(l);
-    setUseLib(on);
-    try {
-      localStorage.setItem(LIB_KEY, JSON.stringify({ lib: l, on }));
-    } catch {
-      toast.error('Browser storage is full: the images work for this session but will not be remembered. Remove a few images.');
-    }
-  };
-  const libImage = (i: number): string | null => {
-    const { lib: l, on } = libRef.current;
-    return on && l.length ? l[((i % l.length) + l.length) % l.length] : null;
-  };
-  const addLibImages = async (files: FileList | null) => {
-    if (!files?.length) return;
-    const added: string[] = [];
-    for (const f of Array.from(files).slice(0, 12)) {
-      try {
-        added.push(await toJpegDataUrl(await fileToDataUrl(f), 960));
-      } catch {
-        toast.error(`Could not read ${f.name}`);
-      }
-    }
-    if (added.length) saveLib(libRef.current.lib.concat(added).slice(0, 12), true);
-  };
   pRef.current = p;
 
   useEffect(() => {
     projectCache = p;
+    saveMemory({ ideas: p.ideaHistory, themes: p.usedThemes });
   }, [p]);
 
-  // images follow the project format, and one stable seed keeps the look similar between scenes
-  useEffect(() => {
-    imageDefaults.aspect = p.format === 'vertical' ? 'vertical' : 'horizontal';
-    let h = 7;
-    const src = p.characters.map((c) => c.name + c.description).join('|');
-    for (let i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) % 1000003;
-    imageDefaults.seed = h;
-  }, [p.format, p.characters]);
-
-  useEffect(() => {
-    if (mode === 'editor') setP((o) => ({ ...o, step: Math.max(o.step, 3) }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const patch = useCallback((x: Partial<Project>) => setP((o) => ({ ...o, ...x })), []);
-  const patchEdit = (x: Partial<EditSettings>) => setP((o) => ({ ...o, edit: { ...o.edit, ...x } }));
   const patchThumb = (x: Partial<Thumb>) => setP((o) => ({ ...o, thumb: { ...o.thumb, ...x } }));
   const patchScene = useCallback(
-    (id: string, x: Partial<Scene>) =>
-      setP((o) => ({ ...o, scenes: o.scenes.map((s) => (s.id === id ? { ...s, ...x } : s)) })),
+    (id: string, x: Partial<Scene>) => setP((o) => ({ ...o, scenes: o.scenes.map((s) => (s.id === id ? { ...s, ...x } : s)) })),
     []
   );
-  const patchChar = (i: number, x: Partial<Character>) =>
-    setP((o) => ({ ...o, characters: o.characters.map((c, k) => (k === i ? { ...c, ...x } : c)) }));
+  const setSeo = (x: Partial<Seo>) => setP((o) => (o.seo ? { ...o, seo: { ...o.seo, ...x } } : o));
 
-  const getAc = () => {
-    if (!acRef.current) {
-      const AC: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
-      acRef.current = new AC();
-    }
-    return acRef.current;
-  };
-
-  const dims = p.format === 'vertical' ? { w: 720, h: 1280 } : { w: 1280, h: 720 };
   const formatLabel = p.format === 'vertical' ? '9:16 vertical' : '16:9 horizontal';
-
-  /* ------------------------------------------------ decode media (images, voices, music, logo) */
-
-  const imageKey = p.scenes.map((s) => `${s.id}:${s.image ? s.image.length : 0}`).join('|');
-  useEffect(() => {
-    let dead = false;
-    (async () => {
-      const next: Record<string, HTMLImageElement> = {};
-      for (const s of pRef.current.scenes) {
-        if (!s.image) continue;
-        try {
-          next[s.id] = await loadImage(s.image);
-        } catch {
-          /* skip broken image */
-        }
-      }
-      if (!dead) setImages(next);
-    })();
-    return () => {
-      dead = true;
-    };
-  }, [imageKey]);
-
-  const voiceKey = p.scenes.map((s) => `${s.id}:${s.voice ? s.voice.size : 0}`).join('|');
-  useEffect(() => {
-    let dead = false;
-    (async () => {
-      const next: Record<string, { blob: Blob; buf: AudioBuffer }> = {};
-      for (const s of pRef.current.scenes) {
-        if (!s.voice) continue;
-        try {
-          next[s.id] = { blob: s.voice, buf: await decodeAudio(getAc(), s.voice) };
-        } catch {
-          /* skip undecodable audio */
-        }
-      }
-      if (!dead) setVoices(next);
-    })();
-    return () => {
-      dead = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceKey]);
-
-  useEffect(() => {
-    let dead = false;
-    if (!p.music) {
-      setMusicBuf(null);
-      return;
-    }
-    decodeAudio(getAc(), p.music.blob)
-      .then((b) => !dead && setMusicBuf(b))
-      .catch(() => toast.error('Could not decode the music file'));
-    return () => {
-      dead = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.music]);
-
-  useEffect(() => {
-    if (!p.logo) {
-      setLogoImg(null);
-      return;
-    }
-    loadImage(p.logo)
-      .then(setLogoImg)
-      .catch(() => setLogoImg(null));
-  }, [p.logo]);
-
-  const renderScenes: RenderScene[] = useMemo(
-    () =>
-      p.scenes.map((s) => ({
-        img: images[s.id] || null,
-        caption: s.caption,
-        duration: s.duration,
-        voice: voices[s.id]?.buf || null,
-      })),
-    [p.scenes, images, voices]
-  );
-
-  const renderSettings: RenderSettings = useMemo(
-    () => ({
-      width: dims.w,
-      height: dims.h,
-      transition: p.edit.transition,
-      motion: p.edit.motion,
-      filter: p.edit.filter,
-      captions: { show: p.edit.capShow, position: p.edit.capPos, size: p.edit.capSize, color: p.edit.capColor },
-      logo: { img: logoImg, position: p.edit.logoPos, size: p.edit.logoSize, opacity: p.edit.logoOpacity },
-      voiceVolume: p.edit.voiceVol,
-      musicVolume: p.edit.musicVol,
-    }),
-    [dims.w, dims.h, p.edit, logoImg]
-  );
-
-  const rsRef = useRef(renderScenes);
-  rsRef.current = renderScenes;
-  const setRef = useRef(renderSettings);
-  setRef.current = renderSettings;
-  const musicRef = useRef(musicBuf);
-  musicRef.current = musicBuf;
-
-  const total = totalDuration(renderScenes);
-
-  /* ---------------------------------------------------------------- AI helpers */
-
-  const ask = async (system: string, user: string) => aiText(system, user, { model: p.model });
-
   const charactersText = (chars: Character[]) =>
     chars
       .filter((c) => c.description.trim() || c.name.trim())
@@ -625,7 +369,9 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
       .join('\n');
 
   const scenePromptSchema =
-    '"visual": a rich, SELF-CONTAINED description of this one shot (90-150 words) for Google Flow / Veo: setting and time of day, EVERY character on screen by name WITH their full fixed look repeated (age, face, hair, outfit, colors), what they do, facial expressions and emotions, camera movement and framing. Each scene is generated alone, so never say "same as before"; no on-screen text. "dialogue": [{"speaker":"character name or Narrator","emoji":"one emoji for the speaker, e.g. 👧 👦 🎙️","delivery":"how it is said, e.g. shyly, with a sweet smile","line":"the exact spoken line in the dialogue language"}] (1-3 lines that fit the duration, at least one), "ending": "one sentence on how the shot ends", "music": "background music / sound", "lighting": "lighting", "caption": "short subtitle (max 12 words)", "duration": seconds (8 recommended, 6-10)';
+    '"visual": a rich, SELF-CONTAINED description of this one shot (90-150 words) for Google Flow / Veo: setting and time of day, EVERY character on screen by name WITH their full fixed look repeated (age, face, hair, outfit, colors), what they do, facial expressions and emotions, camera movement and framing. Each scene is generated alone, so never say "same as before"; no on-screen text. "dialogue": [{"speaker":"character name or Narrator","emoji":"one emoji for the speaker, e.g. 👧 👦 🎙️","delivery":"how it is said, e.g. shyly, with a sweet smile","line":"the exact spoken line in the dialogue language"}] (1-3 lines that fit the duration, at least one), "ending": "one sentence on how the shot ends", "music": "background music / sound", "lighting": "lighting", "duration": seconds (8 recommended, 6-10)';
+
+  /* ------------------------------------------------ AI writing */
 
   const buildPrompt = async (): Promise<string> => {
     const p = pRef.current;
@@ -642,7 +388,7 @@ ${p.idea.trim() ? `User's extra idea: ${p.idea}
 ` : ''}Take creative inspiration from: ${pickAngles(3, themePool(p))}.
 Do NOT reuse these earlier ideas: ${p.ideaHistory.slice(-25).join(' | ') || '(none)'}.
 Invent an original, relatable story with a strong hook, a turning point and a clear lesson at the end.`;
-    return (await ask(system, user)).trim();
+    return (await aiText(system, user)).trim();
   };
 
   const suggestIdeas = async (ignoreTopic = false) => {
@@ -650,15 +396,25 @@ Invent an original, relatable story with a strong hook, a turning point and a cl
     const topic = ignoreTopic ? '' : p.idea.trim();
     setBusy('ideas');
     try {
-      const themes = pickFrom(themePool(p), 15);
+      // themes not used recently come first, so the 15 ideas are different from the last ones
+      const pool = themePool(p);
+      const fresh = pickFrom(
+        pool.filter((t) => !p.usedThemes.includes(t)),
+        15
+      );
+      const themes = fresh.length >= 15 ? fresh : [...fresh, ...pickFrom(pool.filter((t) => !fresh.includes(t)), 15 - fresh.length)];
       const system = 'You are a viral short-video idea generator. Reply with ONLY valid JSON, no markdown.';
       const user = `${ctx(p)}Genre: ${p.genre}. Mood: ${p.mood}. Setting: ${p.setting}. Cast: ${p.cast}. Format: ${formatLabel}.
-${topic ? `The creator is searching for ideas about: "${topic}". Every idea must be about this topic, but each one must use a DIFFERENT angle.\n` : ''}Idea #k must be built around the matching theme (so all 15 ideas are completely different): ${themes.map((t, k) => `${k + 1}=${t}`).join('; ')}.\nNo festival/Eid ideas unless the creator asked for them. Random seed: ${Math.random().toString(36).slice(2, 8)}.\nAlready suggested (do not repeat): ${p.ideaHistory.slice(-30).join(' | ') || '(none)'}.\nGive 15 DIFFERENT, specific, fresh, RELATABLE video ideas. Each idea: one sentence with the everyday situation and the twist, then " | Lesson: " and the lesson (max 35 words in total). Return {"ideas":["...","..."]}`;
-      const data = extractJson<any>(await ask(system, user));
+${topic ? `The creator is searching for ideas about: "${topic}". Every idea must be about this topic, but each one must use a DIFFERENT angle.\n` : ''}Idea #k must be built around the matching theme (so the ideas are completely different): ${themes.map((t, k) => `${k + 1}=${t}`).join('; ')}.\nRandom seed: ${Math.random().toString(36).slice(2, 8)}.\nAlready suggested (do NOT repeat the situation, the twist or the lesson): ${p.ideaHistory.slice(-60).map((x) => x.slice(0, 140)).join(' | ') || '(none)'}.\nGive 15 DIFFERENT, specific, fresh, RELATABLE video ideas. Each idea: one sentence with the everyday situation and the twist, then " | Lesson: " and the lesson (max 35 words in total). Return {"ideas":["...","..."]}`;
+      const data = extractJson<any>(await aiText(system, user));
       const list: string[] = (data.ideas || []).map((x: any) => String(x)).filter(Boolean).slice(0, 20);
       if (!list.length) throw new Error('No ideas returned. Try again.');
       setIdeaList(list);
-      setP((o) => ({ ...o, ideaHistory: o.ideaHistory.concat(list).slice(-80) }));
+      setP((o) => ({
+        ...o,
+        ideaHistory: o.ideaHistory.concat(list).slice(-150),
+        usedThemes: o.usedThemes.concat(themes).slice(-60),
+      }));
     } catch (e: any) {
       toast.error(e?.message || 'Could not get ideas');
     } finally {
@@ -676,7 +432,7 @@ ${topic ? `The creator is searching for ideas about: "${topic}". Every idea must
 ${p.idea.trim() ? `Series idea from the creator: ${p.idea}` : `Inspiration: ${pickAngles(3, themePool(p))}.`}
 Already used ideas (do not repeat): ${p.ideaHistory.slice(-25).join(' | ') || '(none)'}.
 Plan ONE story told across exactly ${n} short episodes (parts). Each part must be a complete mini-episode with its own hook, and end with a cliffhanger leading to the next; the last part resolves everything. Return {"title":"series title","summary":"2-3 sentence overall story","characters":[{"name":"","description":"fixed appearance"}],"parts":[{"title":"episode title","summary":"3-4 sentences of what happens in this part"}]} (max 3 characters).`;
-      const data = extractJson<any>(await ask(system, user));
+      const data = extractJson<any>(await aiText(system, user));
       const parts: { title: string; summary: string }[] = (data.parts || []).slice(0, n).map((x: any) => ({ title: String(x.title || ''), summary: String(x.summary || '') }));
       if (parts.length < 2) throw new Error('The series plan came back incomplete. Try again.');
       setP((o) => ({
@@ -684,11 +440,10 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         series: { key: seriesKey(o), title: String(data.title || 'Series'), summary: String(data.summary || ''), parts },
         partIdx: 0,
         characters: [0, 1, 2].map((i) => ({
-          ...o.characters[i],
           name: o.characters[i].name || String((data.characters || [])[i]?.name || ''),
           description: o.characters[i].description || String((data.characters || [])[i]?.description || ''),
         })),
-        ideaHistory: o.ideaHistory.concat(String(data.title || '')).slice(-80),
+        ideaHistory: o.ideaHistory.concat(String(data.title || '')).slice(-150),
       }));
       toast.success(`${parts.length}-part series planned`);
       return true;
@@ -738,20 +493,18 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       }
       const system =
         'You are a senior AI video director. You turn ONE video idea into connected scenes for an AI video generator. Characters must keep the same fixed appearance in every scene. Reply with ONLY valid JSON, no markdown.';
-      const user = `${ctx(p)}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\n\nNumber of scenes: EXACTLY ${p.sceneCount} (the scenes array must contain exactly ${p.sceneCount} items)\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks (return them in the same order): ${charactersText(p.characters)}\n` : ''}\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
-      const text = await ask(system, user);
-      const data = extractJson<any>(text);
+      const user = `${ctx(p)}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\n\nNumber of scenes: EXACTLY ${p.sceneCount} (the scenes array must contain exactly ${p.sceneCount} items)\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks (return them in the same order): ${charactersText(p.characters)}\n` : ''}\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
+      const data = extractJson<any>(await aiText(system, user));
       const rawScenes: any[] = (data.scenes || []).slice(0, 30);
       const scenes: Scene[] = rawScenes.map((s: any, i: number) => {
         const f = flowPrompt(s, i, rawScenes.length, p.style, p.format === 'vertical');
-        return { id: uid(), prompt: f.prompt, narration: f.narration, caption: String(s.caption || ''), duration: f.duration };
+        return { id: uid(), prompt: f.prompt, dialogue: f.dialogue, duration: f.duration };
       });
       if (!scenes.length) throw new Error('No scenes returned. Try again.');
       const chars = [0, 1, 2].map((i) => {
         const old = p.characters[i];
         const ai = (data.characters || [])[i];
         return {
-          ...old,
           name: old.name || String(ai?.name || ''),
           description: old.description || String(ai?.description || ''),
         };
@@ -766,10 +519,9 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         seo: null,
         thumb: { ...o.thumb, bg: '', headline: '', badge: '' },
         partIdx: part >= 0 ? part : 0,
-        ideaHistory: o.ideaHistory.concat(String(data.title || '')).slice(-80),
-        step: 2,
+        ideaHistory: o.ideaHistory.concat(String(data.title || '')).slice(-150),
+        step: STEP_SCENES,
       }));
-      setSelectedId(scenes[0].id);
       toast.success(`${scenes.length} scene prompts ready. Copy them into Google Flow.`);
       return true;
     } catch (e: any) {
@@ -789,12 +541,11 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       const system =
         'You are a senior AI video director. Rewrite ONE scene so it stays connected to the story. Reply with ONLY valid JSON, no markdown.';
       const user = `STORY: ${p.story || p.prompt}\nMAIN IDEA: ${p.prompt}\nCHARACTERS:\n${charactersText(p.characters)}\nStyle: ${p.style}\nLanguage: ${LANG_LABEL[p.language]}\nPrevious scene: ${p.scenes[idx - 1]?.prompt.slice(0, 400) || '(none, this is the opening)'}\nNext scene: ${p.scenes[idx + 1]?.prompt.slice(0, 400) || '(none, this is the ending)'}\nCurrent scene ${idx + 1} of ${p.scenes.length}: ${sc.prompt}\n\nWrite a fresh, better version. Return {${scenePromptSchema}}`;
-      const data = extractJson<any>(await ask(system, user));
+      const data = extractJson<any>(await aiText(system, user));
       const f = flowPrompt(data, idx, p.scenes.length, p.style, p.format === 'vertical');
       patchScene(id, {
         prompt: f.prompt || sc.prompt,
-        narration: f.narration || sc.narration,
-        caption: String(data.caption || sc.caption),
+        dialogue: f.dialogue || sc.dialogue,
         duration: f.duration,
       });
       toast.success(`Scene ${idx + 1} prompt regenerated`);
@@ -805,155 +556,44 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     }
   };
 
-  const generateCharacterImage = async (i: number) => {
-    const c = p.characters[i];
-    if (!c.description.trim()) return toast.error('Describe the character first');
-    setBusy(`char:${i}`);
-    try {
-      const { dataUrl } = await generateImage(
-        `Character reference image, full body, front view, neutral plain background, clean lighting. Style: ${p.style}. ${c.name ? `Name: ${c.name}. ` : ''}${c.description}`
-      );
-      patchChar(i, { image: dataUrl });
-    } catch (e: any) {
-      toast.error(e?.message || 'Image generation failed.');
-    } finally {
-      setBusy('');
-    }
-  };
-
-  const sceneImagePrompt = (sc: Scene) =>
-    `${p.style}. ${formatLabel} composition. Keep every character EXACTLY as in the reference image (same face, hairstyle, clothes, colors and art style). Characters:\n${charactersText(p.characters)}\nScene: ${sc.prompt.slice(0, 1100)}`;
-
-  const generateSceneImage = async (id: string, silent = false) => {
-    const sc = pRef.current.scenes.find((s) => s.id === id);
-    if (!sc) return;
-    const mine = libImage(pRef.current.scenes.findIndex((x) => x.id === id));
-    if (mine) {
-      patchScene(id, { image: mine });
-      return;
-    }
-    setBusy(`img:${id}`);
-    try {
-      const refs = [...pRef.current.characters.map((c) => c.image).filter(Boolean), sc.extraRef].filter(Boolean) as string[];
-      const { dataUrl, usedReference } = await generateImage(sceneImagePrompt(sc), refs);
-      patchScene(id, { image: dataUrl });
-      if (!silent && refs.length && !usedReference)
-        toast('The free image generator cannot use reference images, so characters are kept consistent only through their text descriptions. For true reference-based consistency add GEMINI_API_KEY (see env.example).', { icon: '⚠️' });
-    } catch (e: any) {
-      toast.error(e?.message || 'Image generation failed');
-      throw e;
-    } finally {
-      setBusy('');
-    }
-  };
-
-  const generateAllImages = async () => {
-    cancelRef.current = { cancelled: false };
-    const todo = pRef.current.scenes.filter((s) => !s.image).map((s) => s.id);
-    if (!todo.length) return toast('All scenes already have images');
-    setBusy('all');
-    let refsIgnored = false;
-    try {
-      for (let i = 0; i < todo.length; i++) {
-        if (cancelRef.current.cancelled) break;
-        setProgress((i / todo.length) * 100);
-        const sc = pRef.current.scenes.find((s) => s.id === todo[i]);
-        if (!sc) continue;
-        const mine = libImage(pRef.current.scenes.findIndex((x) => x.id === todo[i]));
-        if (mine) {
-          patchScene(todo[i], { image: mine });
-          continue;
-        }
-        const refs = [...pRef.current.characters.map((c) => c.image).filter(Boolean), sc.extraRef].filter(Boolean) as string[];
-        const r = await generateImage(sceneImagePrompt(sc), refs);
-        if (refs.length && !r.usedReference) refsIgnored = true;
-        patchScene(todo[i], { image: r.dataUrl });
-      }
-      if (refsIgnored) toast('Some scenes were made without image references (model unsupported).', { icon: '⚠️' });
-      else toast.success('Scene images done');
-    } catch (e: any) {
-      toast.error(e?.message || 'Stopped: image generation failed');
-    } finally {
-      setBusy('');
-      setProgress(0);
-    }
-  };
-
-  const makeVoice = async (id: string) => {
-    const sc = pRef.current.scenes.find((s) => s.id === id);
-    if (!sc?.narration.trim()) return toast.error('This scene has no narration text');
-    setBusy(`voice:${id}`);
-    try {
-      const blob = await generateSpeech(sc.narration, pRef.current.voiceLang);
-      const buf = await decodeAudio(getAc(), blob);
-      patchScene(id, { voice: blob, duration: Math.max(sc.duration, Math.ceil((buf.duration + 0.3) * 2) / 2) });
-    } catch (e: any) {
-      toast.error(e?.message || 'Voiceover failed.');
-    } finally {
-      setBusy('');
-    }
-  };
-
-  const uploadVoice = async (id: string, file: File) => {
-    try {
-      const buf = await decodeAudio(getAc(), file);
-      const sc = pRef.current.scenes.find((s) => s.id === id);
-      patchScene(id, { voice: file, duration: Math.max(sc?.duration || 0, Math.ceil((buf.duration + 0.2) * 2) / 2) });
-    } catch {
-      toast.error('Unsupported audio file');
-    }
-  };
-
-  const makeAllVoices = async () => {
-    setBusy('voices');
-    try {
-      const ids = pRef.current.scenes.filter((s) => s.narration.trim()).map((s) => s.id);
-      for (let i = 0; i < ids.length; i++) {
-        setProgress((i / ids.length) * 100);
-        const sc = pRef.current.scenes.find((s) => s.id === ids[i]);
-        if (!sc) continue;
-        const blob = await generateSpeech(sc.narration, pRef.current.voiceLang);
-        const buf = await decodeAudio(getAc(), blob);
-        patchScene(ids[i], { voice: blob, duration: Math.max(sc.duration, Math.ceil((buf.duration + 0.3) * 2) / 2) });
-      }
-      toast.success('Voiceovers ready');
-    } catch (e: any) {
-      toast.error(e?.message || 'Voiceover failed');
-    } finally {
-      setBusy('');
-      setProgress(0);
-    }
-  };
-
+  /** ONE title, description, hashtags and thumbnail text for all platforms. */
   const generateSeo = async () => {
     const p = pRef.current;
     setBusy('seo');
     try {
-      const system =
-        'You are a social media SEO expert for short-form video. Reply with ONLY valid JSON, no markdown. Each platform must get DIFFERENT, platform-native copy.';
-      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + " Use channel name Beshaan in hashtags (#Beshaan #BeshaanVibe). " : ""}VIDEO TITLE: ${p.title}${p.lesson ? `\nLESSON OF THE VIDEO: ${p.lesson} (mention it in the descriptions as a takeaway or question to the viewer)` : ''}\nSTORY: ${p.story}\nIDEA: ${p.prompt}\nLANGUAGE: ${LANG_LABEL[p.language]} (hashtags may mix English)\nSCENES: ${p.scenes.map((s) => s.caption).join(' | ')}\n\nReturn JSON:\n{"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"max 3 words"},"youtube":{"title":"<=100 chars, keyword first, include #Shorts","description":"hook line + 2-3 lines + CTA","hashtags":"#a #b #c (5-8)"},"tiktok":{"title":"<=150 chars hooky caption","description":"short caption text","hashtags":"4-6 hashtags incl. trending-style"},"instagram":{"title":"first-line hook <=125 chars","description":"caption with line breaks, emojis, CTA","hashtags":"8-12 hashtags"},"facebook":{"title":"<=125 chars","description":"conversational caption, ask a question","hashtags":"3-5 hashtags"}}`;
-      const data = extractJson<any>(await ask(system, user));
-      const pick = (k: Platform) => ({
-        title: String(data[k]?.title || p.title),
-        description: String(data[k]?.description || ''),
-        hashtags: Array.isArray(data[k]?.hashtags) ? data[k].hashtags.join(' ') : String(data[k]?.hashtags || ''),
-      });
+      const system = 'You are a social media SEO expert for short-form video. Reply with ONLY valid JSON, no markdown.';
+      const user = `${isBeshaan(p.genre) ? 'CHANNEL: Beshaan. Use #Beshaan #BeshaanVibe in the hashtags. ' : ''}VIDEO TITLE: ${p.title}${p.lesson ? `\nLESSON OF THE VIDEO: ${p.lesson} (mention it in the description as a takeaway or a question to the viewer)` : ''}
+STORY: ${p.story}
+IDEA: ${p.prompt.slice(0, 600)}
+LANGUAGE: ${LANG_LABEL[p.language]} (hashtags may mix English)
+SCENE DIALOGUE: ${p.scenes.map((s) => s.dialogue).filter(Boolean).join(' | ').slice(0, 800)}
+
+This ONE text is posted on YouTube, TikTok, Instagram and Facebook (each platform cuts it to its own length), so put the most important words first.
+Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"max 3 words"},"title":"<=100 chars, keyword first, include #Shorts","description":"hook line + 2-3 lines + a question + CTA, max 600 characters","hashtags":"8-12 hashtags separated by spaces, #Shorts included"}`;
+      const data = extractJson<any>(await aiText(system, user));
+      const seo: Seo = {
+        title: String(data.title || p.title || '').trim(),
+        description: String(data.description || '').trim(),
+        hashtags: Array.isArray(data.hashtags) ? data.hashtags.join(' ') : String(data.hashtags || '').trim(),
+      };
       setP((o) => ({
         ...o,
-        seo: { youtube: pick('youtube'), tiktok: pick('tiktok'), instagram: pick('instagram'), facebook: pick('facebook') },
+        seo,
         thumb: {
           ...o.thumb,
           headline: o.thumb.headline || String(data.thumbnail?.headline || o.title).toUpperCase(),
           badge: o.thumb.badge || String(data.thumbnail?.badge || '').toUpperCase(),
         },
       }));
-      toast.success('SEO for all 4 platforms ready');
+      toast.success('Title, description and tags ready for all platforms');
     } catch (e: any) {
       toast.error(e?.message || 'Could not generate SEO');
     } finally {
       setBusy('');
     }
   };
+
+  /* ------------------------------------------------ thumbnail */
 
   // Picks a good-looking frame (about 30% into the video) from the finished video as the thumbnail background
   const thumbFromVideo = async () => {
@@ -980,30 +620,15 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     }
   };
 
-  const generateThumbBg = async () => {
-    const mineThumb = libImage(0);
-    if (mineThumb) {
-      patchThumb({ bg: mineThumb });
-      return;
-    }
-    setBusy('thumb');
+  const uploadImageTo = async (file: File, apply: (url: string) => void) => {
     try {
-      const refs = p.characters.map((c) => c.image).filter(Boolean) as string[];
-      const { dataUrl } = await generateImage(
-        `Eye-catching ${p.format === 'vertical' ? 'vertical' : 'YouTube'} thumbnail background art, dramatic lighting, vivid colors, big expressive characters, empty space for text, NO text or letters. Style: ${p.style}. Topic: ${p.title || p.prompt.slice(0, 200)}. Characters:\n${charactersText(p.characters)}`,
-        refs
-      );
-      patchThumb({ bg: dataUrl });
-    } catch (e: any) {
-      toast.error(e?.message || 'Thumbnail generation failed');
-    } finally {
-      setBusy('');
+      apply(await toJpegDataUrl(await fileToDataUrl(file)));
+    } catch {
+      toast.error('Could not read that image');
     }
   };
 
-
-
-  /* ------------------------------------------------ one-click posting via Buffer */
+  /* ------------------------------------------------ Buffer */
 
   const studioFetch = async (url: string, body: unknown) => {
     const res = await fetch(url, {
@@ -1039,31 +664,6 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       setBusy('');
     }
   };
-
-  /** Width, height and length of a video file. */
-  const videoInfo = (url: string) =>
-    new Promise<{ w: number; h: number; dur: number }>((resolve) => {
-      const v = document.createElement('video');
-      v.preload = 'metadata';
-      v.muted = true;
-      v.onerror = () => resolve({ w: 0, h: 0, dur: 0 });
-      v.onloadedmetadata = () => {
-        if (Number.isFinite(v.duration) && v.duration > 0) return resolve({ w: v.videoWidth, h: v.videoHeight, dur: v.duration });
-        // Browser-recorded WebM files have no length in their header: seek to the end so the browser works it out
-        const done = () => {
-          if (Number.isFinite(v.duration) && v.duration > 0) {
-            clearTimeout(timer);
-            v.ondurationchange = null;
-            resolve({ w: v.videoWidth, h: v.videoHeight, dur: v.duration });
-          }
-        };
-        const timer = setTimeout(() => resolve({ w: v.videoWidth, h: v.videoHeight, dur: 0 }), 15000);
-        v.ondurationchange = done;
-        v.onseeked = done;
-        v.currentTime = 1e7;
-      };
-      v.src = url;
-    });
 
   /**
    * Uploads the video to Cloudinary. During the upload Cloudinary also makes the final file(s): H.264/AAC MP4
@@ -1101,14 +701,6 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     return { vertical: eager[0], horizontal: landscape ? eager[1] || eager[0] : eager[0] };
   };
 
-  // Platform rules checked BEFORE uploading, so you get a clear reason instead of a Buffer error
-  const RULES: Record<string, { min: number; max: number; name: string }> = {
-    facebook: { min: 3, max: 90, name: 'Facebook Reels' },
-    instagram: { min: 3, max: 900, name: 'Instagram Reels' },
-    youtube: { min: 1, max: 43200, name: 'YouTube' },
-    tiktok: { min: 3, max: 600, name: 'TikTok' },
-  };
-
   const postEverywhere = async () => {
     const stop = (m: string) => {
       setPostError(m);
@@ -1116,8 +708,9 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     };
     setPostError('');
     setPostStage('');
+    const seo = p.seo;
     if (!exported) return stop('No video yet: join your clips in "Join Videos" or pick your finished video file above.');
-    if (!p.seo) return stop('Title, description and tags are missing: press "Write title, description, tags & thumbnail text" above.');
+    if (!seo) return stop('Title, description and tags are missing: press "Write title, description & tags" above.');
     const targets = channels.filter((c) => picked.includes(c.id));
     if (!targets.length) return stop('Pick at least one channel.');
     if (postWhen === 'schedule' && !dueAt) return stop('Choose a date and time.');
@@ -1146,20 +739,18 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       setProgress(0);
       setPostStage('Sending to Buffer…');
       const log: { label: string; ok: boolean; msg: string }[] = [];
-      const nl = String.fromCharCode(10, 10);
       const okIds: string[] = [];
       for (let i = 0; i < targets.length; i++) {
         const c = targets[i];
-        const meta = p.seo[c.service as Platform] || p.seo.youtube;
+        const cp = platformCopy(seo, c.service as Platform);
         const label = `${c.service} · ${c.displayName || c.name}`;
-        const caption = ((c.service === 'youtube' ? '' : meta.title + nl) + meta.description + nl + meta.hashtags).slice(0, 2200);
         try {
           const r = await studioFetch('/api/admin/automation/buffer', {
             action: 'post',
             channelId: c.id,
             service: c.service,
-            title: meta.title.replace(/[<>]/g, '').slice(0, 100) || p.title.slice(0, 100) || 'New video',
-            text: caption,
+            title: cp.title || p.title.slice(0, 100) || 'New video',
+            text: cp.caption,
             // Reels must be vertical; a landscape video stays landscape on YouTube
             videoUrl: c.service === 'youtube' ? urls.horizontal : urls.vertical,
             mode: postWhen === 'queue' ? 'queue' : 'now',
@@ -1185,77 +776,6 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     }
   };
 
-  /* ------------------------------------------------- one-click full automation */
-
-  const waitFor = async (cond: () => boolean, ms = 15000) => {
-    const t0 = Date.now();
-    while (!cond() && Date.now() - t0 < ms) await new Promise((r) => setTimeout(r, 150));
-  };
-  const tick = () => new Promise((r) => setTimeout(r, 80));
-
-  const autoAll = async (opts?: { idea?: string; part?: number }) => {
-    autoCancel.current = false;
-    if (exported) {
-      URL.revokeObjectURL(exported.url);
-      setExported(null);
-    }
-    if (opts?.idea !== undefined) {
-      patch({ idea: opts.idea, prompt: '', promptEdited: false, series: null, partIdx: 0 });
-      await tick();
-    }
-    const stop = () => autoCancel.current;
-    const fail = (m: string) => {
-      toast.error(m);
-      setAutoMsg('');
-    };
-    try {
-      let part: number | undefined;
-      if (pRef.current.seriesParts > 1) {
-        const cur = pRef.current;
-        if (!cur.series || cur.series.key !== seriesKey(cur)) {
-          setAutoMsg(`0/6 Planning your ${cur.seriesParts}-part series…`);
-          if (!(await planSeries())) return setAutoMsg('');
-          await tick();
-        }
-        part = opts?.part ?? pRef.current.partIdx;
-      }
-      setAutoMsg(part !== undefined ? `1/6 Writing part ${part + 1} of ${pRef.current.seriesParts}…` : '1/6 Writing story, scenes and characters…');
-      if (!(await generatePlan(part))) return setAutoMsg('');
-      await tick();
-      if (stop()) return setAutoMsg('');
-
-      setAutoMsg('2/6 Creating scene images…');
-      await generateAllImages();
-      await tick();
-      if (pRef.current.scenes.some((s) => !s.image)) return fail('Some scene images failed. Open step 3 and press Generate all images to retry.');
-      if (stop()) return setAutoMsg('');
-
-      setAutoMsg('3/6 Creating voiceovers…');
-      await makeAllVoices();
-      await tick();
-      if (stop()) return setAutoMsg('');
-
-      setAutoMsg('4/6 Writing titles, descriptions, hashtags and thumbnail text…');
-      await generateSeo();
-      if (stop()) return setAutoMsg('');
-
-      setAutoMsg('5/6 Preparing media…');
-      await waitFor(() => {
-        const sc = pRef.current.scenes;
-        return sc.every((s, i) => (!s.image || !!rsRef.current[i]?.img) && (!s.voice || !!rsRef.current[i]?.voice));
-      });
-      patch({ step: 5 });
-      await tick();
-
-      setAutoMsg('6/6 Rendering the final video (keep this window open)…');
-      await runExport(true);
-      setAutoMsg('');
-      if (!stop()) toast.success('Your video is ready. Download it below.');
-    } catch (e: any) {
-      fail(e?.message || 'Automation stopped');
-    }
-  };
-
   /* --------------------------------------------------------------- scene ops */
 
   const moveScene = (id: string, dir: -1 | 1) =>
@@ -1270,8 +790,12 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       return { ...o, scenes: arr };
     });
 
-  const removeScene = (id: string) =>
-    setP((o) => ({ ...o, scenes: o.scenes.filter((s) => s.id !== id) }));
+  const removeScene = (id: string) => setP((o) => ({ ...o, scenes: o.scenes.filter((s) => s.id !== id) }));
+
+  const addScene = () => {
+    const s: Scene = { id: uid(), prompt: '', dialogue: '', duration: 8 };
+    setP((o) => ({ ...o, scenes: [...o.scenes, s] }));
+  };
 
   const promptPack = () =>
     [
@@ -1279,145 +803,647 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       p.story ? `STORY: ${p.story}` : '',
       p.lesson ? `LESSON: ${p.lesson}` : '',
       `CHARACTERS (attach the reference images and keep them IDENTICAL in every scene):\n${charactersText(p.characters) || '(none)'}`,
-      ...p.scenes.map(
-        (s, i) =>
-          `\n==================== SCENE ${i + 1} of ${p.scenes.length} ====================\n\n${s.prompt}`
-      ),
+      ...p.scenes.map((s, i) => `\n==================== SCENE ${i + 1} of ${p.scenes.length} ====================\n\n${s.prompt}`),
     ]
       .filter(Boolean)
       .join('\n\n');
 
-  const addImagesAsScenes = async (files: FileList | null) => {
-    if (!files) return;
-    const added: Scene[] = [];
-    for (let i = 0; i < files.length; i++) {
-      try {
-        added.push({ id: uid(), prompt: '', narration: '', caption: '', duration: 4, image: await toJpegDataUrl(await fileToDataUrl(files[i])) });
-      } catch {
-        toast.error(`Could not read ${files[i].name}`);
-      }
-    }
-    if (added.length) {
-      setP((o) => ({ ...o, scenes: [...o.scenes, ...added] }));
-      setSelectedId(added[0].id);
-    }
+  const copy = (text: string, what: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => toast.success(`${what} copied`),
+      () => toast.error('Copy failed')
+    );
   };
 
-  const addScene = () => {
-    const s: Scene = { id: uid(), prompt: '', narration: '', caption: '', duration: 5 };
-    setP((o) => ({ ...o, scenes: [...o.scenes, s] }));
-    setSelectedId(s.id);
+  const resetAll = () => {
+    if (!window.confirm('Start a new project? Everything in this one will be cleared.')) return;
+    if (exported) URL.revokeObjectURL(exported.url);
+    setExported(null);
+    setP(newProject());
   };
 
-  const uploadImageTo = async (file: File, apply: (url: string) => void) => {
-    try {
-      apply(await toJpegDataUrl(await fileToDataUrl(file)));
-    } catch {
-      toast.error('Could not read that image');
-    }
+  const goto = (i: number) => {
+    if (i === STEP_SCENES && !p.scenes.length) return toast.error('Create scene prompts in step 1 first');
+    patch({ step: i });
   };
 
-  /* ------------------------------------------------------------------ player */
+  /* ------------------------------------------------------------------ steps */
 
-  const draw = useCallback((t: number) => {
-    const c = canvasRef.current;
-    const ctx = c?.getContext('2d');
-    if (!c || !ctx) return;
-    drawFrame(ctx, rsRef.current, setRef.current, t);
-  }, []);
+  const stepWrite = (
+    <div className="space-y-4">
+      <div className={`${card} border-indigo-500/40`}>
+        <div className="flex flex-col gap-2 md:flex-row">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input
+              className={`${input} !pl-9 !py-3 text-base`}
+              placeholder="Search any idea or topic (e.g. Eid outfit challenge, gaming prank, college love story)…"
+              value={p.idea}
+              onChange={(e) => patch({ idea: e.target.value, prompt: p.promptEdited ? p.prompt : '', series: null })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !busy) suggestIdeas();
+              }}
+            />
+          </div>
+          <button className={`${btnPrimary} !py-3`} disabled={!!busy} onClick={() => suggestIdeas()}>
+            <Spin on={busy === 'ideas'}><Search className="h-4 w-4" /></Spin>
+            {p.idea.trim() ? 'Search ideas' : 'Show ideas'}
+          </button>
+          <button className={`${btnGhost} !py-3`} disabled={!!busy} onClick={() => suggestIdeas(true)} title="15 brand-new ideas for the selected niche">
+            <RefreshCw className="h-4 w-4" /> New ideas
+          </button>
+        </div>
+        {ideaList.length > 0 && (
+          <div className="mt-2 grid gap-1.5 md:grid-cols-2">
+            <h4 className="text-sm font-bold text-white md:col-span-2">
+              Self-Generated Video Topics for {p.genre === BESHAAN ? 'Beshaan' : p.genre}
+            </h4>
+            {ideaList.map((idea, i) => (
+              <div
+                key={i}
+                className={`flex items-stretch gap-1 rounded-lg border transition ${p.idea === idea ? 'border-indigo-500 bg-indigo-600/20' : 'border-slate-700 bg-slate-950 hover:border-slate-500'}`}
+              >
+                <button onClick={() => patch({ idea, prompt: p.promptEdited ? p.prompt : '', series: null })} className="flex-1 px-3 py-2 text-left text-sm text-slate-200">
+                  <span className="mr-1 font-bold text-indigo-300">{i + 1}.</span>
+                  {idea}
+                </button>
+                <button
+                  disabled={!!busy}
+                  onClick={() => {
+                    patch({ idea, prompt: p.promptEdited ? p.prompt : '', series: null });
+                    setTimeout(() => generatePlan(), 60);
+                  }}
+                  title="Write the scene prompts for this idea"
+                  className="m-1 shrink-0 rounded-md bg-emerald-600 px-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  ⚡ Create scene prompts
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="mt-2 text-xs text-slate-500">
+          Search a topic, or press New ideas for 15 fresh ones every time. Click an idea to pick it, or ⚡ Create scene prompts to build the full video from it. Choose "Video type" below for a 5 or 10 part series.
+        </p>
+      </div>
 
-  const pause = useCallback(() => {
-    cancelAnimationFrame(rafRef.current);
-    stopAudioRef.current?.();
-    stopAudioRef.current = null;
-    setPlaying(false);
-  }, []);
-
-  const playFrom = useCallback(
-    async (from: number) => {
-      const scenes = rsRef.current;
-      const tot = totalDuration(scenes);
-      if (!scenes.length) return;
-      const ac = getAc();
-      await ac.resume();
-      cancelAnimationFrame(rafRef.current);
-      stopAudioRef.current?.();
-      const start = from >= tot - 0.05 ? 0 : from;
-      stopAudioRef.current = scheduleAudio(ac, ac.destination, scenes, setRef.current, musicRef.current, start);
-      const wall = performance.now();
-      setPlaying(true);
-      const loop = () => {
-        const t = start + (performance.now() - wall) / 1000;
-        if (t >= tot) {
-          timeRef.current = tot;
-          setTime(tot);
-          draw(tot);
-          pause();
-          return;
-        }
-        timeRef.current = t;
-        setTime(t);
-        draw(t);
-        rafRef.current = requestAnimationFrame(loop);
-      };
-      loop();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [draw, pause]
+      <div className={card}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-base font-bold text-white">Describe your video</h3>
+        </div>
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="md:col-span-2">
+            <span className={label}>Niche Curriculum</span>
+            <select
+              className={input}
+              value={nicheOf(p)?.id || ''}
+              onChange={(e) => {
+                const n = NICHE_OPTIONS.find((x) => x.id === e.target.value);
+                if (!n) return;
+                patch(n.genre === BESHAAN ? { genre: n.genre, focus: n.focus, cast: '2 girls + 1 boy', mood: 'Fun & energetic', series: null } : { genre: n.genre, series: null });
+              }}
+            >
+              {!nicheOf(p) && <option value="">Custom genre (below)</option>}
+              {NICHE_OPTIONS.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.icon} {n.label}
+                </option>
+              ))}
+            </select>
+            {nicheOf(p) && <p className="mt-1 text-xs text-slate-400">{nicheOf(p)!.desc}</p>}
+          </div>
+          <div>
+            <span className={label}>Dialogue / Voiceover</span>
+            <select className={input} value={p.language} onChange={(e) => patch({ language: e.target.value as Project['language'] })}>
+              <option value="roman_urdu">🇵🇰 Roman Urdu (رومن اردو dialogues)</option>
+              <option value="english">🌐 English (Global dialogues)</option>
+              <option value="urdu">🇵🇰 Urdu Script (اردو)</option>
+            </select>
+          </div>
+        </div>
+        <div className="mb-4">
+          <span className={label}>Genre</span>
+          <div className="flex flex-wrap gap-1.5">
+            {GENRES.map((g) => (
+              <button key={g} onClick={() => patch(g === BESHAAN ? { genre: g, cast: '2 girls + 1 boy', mood: 'Fun & energetic' } : { genre: g })} className={`rounded-full px-3 py-1 text-xs font-semibold ${p.genre === g ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                {g === BESHAAN ? 'Beshaan' : g}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div>
+            <span className={label}>Mood</span>
+            <select className={input} value={p.mood} onChange={(e) => patch({ mood: e.target.value })}>
+              {MOODS.filter((x) => !isBeshaan(p.genre) || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
+            </select>
+          </div>
+          <div>
+            <span className={label}>Setting</span>
+            <select className={input} value={p.setting} onChange={(e) => patch({ setting: e.target.value })}>
+              {SETTINGS.filter((x) => !isBeshaan(p.genre) || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
+            </select>
+          </div>
+          <div>
+            <span className={label}>Characters</span>
+            <select className={input} value={p.cast} onChange={(e) => patch({ cast: e.target.value })}>
+              {CASTS.filter((x) => !isBeshaan(p.genre) || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button className={btnGhost} disabled={!!busy} onClick={createPrompt}>
+            <Spin on={busy === 'idea'}><Sparkles className="h-4 w-4" /></Spin>
+            Create prompt for me
+          </button>
+        </div>
+        <span className={label}>Full video prompt (auto-written, you can edit)</span>
+        <textarea
+          className={`${input} min-h-[160px]`}
+          placeholder="Leave empty: the prompt and the scene prompts are created for you from the options above."
+          value={p.prompt}
+          onChange={(e) => patch({ prompt: e.target.value, promptEdited: true })}
+        />
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div>
+            <span className={label}>Scenes / parts</span>
+            <select className={input} value={p.sceneCount} onChange={(e) => patch({ sceneCount: Number(e.target.value) })}>
+              {[3, 4, 5, 6, 7, 8, 10, 12, 15].map((n) => (
+                <option key={n} value={n}>
+                  {n} scenes
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className={label}>Video type</span>
+            <select
+              className={input}
+              value={p.seriesParts}
+              onChange={(e) => {
+                const n = Number(e.target.value) as 1 | 5 | 10;
+                patch({ seriesParts: n, series: null, partIdx: 0 });
+                if (n > 1) setTimeout(() => { if (pRef.current.seriesParts > 1 && !pRef.current.series) planSeries(); }, 80);
+              }}
+            >
+              <option value={1}>Single video</option>
+              <option value={5}>5-part series</option>
+              <option value={10}>10-part series</option>
+            </select>
+          </div>
+          <div>
+            <span className={label}>Format</span>
+            <select className={input} value={p.format} onChange={(e) => patch({ format: e.target.value as Project['format'] })}>
+              <option value="vertical">9:16 Shorts / Reels</option>
+              <option value="horizontal">16:9 YouTube</option>
+            </select>
+          </div>
+          <div>
+            <span className={label}>Visual style</span>
+            <select className={input} value={p.style} onChange={(e) => patch({ style: e.target.value })}>
+              {STYLES.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className={label}>Dialogue language</span>
+            <select className={input} value={p.language} onChange={(e) => patch({ language: e.target.value as Project['language'] })}>
+              {LANG_OPTIONS.map((l) => (
+                <option key={l} value={l}>
+                  {l === 'roman_urdu' ? 'Roman Urdu' : l === 'english' ? 'English' : 'Urdu (script)'}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button className={btnPrimary} disabled={!!busy} onClick={() => generatePlan()}>
+            <Spin on={busy === 'plan' || busy === 'series'}>
+              <Sparkles className="h-4 w-4" />
+            </Spin>
+            {p.scenes.length ? 'Write new scene prompts' : 'Create scene prompts'}
+          </button>
+          {p.scenes.length > 0 && (
+            <button className={btnGhost} onClick={() => patch({ step: STEP_SCENES })}>
+              Continue <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
+          <span className="text-xs text-slate-500">Free AI via Groq.</span>
+        </div>
+      </div>
+      {p.series && p.seriesParts > 1 && (
+        <div className={card}>
+          <h3 className="text-base font-bold text-white">
+            {p.series.title} <span className="text-xs font-normal text-slate-400">({p.series.parts.length}-part series)</span>
+          </h3>
+          <p className="mb-3 text-sm text-slate-400">{p.series.summary}</p>
+          <div className="space-y-1.5">
+            {p.series.parts.map((part, i) => (
+              <div key={i} className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 ${i === p.partIdx && p.scenes.length ? 'border-indigo-500 bg-indigo-600/10' : 'border-slate-700 bg-slate-950'}`}>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-bold text-white">
+                    Part {i + 1}: {part.title}
+                  </div>
+                  <div className="truncate text-xs text-slate-400">{part.summary}</div>
+                </div>
+                <button className={`${btnPrimary} shrink-0 !py-1 text-xs`} disabled={!!busy} onClick={() => generatePlan(i)}>
+                  ▶ Prompts for part {i + 1}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {p.story && (
+        <div className={card}>
+          <input className={`${input} mb-2 font-bold`} value={p.title} onChange={(e) => patch({ title: e.target.value })} />
+          <textarea className={`${input} min-h-[70px]`} value={p.story} onChange={(e) => patch({ story: e.target.value })} />
+        </div>
+      )}
+    </div>
   );
 
-  const seek = (t: number) => {
-    const wasPlaying = playing;
-    pause();
-    timeRef.current = t;
-    setTime(t);
-    draw(t);
-    if (wasPlaying) playFrom(t);
-  };
+  const stepScenes = (
+    <div className="space-y-4">
+      <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
+        <div>
+          <h3 className="text-base font-bold text-white">Scenes ({p.scenes.length})</h3>
+          <p className="text-xs text-slate-400">
+            Copy each scene into Google Flow (attach your character pictures there) and make one clip per scene. Then go to Join Videos.
+          </p>
+          {p.lesson && <p className="mt-1 text-sm font-semibold text-emerald-300">Lesson: {p.lesson}</p>}
+        </div>
+        <div className="flex gap-2">
+          <button className={btnGhost} onClick={addScene}>
+            <Plus className="h-4 w-4" /> Scene
+          </button>
+          <button className={btnGhost} onClick={() => copy(promptPack(), 'All prompts')} title="For Veo / Kling / Runway / Sora: character block + every scene prompt">
+            <Copy className="h-4 w-4" /> Copy all prompts
+          </button>
+          <button className={btnGhost} onClick={() => downloadBlob(new Blob([promptPack()], { type: 'text/plain' }), 'ai-video-prompts.txt')}>
+            <Download className="h-4 w-4" /> .txt
+          </button>
+        </div>
+      </div>
 
-  useEffect(() => () => {
-    cancelAnimationFrame(rafRef.current);
-    stopAudioRef.current?.();
-  }, []);
+      {p.scenes.map((s, i) => (
+        <div key={s.id} className={card}>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-indigo-300">
+                Scene {i + 1} <span className="text-xs font-normal text-slate-500">· {s.duration}s</span>
+              </span>
+              <div className="flex gap-1">
+                <button className={`${btnGhost} !px-2 !py-1`} disabled={i === 0} onClick={() => moveScene(s.id, -1)} title="Move up">
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button className={`${btnGhost} !px-2 !py-1`} disabled={i === p.scenes.length - 1} onClick={() => moveScene(s.id, 1)} title="Move down">
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+                <button className={`${btnGhost} !px-2 !py-1`} disabled={!!busy} onClick={() => regenerateScenePrompt(s.id)} title="Regenerate this prompt with AI">
+                  <Spin on={busy === `prompt:${s.id}`}>
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </Spin>
+                </button>
+                <button className={`${btnGhost} !px-2 !py-1`} onClick={() => copy(s.prompt, 'Prompt')} title="Copy prompt">
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+                <button className={`${btnGhost} !px-2 !py-1 text-red-400`} onClick={() => removeScene(s.id)} title="Delete scene">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+            <textarea className={`${input} min-h-[160px]`} placeholder="Full AI video prompt for this scene" value={s.prompt} onChange={(e) => patchScene(s.id, { prompt: e.target.value })} />
+          </div>
+        </div>
+      ))}
 
-  // keep a paused preview in sync with edits
+      <div className="flex justify-between">
+        <button className={btnGhost} onClick={() => patch({ step: STEP_WRITE })}>
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <button className={btnPrimary} onClick={() => patch({ step: STEP_JOIN })}>
+          Next: Join videos <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const stepJoinView = (
+    <JoinClips
+      joined={exported}
+      onJoined={(v) => {
+        if (exported) URL.revokeObjectURL(exported.url);
+        setExported(v);
+      }}
+      onNext={() => patch({ step: STEP_POST })}
+    />
+  );
+
+  /* ---- Post: video, one set of text, thumbnail, then the platforms */
+
+  const seoNow = p.seo;
+  const seoAbout = (
+    <div className="space-y-2">
+      <input className={input} placeholder="Video topic / working title (optional)" value={p.title} onChange={(e) => patch({ title: e.target.value })} />
+      <textarea
+        className={`${input} min-h-[70px]`}
+        placeholder="What is this video about? e.g. Aisha, Mira and Zaid do a 5-minute Eid outfit challenge, Zaid loses and has to cook for everyone"
+        value={p.story}
+        onChange={(e) => patch({ story: e.target.value })}
+      />
+      <button className={btnPrimary} disabled={!!busy || (!p.story.trim() && !p.title.trim() && !p.prompt.trim())} onClick={generateSeo}>
+        <Spin on={busy === 'seo'}>
+          <Sparkles className="h-4 w-4" />
+        </Spin>
+        {seoNow ? 'Write again' : 'Write title, description & tags'}
+      </button>
+    </div>
+  );
+
+  const stepPost = (
+    <div className="space-y-4">
+      {p.series && p.seriesParts > 1 && (
+        <div className={`${card} flex flex-wrap items-center justify-between gap-2`}>
+          <span className="text-sm text-slate-300">
+            Part {p.partIdx + 1} of {p.series.parts.length} done? Download it above, then continue the story.
+          </span>
+          {p.partIdx + 1 < p.series.parts.length ? (
+            <button className={btnPrimary} disabled={!!busy} onClick={() => generatePlan(p.partIdx + 1)}>
+              ▶ Prompts for part {p.partIdx + 2}
+            </button>
+          ) : (
+            <span className="text-sm font-semibold text-emerald-400">That was the final part 🎉</span>
+          )}
+        </div>
+      )}
+
+      <div className={card}>
+        <h3 className="text-base font-bold text-white">1. Your video</h3>
+        {exported ? (
+          <div className="mt-2 space-y-2">
+            <video src={exported.url} controls className="max-h-[360px] w-full rounded-xl bg-black" />
+            <div className="flex flex-wrap gap-2">
+              <a href={exported.url} download={`${(p.title || 'video').replace(/[^\w]+/g, '-').slice(0, 50)}.${exported.ext}`} className={btnGhost}>
+                <Download className="h-4 w-4" /> Download
+              </a>
+              <label className={`${btnGhost} cursor-pointer`}>
+                <Upload className="h-4 w-4" /> Change video
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!f) return;
+                    URL.revokeObjectURL(exported.url);
+                    const ext = (f.name.split('.').pop() || 'mp4').toLowerCase();
+                    setExported({ url: URL.createObjectURL(f), ext, size: f.size, blob: f });
+                    setPostError('');
+                    setPostLog([]);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-1 text-sm text-slate-400">
+            No video yet. Go back to <b>Join Videos</b>, upload your clips and join them, or{' '}
+            <label className="cursor-pointer font-semibold text-indigo-400 underline">
+              pick a finished video file
+              <input
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!f) return;
+                  const ext = (f.name.split('.').pop() || 'mp4').toLowerCase();
+                  setExported({ url: URL.createObjectURL(f), ext, size: f.size, blob: f });
+                }}
+              />
+            </label>
+            .
+          </p>
+        )}
+      </div>
+
+      <div className={card}>
+        <h3 className="text-base font-bold text-white">2. Title, description & tags</h3>
+        <p className="mt-1 text-xs text-slate-400">
+          One text for every platform. Each platform gets it cut to its own length automatically (shown below).
+        </p>
+        <div className="mt-3">{seoAbout}</div>
+
+        {busy === 'seo' && !seoNow ? (
+          <div className="flex items-center gap-2 py-8 text-sm text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Writing title, description and tags…
+          </div>
+        ) : seoNow ? (
+          <div className="mt-4 space-y-3">
+            <div>
+              <span className={label}>Title ({seoNow.title.length}/100 for YouTube)</span>
+              <input className={input} value={seoNow.title} onChange={(e) => setSeo({ title: e.target.value })} />
+            </div>
+            <div>
+              <span className={label}>Description</span>
+              <textarea className={`${input} min-h-[120px]`} value={seoNow.description} onChange={(e) => setSeo({ description: e.target.value })} />
+            </div>
+            <div>
+              <span className={label}>Hashtags / tags</span>
+              <input className={input} value={seoNow.hashtags} onChange={(e) => setSeo({ hashtags: e.target.value })} />
+            </div>
+
+            <div>
+              <span className={label}>What each platform gets</span>
+              <div className="grid gap-2 md:grid-cols-2">
+                {PLATFORMS.map((pl) => {
+                  const c = platformCopy(seoNow, pl.id);
+                  return (
+                    <div key={pl.id} className="rounded-xl border border-slate-700 bg-slate-950 p-3">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-white">{pl.label}</span>
+                        <a href={pl.uploadUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-300 hover:underline">
+                          Open upload page <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                      <p className="truncate text-xs text-slate-300">Title: {c.title || '(empty)'}</p>
+                      {(c.titleCut || c.captionCut) && (
+                        <p className="text-[11px] text-amber-300">
+                          {c.titleCut ? `Title cut to ${pl.titleMax} characters. ` : ''}
+                          {c.captionCut ? `Text cut to ${CAPTION_MAX} characters.` : ''}
+                        </p>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button className={`${btnGhost} !py-1 text-xs`} onClick={() => copy(c.title, 'Title')}>
+                          <Copy className="h-3 w-3" /> Title
+                        </button>
+                        <button className={`${btnGhost} !py-1 text-xs`} onClick={() => copy(c.body, 'Description & tags')}>
+                          <Copy className="h-3 w-3" /> Description & tags
+                        </button>
+                        <button className={`${btnPrimary} !py-1 text-xs`} onClick={() => copy(`${c.title}\n\n${c.body}`, 'Full post')}>
+                          <Check className="h-3 w-3" /> Copy all
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-slate-500">Write the title, description and tags with the button above.</p>
+        )}
+      </div>
+
+      <div className={card}>
+        <h3 className="mb-3 text-base font-bold text-white">3. Thumbnail</h3>
+        <div className="grid gap-4 md:grid-cols-[minmax(0,260px)_1fr]">
+          <div className="flex justify-center rounded-xl bg-black p-2">
+            <canvas ref={thumbRef} className="max-h-[360px] w-auto max-w-full rounded-lg" />
+          </div>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <span className={label}>Headline</span>
+                <input className={input} value={p.thumb.headline} onChange={(e) => patchThumb({ headline: e.target.value.toUpperCase() })} />
+              </div>
+              <div className="col-span-2">
+                <span className={label}>Badge</span>
+                <input className={input} value={p.thumb.badge} onChange={(e) => patchThumb({ badge: e.target.value.toUpperCase() })} />
+              </div>
+              <div>
+                <span className={label}>Text color</span>
+                <input type="color" className="h-9 w-full rounded bg-transparent" value={p.thumb.textColor} onChange={(e) => patchThumb({ textColor: e.target.value })} />
+              </div>
+              <div>
+                <span className={label}>Badge color</span>
+                <input type="color" className="h-9 w-full rounded bg-transparent" value={p.thumb.accent} onChange={(e) => patchThumb({ accent: e.target.value })} />
+              </div>
+              <div className="col-span-2">
+                <span className={label}>Text position</span>
+                <select className={input} value={p.thumb.position} onChange={(e) => patchThumb({ position: e.target.value as Thumb['position'] })}>
+                  <option value="top">Top</option>
+                  <option value="center">Center</option>
+                  <option value="bottom">Bottom</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <label className={`${btnGhost} cursor-pointer`}>
+                <Upload className="h-4 w-4" /> Background image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) uploadImageTo(f, (url) => patchThumb({ bg: url }));
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {exported && (
+                <button className={btnGhost} disabled={!!busy} onClick={thumbFromVideo}>
+                  <ImageIcon className="h-4 w-4" /> Frame from my video
+                </button>
+              )}
+              <button className={btnGhost} onClick={() => thumbRef.current?.toBlob((b) => b && downloadBlob(b, 'thumbnail.png'), 'image/png')}>
+                <Download className="h-4 w-4" /> PNG
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={card}>
+        <h3 className="text-base font-bold text-white">4. Post to all platforms (Buffer)</h3>
+        <p className="mt-1 text-sm text-slate-400">
+          Connect your accounts once inside Buffer, then post to all of them with one click. Buffer free plan allows 3 channels.
+        </p>
+        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+          <input
+            type="password"
+            className={input}
+            placeholder="Studio publish password (STUDIO_PUBLISH_PASSWORD)"
+            value={pubKey}
+            onChange={(e) => savePubKey(e.target.value)}
+          />
+          <button className={btnGhost} disabled={!pubKey || !!busy} onClick={loadChannels}>
+            <Spin on={busy === 'channels'}>
+              <RefreshCw className="h-4 w-4" />
+            </Spin>
+            Load my Buffer channels
+          </button>
+        </div>
+        {channels.length > 0 && (
+          <div className="mt-3 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {channels.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={picked.includes(c.id)}
+                    onChange={(e) => setPicked((o) => (e.target.checked ? [...o, c.id] : o.filter((x) => x !== c.id)))}
+                  />
+                  <span className="font-semibold capitalize text-white">{c.service}</span>
+                  <span className="text-slate-400">{c.displayName || c.name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <select className={`${input} !w-auto`} value={postWhen} onChange={(e) => setPostWhen(e.target.value as typeof postWhen)}>
+                <option value="now">Post now</option>
+                <option value="queue">Add to Buffer queue</option>
+                <option value="schedule">Schedule…</option>
+              </select>
+              {postWhen === 'schedule' && (
+                <input type="datetime-local" className={`${input} !w-auto`} value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+              )}
+              <button className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-500`} disabled={!!busy} onClick={postEverywhere}>
+                <Spin on={busy === 'post'}>
+                  <Upload className="h-4 w-4" />
+                </Spin>
+                {busy === 'post' ? (progress > 0 && progress < 100 ? `Uploading ${Math.round(progress)}%` : 'Working…') : 'Upload video & post'}
+              </button>
+              <span className="text-xs text-slate-400">
+                Video {exported ? '✅' : '❌'} · Title & tags {seoNow ? '✅' : '❌'}
+              </span>
+            </div>
+          </div>
+        )}
+        {postStage && <p className="mt-3 text-sm text-indigo-300">{postStage}</p>}
+        {postError && <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{postError}</p>}
+        {postLog.length > 0 && (
+          <ul className="mt-3 space-y-1 text-sm">
+            {postLog.map((l, i) => (
+              <li key={i} className={l.ok ? 'text-emerald-400' : 'text-red-400'}>
+                {l.ok ? '✓' : '✗'} {l.label}: {l.msg}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="flex justify-between">
+        <button className={btnGhost} onClick={() => patch({ step: STEP_JOIN })}>
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <button className={btnGhost} onClick={resetAll}>
+          <RotateCcw className="h-4 w-4" /> New project
+        </button>
+      </div>
+    </div>
+  );
+
+  const stepViews = [stepWrite, stepScenes, stepJoinView, stepPost];
+
+  // The thumbnail preview: the chosen background (video frame or upload) with the headline and badge drawn on it
   useEffect(() => {
-    if (p.step === 3 && !playing) draw(timeRef.current);
-  }, [p.step, playing, renderScenes, renderSettings, draw]);
-
-  useEffect(() => {
-    if (p.step !== 3 && playing) pause();
-  }, [p.step, playing, pause]);
-
-  /* ----------------------------------------------------------------- export */
-
-  const runExport = async (auto = false) => {
-    const p = pRef.current; // autoAll calls this right after state changes, so read the latest state
-    if (!p.scenes.length) return toast.error('No scenes to export');
-    const missing = p.scenes.filter((s) => !s.image).length;
-    if (!auto && missing && !window.confirm(`${missing} scene(s) have no image and will render as a placeholder. Continue?`)) return;
-    pause();
-    cancelRef.current = { cancelled: false };
-    setBusy('export');
-    setExported(null);
-    setProgress(0);
-    try {
-      const r = await exportVideo(rsRef.current, setRef.current, musicRef.current, (x) => setProgress(x * 100), cancelRef.current);
-      if (exported) URL.revokeObjectURL(exported.url);
-      setExported({ url: URL.createObjectURL(r.blob), ext: r.ext, size: r.blob.size, blob: r.blob });
-      toast.success('Video rendered');
-    } catch (e: any) {
-      if (!/cancelled/i.test(e?.message || '')) toast.error(e?.message || 'Export failed');
-    } finally {
-      setBusy('');
-      setProgress(0);
-    }
-  };
-
-  /* --------------------------------------------------------------- thumbnail */
-
-  useEffect(() => {
-    if (p.step !== 4 && p.step !== 5) return;
+    if (p.step !== STEP_POST) return;
     const c = thumbRef.current;
     const ctx = c?.getContext('2d');
     if (!c || !ctx) return;
@@ -1426,7 +1452,6 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     c.width = W;
     c.height = H;
     const t = p.thumb;
-    const fallback = p.scenes.find((s) => s.image)?.image;
     const render = (img: HTMLImageElement | null) => {
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(0, 0, W, H);
@@ -1487,1128 +1512,22 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         ctx.fillText(t.badge, bx + bs * 0.6, by + bh / 2 + 1);
       }
     };
-    const src = t.bg || fallback;
-    if (src) loadImage(src).then(render).catch(() => render(null));
+    if (t.bg) loadImage(t.bg).then(render).catch(() => render(null));
     else render(null);
-  }, [p.step, p.thumb, p.format, p.scenes]);
+  }, [p.step, p.thumb, p.format]);
 
-  // Auto-generate SEO the first time the Thumbnail & SEO step is opened
+  // Writes the title, description and tags the first time the Post step opens (if the video has scenes)
   useEffect(() => {
-    if (p.step === 4 && !p.seo && p.scenes.length && !busy) generateSeo();
+    if (p.step === STEP_POST && !p.seo && p.scenes.length && !busy) generateSeo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.step]);
-
-  const downloadThumb = () => {
-    thumbRef.current?.toBlob((b) => b && downloadBlob(b, 'thumbnail.png'), 'image/png');
-  };
-
-  /* -------------------------------------------------------------- navigation */
-
-  const goto = (i: number) => {
-    if (mode === 'wizard' && i > 0 && i !== 3 && i !== 5 && !p.scenes.length) return toast.error('Generate scene prompts in step 1 first');
-    patch({ step: i });
-  };
-
-  const resetAll = () => {
-    if (!window.confirm('Start a new project? Everything in this one will be cleared.')) return;
-    pause();
-    if (exported) URL.revokeObjectURL(exported.url);
-    setExported(null);
-    setSelectedId('');
-    timeRef.current = 0;
-    setTime(0);
-    setP(newProject());
-  };
-
-  const selected = p.scenes.find((s) => s.id === selectedId) || p.scenes[0];
-  const copy = (text: string, what: string) => {
-    navigator.clipboard.writeText(text).then(
-      () => toast.success(`${what} copied`),
-      () => toast.error('Copy failed')
-    );
-  };
-
-  /* ------------------------------------------------------------------ steps */
-
-  const step1 = (
-    <div className="space-y-4">
-      <div className={`${card} border-indigo-500/40`}>
-        <div className="flex flex-col gap-2 md:flex-row">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input
-              className={`${input} !pl-9 !py-3 text-base`}
-              placeholder="Search any idea or topic (e.g. Eid outfit challenge, gaming prank, college love story)…"
-              value={p.idea}
-              onChange={(e) => patch({ idea: e.target.value, prompt: p.promptEdited ? p.prompt : '', series: null })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !busy) suggestIdeas();
-              }}
-            />
-          </div>
-          <button className={`${btnPrimary} !py-3`} disabled={!!busy || !!autoMsg} onClick={() => suggestIdeas()}>
-            <Spin on={busy === 'ideas'}><Search className="h-4 w-4" /></Spin>
-            {p.idea.trim() ? 'Search ideas' : 'Show ideas'}
-          </button>
-          <button className={`${btnGhost} !py-3`} disabled={!!busy || !!autoMsg} onClick={() => suggestIdeas(true)} title="15 brand-new ideas for the selected genre">
-            <RefreshCw className="h-4 w-4" /> New ideas
-          </button>
-        </div>
-        {ideaList.length > 0 && (
-            <div className="mt-2 grid gap-1.5 md:grid-cols-2">
-              <h4 className="text-sm font-bold text-white md:col-span-2">
-                Self-Generated Video Topics for {p.genre === BESHAAN ? 'Beshaan' : p.genre}
-              </h4>
-              {ideaList.map((idea, i) => (
-                <div
-                  key={i}
-                  className={`flex items-stretch gap-1 rounded-lg border transition ${p.idea === idea ? 'border-indigo-500 bg-indigo-600/20' : 'border-slate-700 bg-slate-950 hover:border-slate-500'}`}
-                >
-                  <button onClick={() => patch({ idea, prompt: p.promptEdited ? p.prompt : '', series: null })} className="flex-1 px-3 py-2 text-left text-sm text-slate-200">
-                    <span className="mr-1 font-bold text-indigo-300">{i + 1}.</span>
-                    {idea}
-                  </button>
-                  <button
-                    disabled={!!busy || !!autoMsg}
-                    onClick={() => {
-                      patch({ idea, prompt: p.promptEdited ? p.prompt : '', series: null });
-                      setTimeout(() => generatePlan(), 60);
-                    }}
-                    title="Write the scene prompts for this idea"
-                    className="m-1 shrink-0 rounded-md bg-emerald-600 px-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
-                  >
-                    ⚡ Create scene prompts
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        <p className="mt-2 text-xs text-slate-500">
-          Search a topic, or press New ideas for 15 fresh ones every time. Click an idea to pick it, or ▶ Make to build the full video from it. Choose "Video type" below for a 5 or 10 part series.
-        </p>
-      </div>
-      <div className={card}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-base font-bold text-white">Describe your video</h3>
-        </div>
-        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="md:col-span-2">
-            <span className={label}>Niche Curriculum</span>
-            <select
-              className={input}
-              value={nicheOf(p)?.id || ''}
-              onChange={(e) => {
-                const n = NICHE_OPTIONS.find((x) => x.id === e.target.value);
-                if (!n) return;
-                patch(n.genre === BESHAAN ? { genre: n.genre, focus: n.focus, cast: '2 girls + 1 boy', mood: 'Fun & energetic', series: null } : { genre: n.genre, series: null });
-              }}
-            >
-              {!nicheOf(p) && <option value="">Custom genre (below)</option>}
-              {NICHE_OPTIONS.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.icon} {n.label}
-                </option>
-              ))}
-            </select>
-            {nicheOf(p) && <p className="mt-1 text-xs text-slate-400">{nicheOf(p)!.desc}</p>}
-          </div>
-          <div>
-            <span className={label}>Dialogue / Voiceover</span>
-            <select className={input} value={p.language} onChange={(e) => patch({ language: e.target.value as Project['language'] })}>
-              <option value="roman_urdu">🇵🇰 Roman Urdu (رومن اردو dialogues)</option>
-              <option value="english">🌐 English (Global dialogues)</option>
-              <option value="urdu">🇵🇰 Urdu Script (اردو)</option>
-            </select>
-          </div>
-        </div>
-        <div className="mb-4">
-          <span className={label}>Genre</span>
-          <div className="flex flex-wrap gap-1.5">
-            {GENRES.map((g) => (
-              <button key={g} onClick={() => patch(g === BESHAAN ? { genre: g, cast: '2 girls + 1 boy', mood: 'Fun & energetic' } : { genre: g })} className={`rounded-full px-3 py-1 text-xs font-semibold ${p.genre === g ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
-                {g === BESHAAN ? 'Beshaan' : g}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div>
-            <span className={label}>Mood</span>
-            <select className={input} value={p.mood} onChange={(e) => patch({ mood: e.target.value })}>
-              {MOODS.filter((x) => p.genre !== BESHAAN || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
-            </select>
-          </div>
-          <div>
-            <span className={label}>Setting</span>
-            <select className={input} value={p.setting} onChange={(e) => patch({ setting: e.target.value })}>
-              {SETTINGS.filter((x) => p.genre !== BESHAAN || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
-            </select>
-          </div>
-          <div>
-            <span className={label}>Characters</span>
-            <select className={input} value={p.cast} onChange={(e) => patch({ cast: e.target.value })}>
-              {CASTS.filter((x) => p.genre !== BESHAAN || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
-            </select>
-          </div>
-        </div>
-        <div className="mb-4 flex flex-wrap gap-2">
-          <button className={btnGhost} disabled={!!busy} onClick={createPrompt}>
-            <Spin on={busy === 'idea'}><Sparkles className="h-4 w-4" /></Spin>
-            Create prompt for me
-          </button>
-        </div>
-        <span className={label}>Full video prompt (auto-written, you can edit)</span>
-        <textarea
-          className={`${input} min-h-[160px]`}
-          placeholder="Leave empty: the prompt, scenes and character images are all created for you from the options above."
-          value={p.prompt}
-          onChange={(e) => patch({ prompt: e.target.value, promptEdited: true })}
-        />
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-          <div>
-            <span className={label}>Scenes / parts</span>
-            <select className={input} value={p.sceneCount} onChange={(e) => patch({ sceneCount: Number(e.target.value) })}>
-              {[3, 4, 5, 6, 7, 8, 10, 12, 15].map((n) => (
-                <option key={n} value={n}>
-                  {n} scenes
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <span className={label}>Video type</span>
-            <select className={input} value={p.seriesParts} onChange={(e) => {
-                const n = Number(e.target.value) as 1 | 5 | 10;
-                patch({ seriesParts: n, series: null, partIdx: 0 });
-                if (n > 1) setTimeout(() => { if (pRef.current.seriesParts > 1 && !pRef.current.series) planSeries(); }, 80);
-              }}>
-              <option value={1}>Single video</option>
-              <option value={5}>5-part series</option>
-              <option value={10}>10-part series</option>
-            </select>
-          </div>
-          <div>
-            <span className={label}>Format</span>
-            <select className={input} value={p.format} onChange={(e) => patch({ format: e.target.value as Project['format'] })}>
-              <option value="vertical">9:16 Shorts / Reels</option>
-              <option value="horizontal">16:9 YouTube</option>
-            </select>
-          </div>
-          <div>
-            <span className={label}>Visual style</span>
-            <select className={input} value={p.style} onChange={(e) => patch({ style: e.target.value })}>
-              {STYLES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <span className={label}>Dialogue language</span>
-            <select className={input} value={p.language} onChange={(e) => patch({ language: e.target.value as Project['language'] })}>
-              <option value="roman_urdu">Roman Urdu</option>
-              <option value="english">English</option>
-              <option value="urdu">Urdu (script)</option>
-            </select>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button className={btnPrimary} disabled={!!busy || !!autoMsg} onClick={() => generatePlan()}>
-            <Spin on={busy === 'plan' || busy === 'series'}>
-              <Sparkles className="h-4 w-4" />
-            </Spin>
-            {p.scenes.length ? 'Write new scene prompts' : 'Create scene prompts'}
-          </button>
-          {p.scenes.length > 0 && (
-            <button className={btnGhost} onClick={() => patch({ step: 2 })}>
-              Continue <ArrowRight className="h-4 w-4" />
-            </button>
-          )}
-          <span className="text-xs text-slate-500">Free AI via Groq.</span>
-        </div>
-      </div>
-      {p.series && p.seriesParts > 1 && (
-        <div className={card}>
-          <h3 className="text-base font-bold text-white">
-            {p.series.title} <span className="text-xs font-normal text-slate-400">({p.series.parts.length}-part series)</span>
-          </h3>
-          <p className="mb-3 text-sm text-slate-400">{p.series.summary}</p>
-          <div className="space-y-1.5">
-            {p.series.parts.map((part, i) => (
-              <div key={i} className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 ${i === p.partIdx && p.scenes.length ? 'border-indigo-500 bg-indigo-600/10' : 'border-slate-700 bg-slate-950'}`}>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-bold text-white">
-                    Part {i + 1}: {part.title}
-                  </div>
-                  <div className="truncate text-xs text-slate-400">{part.summary}</div>
-                </div>
-                <button className={`${btnPrimary} shrink-0 !py-1 text-xs`} disabled={!!busy || !!autoMsg} onClick={() => generatePlan(i)}>
-                  ▶ Prompts for part {i + 1}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {p.story && (
-        <div className={card}>
-          <input className={`${input} mb-2 font-bold`} value={p.title} onChange={(e) => patch({ title: e.target.value })} />
-          <textarea className={`${input} min-h-[70px]`} value={p.story} onChange={(e) => patch({ story: e.target.value })} />
-        </div>
-      )}
-    </div>
-  );
-
-  const step2 = (
-    <div className="space-y-4">
-      <div className={card}>
-        <h3 className="text-base font-bold text-white">Character references (up to 3)</h3>
-        <p className="mt-1 text-sm text-slate-400">
-          These images are sent with <b>every scene</b> so characters keep the same face, clothes and style. Upload your own or generate
-          from a description. Leave empty for scenes without fixed characters.
-        </p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {p.characters.map((c, i) => (
-          <div key={i} className={card}>
-            <div className="mb-3 flex aspect-[3/4] items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-700 bg-slate-950">
-              {c.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={c.image} alt={c.name || `Character ${i + 1}`} className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-xs text-slate-500">Character {i + 1}: no image</span>
-              )}
-            </div>
-            <input className={`${input} mb-2`} placeholder="Name" value={c.name} onChange={(e) => patchChar(i, { name: e.target.value })} />
-            <textarea
-              className={`${input} mb-2 min-h-[90px]`}
-              placeholder="Fixed look: age, face, hair, clothes, colors..."
-              value={c.description}
-              onChange={(e) => patchChar(i, { description: e.target.value })}
-            />
-            <div className="flex flex-wrap gap-2">
-              <button className={btnPrimary} disabled={!!busy} onClick={() => generateCharacterImage(i)}>
-                <Spin on={busy === `char:${i}`}>
-                  <Sparkles className="h-4 w-4" />
-                </Spin>
-                Generate
-              </button>
-              <label className={`${btnGhost} cursor-pointer`}>
-                <Upload className="h-4 w-4" /> Upload
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) uploadImageTo(f, (url) => patchChar(i, { image: url }));
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-              {c.image && (
-                <button className={btnGhost} onClick={() => patchChar(i, { image: undefined })}>
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-between">
-        <button className={btnGhost} onClick={() => patch({ step: 0 })}>
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-        <button className={btnPrimary} onClick={() => patch({ step: 2 })}>
-          Next: Scenes <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-
-  const step3 = (
-    <div className="space-y-4">
-      <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
-        <div>
-          <h3 className="text-base font-bold text-white">Scenes ({p.scenes.length})</h3>
-          <p className="text-xs text-slate-400">
-            Copy each scene into Google Flow (attach your character pictures there) and make one clip per scene. Then go to Join Videos.
-          </p>
-          {p.lesson && <p className="mt-1 text-sm font-semibold text-emerald-300">Lesson: {p.lesson}</p>}
-        </div>
-        <div className="flex gap-2">
-          <button className={btnGhost} onClick={addScene}>
-            <Plus className="h-4 w-4" /> Scene
-          </button>
-          <button className={btnGhost} onClick={() => copy(promptPack(), 'All prompts')} title="For Veo / Kling / Runway / Sora: character block + every scene prompt">
-            <Copy className="h-4 w-4" /> Copy all prompts
-          </button>
-          <button className={btnGhost} onClick={() => downloadBlob(new Blob([promptPack()], { type: 'text/plain' }), 'ai-video-prompts.txt')}>
-            <Download className="h-4 w-4" /> .txt
-          </button>
-        </div>
-      </div>
-
-      {p.scenes.map((s, i) => (
-        <div key={s.id} className={card}>
-          <div className="hidden">
-            <div
-              className={`flex items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-950 ${
-                p.format === 'vertical' ? 'aspect-[9/16]' : 'aspect-video'
-              }`}
-            >
-              {s.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={s.image} alt={`Scene ${i + 1}`} className="h-full w-full object-cover" />
-              ) : busy === `img:${s.id}` ? (
-                <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
-              ) : (
-                <span className="text-xs text-slate-500">No image</span>
-              )}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <button className={`${btnPrimary} !px-2 !py-1 text-xs`} disabled={!!busy} onClick={() => generateSceneImage(s.id).catch(() => undefined)}>
-                <RefreshCw className="h-3.5 w-3.5" /> {s.image ? 'Redo' : 'Generate'}
-              </button>
-              <label className={`${btnGhost} cursor-pointer !px-2 !py-1 text-xs`}>
-                <Upload className="h-3.5 w-3.5" /> Own image
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) uploadImageTo(f, (url) => patchScene(s.id, { image: url }));
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-              <label className={`${btnGhost} cursor-pointer !px-2 !py-1 text-xs`} title="Extra reference used only for this scene">
-                <ImageIcon className="h-3.5 w-3.5" /> {s.extraRef ? 'Ref ✓' : '+ Ref'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) uploadImageTo(f, (url) => patchScene(s.id, { extraRef: url }));
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-              {s.extraRef && (
-                <button className={`${btnGhost} !px-2 !py-1 text-xs`} onClick={() => patchScene(s.id, { extraRef: undefined })}>
-                  Clear ref
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-indigo-300">Scene {i + 1}</span>
-              <div className="flex gap-1">
-                <button className={`${btnGhost} !px-2 !py-1`} disabled={i === 0} onClick={() => moveScene(s.id, -1)} title="Move up">
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </button>
-                <button className={`${btnGhost} !px-2 !py-1`} disabled={i === p.scenes.length - 1} onClick={() => moveScene(s.id, 1)} title="Move down">
-                  <ArrowDown className="h-3.5 w-3.5" />
-                </button>
-                <button className={`${btnGhost} !px-2 !py-1`} disabled={!!busy} onClick={() => regenerateScenePrompt(s.id)} title="Regenerate this prompt with AI">
-                  <Spin on={busy === `prompt:${s.id}`}>
-                    <Sparkles className="h-3.5 w-3.5" />
-                  </Spin>
-                </button>
-                <button className={`${btnGhost} !px-2 !py-1`} onClick={() => copy(s.prompt, 'Prompt')} title="Copy prompt">
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-                <button className={`${btnGhost} !px-2 !py-1 text-red-400`} onClick={() => removeScene(s.id)} title="Delete scene">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-            <textarea className={`${input} min-h-[120px]`} placeholder="Full AI video prompt for this scene" value={s.prompt} onChange={(e) => patchScene(s.id, { prompt: e.target.value })} />
-            <div className="grid gap-2 md:grid-cols-[1fr_1fr_90px]">
-              <input className={input} placeholder="Narration / dialogue (spoken)" value={s.narration} onChange={(e) => patchScene(s.id, { narration: e.target.value })} />
-              <input className={input} placeholder="Subtitle (on screen)" value={s.caption} onChange={(e) => patchScene(s.id, { caption: e.target.value })} />
-              <input className={input} type="number" min={2} max={20} step={0.5} value={s.duration} onChange={(e) => patchScene(s.id, { duration: Math.min(20, Math.max(1, Number(e.target.value) || 5)) })} title="Seconds" />
-            </div>
-          </div>
-        </div>
-      ))}
-
-      <div className="flex justify-between">
-        <button className={btnGhost} onClick={() => patch({ step: 0 })}>
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-        <button className={btnPrimary} onClick={() => patch({ step: 3 })}>
-          Next: Join videos <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-
-  const step4 = (
-    <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_1fr]">
-        {/* preview */}
-        <div className={card}>
-          <div className="flex justify-center rounded-xl bg-black p-2">
-            <canvas
-              ref={canvasRef}
-              width={dims.w}
-              height={dims.h}
-              className="max-h-[480px] w-auto max-w-full rounded-lg"
-              style={{ aspectRatio: `${dims.w} / ${dims.h}` }}
-            />
-          </div>
-          <div className="mt-3 flex items-center gap-3">
-            <button className={btnPrimary} onClick={() => (playing ? pause() : playFrom(timeRef.current))} disabled={!p.scenes.length}>
-              {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {playing ? 'Pause' : 'Play'}
-            </button>
-            <input
-              type="range"
-              className="flex-1"
-              min={0}
-              max={Math.max(0.1, total)}
-              step={0.05}
-              value={Math.min(time, total)}
-              onChange={(e) => seek(Number(e.target.value))}
-            />
-            <span className="w-20 text-right font-mono text-xs text-slate-400">
-              {time.toFixed(1)}/{total.toFixed(1)}s
-            </span>
-          </div>
-        </div>
-
-        {/* controls */}
-        <div className="space-y-4">
-          <div className={card}>
-            <h4 className="mb-2 text-sm font-bold text-white">Look & transitions</h4>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-              <div>
-                <span className={label}>Transition</span>
-                <select className={input} value={p.edit.transition} onChange={(e) => patchEdit({ transition: e.target.value as Transition })}>
-                  <option value="none">None (cut)</option>
-                  <option value="fade">Fade</option>
-                  <option value="slide">Slide</option>
-                  <option value="zoom">Zoom in</option>
-                </select>
-              </div>
-              <div>
-                <span className={label}>Color effect</span>
-                <select className={input} value={p.edit.filter} onChange={(e) => patchEdit({ filter: e.target.value as VideoFilter })}>
-                  <option value="none">None</option>
-                  <option value="warm">Warm</option>
-                  <option value="cool">Cool</option>
-                  <option value="bw">Black & white</option>
-                  <option value="vignette">Vignette</option>
-                </select>
-              </div>
-              <label className="flex items-end gap-2 pb-2 text-sm text-slate-200">
-                <input type="checkbox" checked={p.edit.motion} onChange={(e) => patchEdit({ motion: e.target.checked })} />
-                Camera motion (slow zoom/pan)
-              </label>
-            </div>
-          </div>
-
-          <div className={card}>
-            <h4 className="mb-2 text-sm font-bold text-white">Subtitles</h4>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <label className="flex items-end gap-2 pb-2 text-sm text-slate-200">
-                <input type="checkbox" checked={p.edit.capShow} onChange={(e) => patchEdit({ capShow: e.target.checked })} /> Show
-              </label>
-              <div>
-                <span className={label}>Position</span>
-                <select className={input} value={p.edit.capPos} onChange={(e) => patchEdit({ capPos: e.target.value as EditSettings['capPos'] })}>
-                  <option value="top">Top</option>
-                  <option value="middle">Middle</option>
-                  <option value="bottom">Bottom</option>
-                </select>
-              </div>
-              <div>
-                <span className={label}>Size {p.edit.capSize}</span>
-                <input type="range" min={24} max={80} value={p.edit.capSize} onChange={(e) => patchEdit({ capSize: Number(e.target.value) })} className="w-full" />
-              </div>
-              <div>
-                <span className={label}>Color</span>
-                <input type="color" value={p.edit.capColor} onChange={(e) => patchEdit({ capColor: e.target.value })} className="h-9 w-full rounded bg-transparent" />
-              </div>
-            </div>
-          </div>
-
-          <div className={card}>
-            <h4 className="mb-2 text-sm font-bold text-white">Audio</h4>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div>
-                <span className={label}>Voiceover language</span>
-                <select className={input} value={p.voiceLang} onChange={(e) => patch({ voiceLang: e.target.value })}>
-                  <option value="en-US">English (US)</option>
-                  <option value="en-GB">English (UK)</option>
-                  <option value="hi-IN">Hindi (best for Urdu)</option>
-                </select>
-                <button className={`${btnGhost} mt-2`} disabled={!!busy} onClick={makeAllVoices}>
-                  <Spin on={busy === 'voices'}>
-                    <Volume2 className="h-4 w-4" />
-                  </Spin>
-                  Generate all voiceovers {busy === 'voices' ? `${Math.round(progress)}%` : ''}
-                </button>
-              </div>
-              <div>
-                <span className={label}>Background music</span>
-                <label className={`${btnGhost} cursor-pointer`}>
-                  <Upload className="h-4 w-4" /> {p.music ? p.music.name.slice(0, 24) : 'Upload audio'}
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) patch({ music: { name: f.name, blob: f } });
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-                {p.music && (
-                  <button className={`${btnGhost} ml-2`} onClick={() => patch({ music: undefined })}>
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              <div>
-                <span className={label}>Voice volume {Math.round(p.edit.voiceVol * 100)}%</span>
-                <input type="range" min={0} max={1.5} step={0.05} value={p.edit.voiceVol} onChange={(e) => patchEdit({ voiceVol: Number(e.target.value) })} className="w-full" />
-              </div>
-              <div>
-                <span className={label}>Music volume {Math.round(p.edit.musicVol * 100)}%</span>
-                <input type="range" min={0} max={1} step={0.05} value={p.edit.musicVol} onChange={(e) => patchEdit({ musicVol: Number(e.target.value) })} className="w-full" />
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">Lip-sync is not generated here: voices are timed to each scene. For true lip-synced characters, use the copied scene prompt in a tool such as Veo or Kling.</p>
-          </div>
-
-          <div className={card}>
-            <h4 className="mb-2 text-sm font-bold text-white">Logo / watermark (optional)</h4>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="col-span-2 md:col-span-1">
-                <label className={`${btnGhost} cursor-pointer`}>
-                  <Upload className="h-4 w-4" /> {p.logo ? 'Replace' : 'Upload logo'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      if (f) patch({ logo: await fileToDataUrl(f) });
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-                {p.logo && (
-                  <button className={`${btnGhost} ml-2`} onClick={() => patch({ logo: undefined })}>
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              <div>
-                <span className={label}>Corner</span>
-                <select className={input} value={p.edit.logoPos} onChange={(e) => patchEdit({ logoPos: e.target.value as Corner })}>
-                  <option value="tl">Top left</option>
-                  <option value="tr">Top right</option>
-                  <option value="bl">Bottom left</option>
-                  <option value="br">Bottom right</option>
-                </select>
-              </div>
-              <div>
-                <span className={label}>Size {p.edit.logoSize}%</span>
-                <input type="range" min={5} max={40} value={p.edit.logoSize} onChange={(e) => patchEdit({ logoSize: Number(e.target.value) })} className="w-full" />
-              </div>
-              <div>
-                <span className={label}>Opacity {Math.round(p.edit.logoOpacity * 100)}%</span>
-                <input type="range" min={0.1} max={1} step={0.05} value={p.edit.logoOpacity} onChange={(e) => patchEdit({ logoOpacity: Number(e.target.value) })} className="w-full" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* timeline */}
-      <div className={card}>
-        <div className="mb-2 flex items-center justify-between">
-          <h4 className="text-sm font-bold text-white">Timeline</h4>
-          <label className={`${btnGhost} cursor-pointer !py-1 text-xs`}>
-            <Plus className="h-3.5 w-3.5" /> Add my images
-            <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addImagesAsScenes(e.target.files); e.target.value = ''; }} />
-          </label>
-        </div>
-        {!p.scenes.length && <p className="text-sm text-slate-400">No scenes yet. Add your own images here, or create a video in the AI Video Studio tab.</p>}
-        <div className="flex gap-1 overflow-x-auto pb-2">
-          {p.scenes.map((s, i) => {
-            let start = 0;
-            for (let k = 0; k < i; k++) start += p.scenes[k].duration;
-            const active = time >= start && time < start + s.duration;
-            return (
-              <button
-                key={s.id}
-                onClick={() => {
-                  setSelectedId(s.id);
-                  seek(start);
-                }}
-                style={{ width: Math.max(64, s.duration * 24) }}
-                className={`relative h-16 shrink-0 overflow-hidden rounded-lg border text-left ${
-                  selected?.id === s.id ? 'border-indigo-400' : active ? 'border-emerald-500' : 'border-slate-700'
-                }`}
-              >
-                {s.image && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={s.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" />
-                )}
-                <span className="relative z-10 m-1 inline-block rounded bg-black/60 px-1 text-[10px] font-bold text-white">
-                  {i + 1} · {s.duration}s {s.voice ? '🔊' : ''}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {selected && (
-          <div className="mt-3 grid gap-3 border-t border-slate-700/60 pt-3 md:grid-cols-2">
-            <div className="space-y-2">
-              <span className={label}>Scene {p.scenes.indexOf(selected) + 1}: subtitle text</span>
-              <input className={input} value={selected.caption} onChange={(e) => patchScene(selected.id, { caption: e.target.value })} />
-              <span className={label}>Trim / length: {selected.duration}s</span>
-              <input
-                type="range"
-                min={1}
-                max={20}
-                step={0.5}
-                value={selected.duration}
-                onChange={(e) => patchScene(selected.id, { duration: Number(e.target.value) })}
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <span className={label}>Narration</span>
-              <input className={input} value={selected.narration} onChange={(e) => patchScene(selected.id, { narration: e.target.value })} />
-              <div className="flex flex-wrap gap-2">
-                <button className={btnGhost} disabled={!!busy} onClick={() => makeVoice(selected.id)}>
-                  <Spin on={busy === `voice:${selected.id}`}>
-                    <Volume2 className="h-4 w-4" />
-                  </Spin>
-                  {selected.voice ? 'Redo voice' : 'Generate voice'}
-                </button>
-                <label className={`${btnGhost} cursor-pointer`}>
-                  <Upload className="h-4 w-4" /> My voice
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) uploadVoice(selected.id, f);
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-                {selected.voice && (
-                  <button className={btnGhost} onClick={() => patchScene(selected.id, { voice: undefined })}>
-                    Remove voice
-                  </button>
-                )}
-                <button className={btnGhost} onClick={() => moveScene(selected.id, -1)}>
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-                <button className={btnGhost} onClick={() => moveScene(selected.id, 1)}>
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-                <button className={`${btnGhost} text-red-400`} onClick={() => removeScene(selected.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex justify-between">
-        <button className={btnGhost} onClick={() => patch({ step: 2 })}>
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-        <button className={btnPrimary} onClick={() => patch({ step: 4 })}>
-          Next: Thumbnail & SEO <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-
-  const seoNow = p.seo?.[seoTab];
-  const setSeo = (x: Partial<Seo[Platform]>) =>
-    setP((o) => (o.seo ? { ...o, seo: { ...o.seo, [seoTab]: { ...o.seo[seoTab], ...x } } } : o));
-  const platformMeta = PLATFORMS.find((x) => x.id === seoTab)!;
-
-  const seoAbout = (
-    <div className={card}>
-      <h3 className="text-base font-bold text-white">What is this video about?</h3>
-      <p className="mt-1 text-xs text-slate-400">Write 1-2 lines (any language). The title, description, hashtags and thumbnail text are written from this.</p>
-      <input className={`${input} mt-2 font-semibold`} placeholder="Working title (optional)" value={p.title} onChange={(e) => patch({ title: e.target.value })} />
-      <textarea
-        className={`${input} mt-2 min-h-[70px]`}
-        placeholder="e.g. Aisha, Mira and Zaid do a 5-minute Eid outfit challenge, Zaid loses and has to cook for everyone"
-        value={p.story}
-        onChange={(e) => patch({ story: e.target.value })}
-      />
-      <button className={`${btnPrimary} mt-2`} disabled={!!busy || (!p.story.trim() && !p.title.trim() && !p.prompt.trim())} onClick={generateSeo}>
-        <Spin on={busy === 'seo'}>
-          <Sparkles className="h-4 w-4" />
-        </Spin>
-        {p.seo ? 'Write again' : 'Write title, description, tags & thumbnail text'}
-      </button>
-    </div>
-  );
-
-  const seoBlock = (
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className={card}>
-          <h3 className="mb-3 text-base font-bold text-white">Thumbnail</h3>
-          <div className="mb-3 flex justify-center rounded-xl bg-black p-2">
-            <canvas ref={thumbRef} className="max-h-[360px] w-auto max-w-full rounded-lg" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <span className={label}>Headline</span>
-              <input className={input} value={p.thumb.headline} onChange={(e) => patchThumb({ headline: e.target.value.toUpperCase() })} />
-            </div>
-            <div className="col-span-2">
-              <span className={label}>Badge</span>
-              <input className={input} value={p.thumb.badge} onChange={(e) => patchThumb({ badge: e.target.value.toUpperCase() })} />
-            </div>
-            <div>
-              <span className={label}>Text color</span>
-              <input type="color" className="h-9 w-full rounded bg-transparent" value={p.thumb.textColor} onChange={(e) => patchThumb({ textColor: e.target.value })} />
-            </div>
-            <div>
-              <span className={label}>Badge color</span>
-              <input type="color" className="h-9 w-full rounded bg-transparent" value={p.thumb.accent} onChange={(e) => patchThumb({ accent: e.target.value })} />
-            </div>
-            <div>
-              <span className={label}>Text position</span>
-              <select className={input} value={p.thumb.position} onChange={(e) => patchThumb({ position: e.target.value as Thumb['position'] })}>
-                <option value="top">Top</option>
-                <option value="center">Center</option>
-                <option value="bottom">Bottom</option>
-              </select>
-            </div>
-            <div>
-              <span className={label}>Background from scene</span>
-              <select
-                className={input}
-                value=""
-                onChange={(e) => {
-                  const sc = p.scenes.find((s) => s.id === e.target.value);
-                  if (sc?.image) patchThumb({ bg: sc.image });
-                }}
-              >
-                <option value="">Choose…</option>
-                {p.scenes.map((s, i) => (
-                  <option key={s.id} value={s.id} disabled={!s.image}>
-                    Scene {i + 1}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button className={btnPrimary} disabled={!!busy} onClick={generateThumbBg}>
-              <Spin on={busy === 'thumb'}>
-                <Sparkles className="h-4 w-4" />
-              </Spin>
-              AI thumbnail background
-            </button>
-            <label className={`${btnGhost} cursor-pointer`}>
-              <Upload className="h-4 w-4" /> Upload
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) uploadImageTo(f, (url) => patchThumb({ bg: url }));
-                  e.target.value = '';
-                }}
-              />
-            </label>
-            {exported && (
-              <button className={btnGhost} disabled={!!busy} onClick={thumbFromVideo}>
-                <ImageIcon className="h-4 w-4" /> Frame from my video
-              </button>
-            )}
-            <button className={btnGhost} onClick={downloadThumb}>
-              <Download className="h-4 w-4" /> PNG
-            </button>
-          </div>
-        </div>
-
-        <div className={card}>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-bold text-white">Title, description & hashtags</h3>
-            <button className={btnGhost} disabled={!!busy} onClick={generateSeo}>
-              <Spin on={busy === 'seo'}>
-                <RefreshCw className="h-4 w-4" />
-              </Spin>
-              Regenerate
-            </button>
-          </div>
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {PLATFORMS.map((pl) => (
-              <button
-                key={pl.id}
-                onClick={() => setSeoTab(pl.id)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  seoTab === pl.id ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {pl.label}
-              </button>
-            ))}
-          </div>
-          {busy === 'seo' && !seoNow ? (
-            <div className="flex items-center gap-2 py-10 text-sm text-slate-400">
-              <Loader2 className="h-4 w-4 animate-spin" /> Writing SEO for all 4 platforms…
-            </div>
-          ) : seoNow ? (
-            <div className="space-y-3">
-              <div>
-                <span className={label}>
-                  Title ({seoNow.title.length}/{platformMeta.titleMax})
-                </span>
-                <input className={input} value={seoNow.title} onChange={(e) => setSeo({ title: e.target.value })} />
-              </div>
-              <div>
-                <span className={label}>Description / caption</span>
-                <textarea className={`${input} min-h-[140px]`} value={seoNow.description} onChange={(e) => setSeo({ description: e.target.value })} />
-              </div>
-              <div>
-                <span className={label}>Hashtags</span>
-                <input className={input} value={seoNow.hashtags} onChange={(e) => setSeo({ hashtags: e.target.value })} />
-              </div>
-            </div>
-          ) : (
-            <button className={btnPrimary} onClick={generateSeo}>
-              <Sparkles className="h-4 w-4" /> Generate SEO
-            </button>
-          )}
-        </div>
-      </div>
-  );
-
-  const step5 = (
-    <div className="space-y-4">
-      {seoAbout}
-      {seoBlock}
-      <div className="flex justify-between">
-        <button className={btnGhost} onClick={() => patch({ step: 3 })}>
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-        <button className={btnPrimary} onClick={() => patch({ step: 5 })}>
-          Next: Post <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  );
-
-  const step6 = (
-    <div className="space-y-4">
-      <div className={card}>
-        <h3 className="text-base font-bold text-white">1. Your video</h3>
-        {exported ? (
-          <div className="mt-2 space-y-2">
-            <video src={exported.url} controls className="max-h-[360px] w-full rounded-xl bg-black" />
-            <div className="flex flex-wrap gap-2">
-              <a href={exported.url} download={`${(p.title || 'video').replace(/[^\w]+/g, '-').slice(0, 50)}.${exported.ext}`} className={btnGhost}>Download</a>
-              <label className={`${btnGhost} cursor-pointer`}>
-                <Upload className="h-4 w-4" /> Change video
-                <input
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = '';
-                    if (!f) return;
-                    URL.revokeObjectURL(exported.url);
-                    const ext = (f.name.split('.').pop() || 'mp4').toLowerCase();
-                    setExported({ url: URL.createObjectURL(f), ext, size: f.size, blob: f });
-                    setPostError('');
-                    setPostLog([]);
-                  }}
-                />
-              </label>
-            </div>
-          </div>
-        ) : (
-          <p className="mt-1 text-sm text-slate-400">
-            No video yet. Go back to <b>Join Videos</b> (step 4), upload your clips and join them, or{' '}
-            <label className="cursor-pointer font-semibold text-indigo-400 underline">
-              pick a finished video file
-              <input
-                type="file"
-                accept="video/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = '';
-                  if (!f) return;
-                  const ext = (f.name.split('.').pop() || 'mp4').toLowerCase();
-                  setExported({ url: URL.createObjectURL(f), ext, size: f.size, blob: f });
-                }}
-              />
-            </label>
-            .
-          </p>
-        )}
-      </div>
-
-      {seoAbout}
-      {seoBlock}
-
-      <div className={card}>
-        <h3 className="text-base font-bold text-white">2. Post to all platforms from here (Buffer)</h3>
-        <p className="mt-1 text-sm text-slate-400">
-          Connect your accounts once inside Buffer, then post to all of them with one click. Buffer free plan allows 3 channels.
-        </p>
-        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
-          <input
-            type="password"
-            className={input}
-            placeholder="Studio publish password (STUDIO_PUBLISH_PASSWORD)"
-            value={pubKey}
-            onChange={(e) => savePubKey(e.target.value)}
-          />
-          <button className={btnGhost} disabled={!pubKey || !!busy} onClick={loadChannels}>
-            <Spin on={busy === 'channels'}>
-              <RefreshCw className="h-4 w-4" />
-            </Spin>
-            Load my Buffer channels
-          </button>
-        </div>
-        {channels.length > 0 && (
-          <div className="mt-3 space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {channels.map((c) => (
-                <label key={c.id} className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={picked.includes(c.id)}
-                    onChange={(e) => setPicked((o) => (e.target.checked ? [...o, c.id] : o.filter((x) => x !== c.id)))}
-                  />
-                  <span className="font-semibold capitalize text-white">{c.service}</span>
-                  <span className="text-slate-400">{c.displayName || c.name}</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <select className={`${input} !w-auto`} value={postWhen} onChange={(e) => setPostWhen(e.target.value as typeof postWhen)}>
-                <option value="now">Post now</option>
-                <option value="queue">Add to Buffer queue</option>
-                <option value="schedule">Schedule…</option>
-              </select>
-              {postWhen === 'schedule' && (
-                <input type="datetime-local" className={`${input} !w-auto`} value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
-              )}
-              <button className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-500`} disabled={!!busy} onClick={postEverywhere}>
-                <Spin on={busy === 'post'}>
-                  <Upload className="h-4 w-4" />
-                </Spin>
-                {busy === 'post' ? (progress > 0 && progress < 100 ? `Uploading ${Math.round(progress)}%` : 'Working…') : 'Upload video & post'}
-              </button>
-              <span className="text-xs text-slate-400">
-                Video {exported ? '✅' : '❌'} · Title & tags {p.seo ? '✅' : '❌'}
-              </span>
-            </div>
-          </div>
-        )}
-        {postStage && <p className="mt-3 text-sm text-indigo-300">{postStage}</p>}
-        {postError && <p className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{postError}</p>}
-        {postLog.length > 0 && (
-          <ul className="mt-3 space-y-1 text-sm">
-            {postLog.map((l, i) => (
-              <li key={i} className={l.ok ? 'text-emerald-400' : 'text-red-400'}>
-                {l.ok ? '✓' : '✗'} {l.label}: {l.msg}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className={card}>
-        <h3 className="text-base font-bold text-white">3. Or post manually</h3>
-        <p className="mt-1 text-sm text-slate-400">
-          Copy each platform’s text, then open its upload page and add the downloaded video. Posting happens on the platform itself, so no
-          passwords or tokens are stored here.
-        </p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {PLATFORMS.map((pl) => {
-            const s = p.seo?.[pl.id];
-            return (
-              <div key={pl.id} className="rounded-xl border border-slate-700 bg-slate-950 p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-bold text-white">{pl.label}</span>
-                  <a href={pl.uploadUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-300 hover:underline">
-                    Open upload page <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-                {s ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    <button className={`${btnGhost} !py-1 text-xs`} onClick={() => copy(s.title, 'Title')}>
-                      <Copy className="h-3 w-3" /> Title
-                    </button>
-                    <button className={`${btnGhost} !py-1 text-xs`} onClick={() => copy(s.description, 'Description')}>
-                      <Copy className="h-3 w-3" /> Description
-                    </button>
-                    <button className={`${btnGhost} !py-1 text-xs`} onClick={() => copy(s.hashtags, 'Hashtags')}>
-                      <Copy className="h-3 w-3" /> Hashtags
-                    </button>
-                    <button className={`${btnPrimary} !py-1 text-xs`} onClick={() => copy(`${s.title}\n\n${s.description}\n\n${s.hashtags}`, 'Full post')}>
-                      <Check className="h-3 w-3" /> Copy all
-                    </button>
-                  </div>
-                ) : (
-                  <button className={`${btnGhost} text-xs`} onClick={() => patch({ step: 4 })}>
-                    Generate SEO in step 5
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <div className="flex justify-between">
-        <button className={btnGhost} onClick={() => patch({ step: 4 })}>
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-        <button className={btnGhost} onClick={resetAll}>
-          <RotateCcw className="h-4 w-4" /> New project
-        </button>
-      </div>
-    </div>
-  );
-
-  const stepJoin = (
-    <JoinClips
-      joined={exported}
-      onJoined={(v) => {
-        if (exported) URL.revokeObjectURL(exported.url);
-        setExported(v);
-      }}
-      onNext={() => patch({ step: 4 })}
-    />
-  );
-  const stepViews = [step1, step2, step3, stepJoin, step5, step6];
 
   return (
     <div className="space-y-5 text-slate-100">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">{mode === 'editor' ? 'Video Editor' : 'AI Video Studio'}</h2>
-          <p className="text-sm text-slate-400">Prompt → characters → scenes → edit → thumbnail & SEO → export</p>
+          <h2 className="text-xl font-bold text-white">AI Video Studio</h2>
+          <p className="text-sm text-slate-400">Prompt → scene prompts → join your Flow clips → title, thumbnail & post</p>
         </div>
         {p.scenes.length > 0 && (
           <button className={btnGhost} onClick={resetAll}>
@@ -2618,7 +1537,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       </div>
 
       <div className="flex gap-1 overflow-x-auto pb-1">
-        {STEPS.map((name, i) => HIDDEN_STEPS.includes(i) ? null : (
+        {STEPS.map((name, i) => (
           <button
             key={name}
             onClick={() => goto(i)}
@@ -2626,54 +1545,13 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
               p.step === i ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
             }`}
           >
-            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${p.step === i ? 'bg-white/20' : 'bg-slate-700'}`}>
-              {i + 1 - HIDDEN_STEPS.filter((h) => h < i).length}
-            </span>
+            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${p.step === i ? 'bg-white/20' : 'bg-slate-700'}`}>{i + 1}</span>
             {name}
           </button>
         ))}
       </div>
 
-      {p.step === 5 && p.series && p.seriesParts > 1 && (
-        <div className={`${card} flex flex-wrap items-center justify-between gap-2`}>
-          <span className="text-sm text-slate-300">
-            Part {p.partIdx + 1} of {p.series.parts.length} done? Download it above, then continue the story.
-          </span>
-          {p.partIdx + 1 < p.series.parts.length ? (
-            <button className={btnPrimary} disabled={!!busy || !!autoMsg} onClick={() => generatePlan(p.partIdx + 1)}>
-              ▶ Prompts for part {p.partIdx + 2}
-            </button>
-          ) : (
-            <span className="text-sm font-semibold text-emerald-400">That was the final part 🎉</span>
-          )}
-        </div>
-      )}
       {stepViews[p.step]}
-
-      {autoMsg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center">
-            <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-emerald-400" />
-            <p className="text-sm font-semibold text-white">{autoMsg}</p>
-            {progress > 0 && (
-              <div className="mx-auto mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-800">
-                <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
-              </div>
-            )}
-            <p className="mt-3 text-xs text-slate-400">Automatic mode: you get the finished video at the end. You can edit anything afterwards.</p>
-            <button
-              className={`${btnGhost} mt-4`}
-              onClick={() => {
-                autoCancel.current = true;
-                cancelRef.current.cancelled = true;
-                setAutoMsg('');
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

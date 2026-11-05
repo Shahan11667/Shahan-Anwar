@@ -34,7 +34,6 @@ import {
 import toast from 'react-hot-toast';
 import { makeTicker, pickMime } from '@/lib/video-render';
 import { generateSpeech } from '@/lib/video-studio-ai';
-import { getStudioProject } from '@/components/admin/youtube-automation-view';
 
 /* ------------------------------------------------------------------ types */
 
@@ -994,29 +993,6 @@ export default function VideoEditorPro() {
     setSelectedId(c.id);
   };
 
-  const importFromStudio = () => {
-    const sp = getStudioProject();
-    if (!sp) return toast.error('No AI Video Studio project yet. Create one in the AI Video Automation tab first.');
-    if (projRef.current.clips.length && !window.confirm('Add the AI Studio scenes after your current clips?')) return;
-    const newClips: Clip[] = [];
-    let t = mainEnd();
-    sp.scenes.forEach((sc, i) => {
-      if (sc.image) {
-        newClips.push(makeClip({ kind: 'image', track: 'main', name: `Scene ${i + 1}`, src: sc.image, thumb: sc.image, start: t, dur: sc.duration, trans: { type: i ? 'fade' : 'none', dur: 0.5 } }));
-      }
-      if (sc.caption) newClips.push(makeClip({ kind: 'text', track: 'text', start: t, dur: sc.duration, text: sc.caption, y: 0.82, anim: 'fade', size: 54 }));
-      if (sc.voice) {
-        const src = URL.createObjectURL(sc.voice);
-        blobs.current[src] = sc.voice;
-        newClips.push(makeClip({ kind: 'audio', track: 'audio', name: `Voice ${i + 1}`, src, start: t, dur: sc.duration, srcDur: 1e9 }));
-      }
-      t += sc.duration;
-    });
-    setProj((o) => ({ ...o, settings: { ...o.settings, aspect: sp.format === 'vertical' ? '9:16' : '16:9' } }));
-    edit((cs) => [...cs, ...newClips]);
-    toast.success(`Imported ${sp.scenes.length} scenes`);
-  };
-
   /* --------------------------------------------------------- clip actions */
 
   const splitAt = () => {
@@ -1570,9 +1546,6 @@ export default function VideoEditorPro() {
               Import videos / photos / audio
               <input type="file" multiple accept="video/*,image/*,audio/*" className="hidden" onChange={(e) => { importFiles(e.target.files); e.target.value = ''; }} />
             </label>
-            <button className={`${btnGhost} w-full`} onClick={importFromStudio}>
-              <Wand2 className="h-3.5 w-3.5" /> Import scenes from AI Video Studio
-            </button>
             <div className="grid grid-cols-2 gap-2">
               {proj.media.map((m) => (
                 <div key={m.id} className="group relative overflow-hidden rounded-md border border-slate-700 bg-slate-950">

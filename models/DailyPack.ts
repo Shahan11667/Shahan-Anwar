@@ -4,13 +4,16 @@ export interface IDailyPack {
   _id?: string;
   dateKey: string; // YYYY-MM-DD
   genre: string;
+  focus?: string; // Beshaan topic of the pack (Life lessons, Fashion, Lifestyle, Gaming)
+  theme?: string; // the situation the story is built on (used to avoid repeats)
   title: string;
   idea: string;
   story: string;
   characters: { name: string; description: string }[];
   scenes: { prompt: string; narration: string; caption: string; duration: number }[];
   thumbnail: { headline: string; badge: string; imagePrompt: string };
-  seo: Record<'youtube' | 'tiktok' | 'instagram' | 'facebook', { title: string; description: string; hashtags: string; tags: string }>;
+  // one set for every platform. Packs made before this change keep one set per platform (youtube, tiktok, ...).
+  seo: { title: string; description: string; hashtags: string };
   status: 'new' | 'used';
   source: 'cron' | 'manual';
   createdAt?: Date;
@@ -20,6 +23,8 @@ const DailyPackSchema = new Schema(
   {
     dateKey: { type: String, required: true, index: true },
     genre: String,
+    focus: String,
+    theme: String,
     title: String,
     idea: String,
     story: String,
