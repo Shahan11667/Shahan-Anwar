@@ -70,7 +70,8 @@ export async function POST(req: NextRequest) {
         };
       if (service === 'instagram') metadata.instagram = { type: 'reel', shouldShareToFeed: true };
       if (service === 'facebook') metadata.facebook = { type: 'reel' };
-      if (service === 'tiktok') metadata.tiktok = { title: String(title || '').slice(0, 150) };
+      // the clips are made with Google Flow (AI): TikTok asks creators to disclose AI-generated content
+      if (service === 'tiktok') metadata.tiktok = { title: String(title || '').slice(0, 150), isAiGenerated: true };
       const input: Record<string, unknown> = {
         channelId,
         text,
