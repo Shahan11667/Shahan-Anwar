@@ -101,6 +101,8 @@ interface Project {
   model: string;
   prompt: string;
   genre: string;
+  focus: string;
+  lesson: string;
   mood: string;
   setting: string;
   cast: string;
@@ -170,14 +172,58 @@ const STYLES = [
 
 const BESHAAN = 'Beshaan (Fashion • Lifestyle • Gaming)';
 const BESHAAN_CONTEXT =
-  'CHANNEL: BESHAAN. Tagline: Three Creators | Three Personalities | One Amazing Journey. Two girls and one boy blending fashion, lifestyle vibes and gaming entertainment. Tone: energetic trio banter, friendly, trendy, fun, positive, family-safe. The three recurring characters have distinct personalities (e.g. the stylish fashion girl, the bubbly lifestyle girl, the funny gamer boy) and stay the same in every video. Content ideas: outfit challenges, styling battles, room/lifestyle vlogs, gaming nights, challenges and playful rivalry between the trio.';
+  'CHANNEL: BESHAAN. Three young Pakistani creators (two girls, one boy) act out short, real-life stories. Tone: warm, natural, funny where it fits, family-safe. The three recurring characters always look the same.';
+
+/** One topic per video, so the channel feels like ONE kind of content (no fashion + gaming + action mix). */
+const FOCUS = ['Life lessons', 'Fashion', 'Lifestyle', 'Gaming'] as const;
+const FOCUS_HINT: Record<string, string> = {
+  'Life lessons': 'everyday life: family, friends, college, work, money, social media',
+  Fashion: 'clothes, style, shopping, looks and confidence',
+  Lifestyle: 'daily routines, home life, habits, food, health, money',
+  Gaming: 'gaming life: playing with friends, online games, studies vs games, family',
+};
+const FOCUS_THEMES: Record<string, string[]> = {
+  'Life lessons': [
+    'comparing your life with others on social media', 'peer pressure at college', 'lying to parents and getting caught', 'sibling jealousy',
+    'a friend who only calls when they need something', 'exam stress and the temptation to cheat', 'spending pocket money to show off',
+    'judging someone by their looks', 'ignoring parents while on the phone', 'helping a stranger who cannot pay you back', 'breaking a promise to a friend',
+    'trusting someone you only know online', 'putting things off until the last minute', 'gossip that hurts someone', 'being the first to say sorry',
+    'being thankful for what you have', 'fake friends vs real friends', 'first job interview nerves', 'hiding a mistake instead of owning it',
+    'making fun of the quiet classmate', 'a parent working hard without saying it', 'borrowing money and not returning it',
+  ],
+  Fashion: [
+    'expensive brand vs a simple outfit (what really matters)', 'copying a trend that does not suit you', 'people commenting on your body at a wedding',
+    'feeling ashamed to wear thrifted clothes', 'borrowing a friend\'s dress and damaging it', 'dressing for Instagram vs dressing for yourself',
+    'last-minute Eid outfit stress', 'confidence in modest fashion', 'overspending on clothes you wear once', 'laughing at someone\'s simple clothes',
+    'mom\'s old outfit becomes the best look', 'a fake designer bag gets exposed', 'getting ready late because of too many outfit changes',
+  ],
+  Lifestyle: [
+    'phones at the family dinner table', 'saving money vs spending it', 'junk food vs home food', 'never helping mom with chores',
+    'a morning routine that changes your day', 'staying up all night and paying for it', 'a messy room and a surprise guest', 'small acts of kindness at home',
+    'taking parents for granted', 'living on a small budget for a week', 'online shopping addiction', 'making time for grandparents',
+  ],
+  Gaming: [
+    'gaming the night before an exam', 'a toxic teammate online', 'learning to lose gracefully', 'spending real money on game skins',
+    'parents who do not understand gaming', 'a scam inside an online game', 'a gaming friend from another city', 'gaming vs family time',
+    'cheating in a game and getting banned', 'rage quitting and breaking things', 'a younger sibling who wants to play too', 'sharing your account password',
+  ],
+};
+/** Rules for every story: relatable, realistic, one clear lesson (applies to all genres). */
+const STORY_RULES =
+  'STORY RULES: Tell ONE relatable story that real viewers (teens to adults, 13+) can see themselves in: something that really happens in everyday life. Structure: a hook in the first 3 seconds, a real everyday problem, a mistake or conflict, a turning point, and a clear LESSON at the end, said naturally by a character (not preachy). Even a challenge or prank must have this lesson. No content made for small children, no cartoonish nonsense.';
+const beshaanRules = (focus: string) =>
+  `TOPIC FOR THIS VIDEO: ${focus} (${FOCUS_HINT[focus] || focus}). Stay on this ONE topic only: do NOT mix fashion, lifestyle and gaming in the same video. Realistic everyday Pakistani settings (home, college, family, friends, market, office, social media). NO horror, ghosts, fantasy, superpowers, fights, villains, explosions or action-movie scenes.`;
+
 const ANGLES = [
   'shopping haul', 'camping night', 'cafe date gone wrong', 'talent show', 'DIY craft', 'dance-off', 'detective hunt', 'makeup vs no-makeup', 'street food tour', 'school reunion', 'time-capsule', 'lip-sync battle', 'escape room', 'blind taste test', 'sleepover dares', 'surprise makeover', 'harmless prank', 'budget vs expensive', 'gaming tournament',
   'room / wardrobe tour', 'road trip', 'cooking disaster', 'birthday surprise', 'swap roles for a day', 'mystery to solve',
   'college life', 'rainy day', 'fashion show at home', 'thrift flip', '24-hour challenge', 'recreate a viral trend',
   'rivalry between friends', 'learning a new skill', 'secret revealed', 'lost-and-found adventure',
 ];
-const pickAngles = (n: number) => ANGLES.slice().sort(() => Math.random() - 0.5).slice(0, n).join(', ');
+const ctx = (q: Project) => `${q.genre === BESHAAN ? `${BESHAAN_CONTEXT} ${beshaanRules(q.focus || 'Life lessons')} ` : ''}${STORY_RULES} `;
+const themePool = (q: Project) => (q.genre === BESHAAN ? FOCUS_THEMES[q.focus || 'Life lessons'] || ANGLES : ANGLES);
+const pickFrom = (pool: string[], n: number) => pool.slice().sort(() => Math.random() - 0.5).slice(0, n);
+const pickAngles = (n: number, pool: string[] = ANGLES) => pickFrom(pool, n).join(', ');
 const seriesKey = (q: { genre: string; idea: string; seriesParts: number; cast: string; setting: string }) => `${q.genre}|${q.idea.trim()}|${q.seriesParts}|${q.cast}|${q.setting}`;
 
 const GENRES = [BESHAAN, 'Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming', 'Romantic Anime Story (Bisma)', 'AI & Developer Engineering', 'High-Income Wealth & Micro-SaaS', 'Dark Psychology & Influence', 'High-Performance Stoicism', 'Space & Cosmic Physics', 'Curious Facts & Hidden History'];
@@ -185,6 +231,7 @@ const NICHES = [BESHAAN, 'Romantic Anime Story (Bisma)', 'AI & Developer Enginee
 const NICHE_ICON: Record<string, string> = { [BESHAAN]: '🎀', 'Romantic Anime Story (Bisma)': '💖', 'AI & Developer Engineering': '🤖', 'High-Income Wealth & Micro-SaaS': '💰', 'Dark Psychology & Influence': '🧠', 'High-Performance Stoicism': '⚡', 'Space & Cosmic Physics': '🌌', 'Curious Facts & Hidden History': '🎙️' };
 const MOODS = ['Fun & energetic', 'Emotional', 'Funny', 'Suspenseful', 'Epic', 'Heartwarming', 'Dark', 'Cute & light'];
 const SETTINGS = ['Fashion studio / bedroom', 'Shopping mall', 'Home lifestyle vlog', 'Rooftop at sunset', 'College campus', 'Rainy city street', 'Village & fields', 'Futuristic city', 'Haunted house', 'Beach', 'Mountains', 'Cafe', 'Gaming room', 'Wedding'];
+const NOT_FOR_BESHAAN = ['Suspenseful', 'Epic', 'Dark', 'Futuristic city', 'Haunted house', 'Hero vs villain', '1 hero alone'];
 const CASTS = ['1 boy + 1 girl', '2 girls + 1 boy', '3 friends', '1 hero alone', 'Family (3 members)', 'Hero vs villain'];
 
 const PLATFORMS: { id: Platform; label: string; titleMax: number; uploadUrl: string }[] = [
@@ -206,6 +253,8 @@ function newProject(): Project {
     model: 'openai/gpt-4o',
     prompt: '',
     genre: BESHAAN,
+    focus: 'Life lessons',
+    lesson: '',
     mood: 'Fun & energetic',
     setting: 'Fashion studio / bedroom',
     cast: '2 girls + 1 boy',
@@ -568,7 +617,7 @@ export default function YoutubeAutomationView({ mode = 'wizard' }: { mode?: 'wiz
     const p = pRef.current;
     const system =
       'You are a creative director for AI videos. Write ONE complete, vivid video prompt in plain English (150-250 words): story, characters with fixed looks, dialogues, expressions, camera movements, lighting, background music, lip-sync, duration and visual style. Output ONLY the prompt text.';
-    const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}Genre: ${p.genre}
+    const user = `${ctx(p)}Genre: ${p.genre}
 Mood: ${p.mood}
 Setting: ${p.setting}
 Cast: ${p.cast}
@@ -576,9 +625,9 @@ Visual style: ${p.style}
 Format: ${formatLabel}
 Dialogue language: ${LANG_LABEL[p.language]}
 ${p.idea.trim() ? `User's extra idea: ${p.idea}
-` : ''}Take creative inspiration from: ${pickAngles(3)}.
+` : ''}Take creative inspiration from: ${pickAngles(3, themePool(p))}.
 Do NOT reuse these earlier ideas: ${p.ideaHistory.slice(-25).join(' | ') || '(none)'}.
-Invent an original, engaging story with a strong hook and satisfying ending.`;
+Invent an original, relatable story with a strong hook, a turning point and a clear lesson at the end.`;
     return (await ask(system, user)).trim();
   };
 
@@ -587,10 +636,10 @@ Invent an original, engaging story with a strong hook and satisfying ending.`;
     const topic = ignoreTopic ? '' : p.idea.trim();
     setBusy('ideas');
     try {
-      const themes = ANGLES.slice().sort(() => Math.random() - 0.5).slice(0, 15);
+      const themes = pickFrom(themePool(p), 15);
       const system = 'You are a viral short-video idea generator. Reply with ONLY valid JSON, no markdown.';
-      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}Genre: ${p.genre}. Mood: ${p.mood}. Setting: ${p.setting}. Cast: ${p.cast}. Format: ${formatLabel}.
-${topic ? `The creator is searching for ideas about: "${topic}". Every idea must be about this topic, but each one must use a DIFFERENT angle.\n` : ''}Idea #k must be built around the matching theme (so all 15 ideas are completely different): ${themes.map((t, k) => `${k + 1}=${t}`).join('; ')}.\nNo festival/Eid ideas unless the creator asked for them. Random seed: ${Math.random().toString(36).slice(2, 8)}.\nAlready suggested (do not repeat): ${p.ideaHistory.slice(-30).join(' | ') || '(none)'}.\nGive 15 DIFFERENT, specific, fresh video ideas (one sentence each, with a hook, max 25 words). Return {"ideas":["...","..."]}`;
+      const user = `${ctx(p)}Genre: ${p.genre}. Mood: ${p.mood}. Setting: ${p.setting}. Cast: ${p.cast}. Format: ${formatLabel}.
+${topic ? `The creator is searching for ideas about: "${topic}". Every idea must be about this topic, but each one must use a DIFFERENT angle.\n` : ''}Idea #k must be built around the matching theme (so all 15 ideas are completely different): ${themes.map((t, k) => `${k + 1}=${t}`).join('; ')}.\nNo festival/Eid ideas unless the creator asked for them. Random seed: ${Math.random().toString(36).slice(2, 8)}.\nAlready suggested (do not repeat): ${p.ideaHistory.slice(-30).join(' | ') || '(none)'}.\nGive 15 DIFFERENT, specific, fresh, RELATABLE video ideas. Each idea: one sentence with the everyday situation and the twist, then " | Lesson: " and the lesson (max 35 words in total). Return {"ideas":["...","..."]}`;
       const data = extractJson<any>(await ask(system, user));
       const list: string[] = (data.ideas || []).map((x: any) => String(x)).filter(Boolean).slice(0, 20);
       if (!list.length) throw new Error('No ideas returned. Try again.');
@@ -609,8 +658,8 @@ ${topic ? `The creator is searching for ideas about: "${topic}". Every idea must
     setBusy('series');
     try {
       const system = 'You are a head writer for a short-video series. Reply with ONLY valid JSON, no markdown.';
-      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}Genre: ${p.genre}. Mood: ${p.mood}. Setting: ${p.setting}. Cast: ${p.cast}. Style: ${p.style}. Dialogue language: ${LANG_LABEL[p.language]}.
-${p.idea.trim() ? `Series idea from the creator: ${p.idea}` : `Inspiration: ${pickAngles(3)}.`}
+      const user = `${ctx(p)}Genre: ${p.genre}. Mood: ${p.mood}. Setting: ${p.setting}. Cast: ${p.cast}. Style: ${p.style}. Dialogue language: ${LANG_LABEL[p.language]}.
+${p.idea.trim() ? `Series idea from the creator: ${p.idea}` : `Inspiration: ${pickAngles(3, themePool(p))}.`}
 Already used ideas (do not repeat): ${p.ideaHistory.slice(-25).join(' | ') || '(none)'}.
 Plan ONE story told across exactly ${n} short episodes (parts). Each part must be a complete mini-episode with its own hook, and end with a cliffhanger leading to the next; the last part resolves everything. Return {"title":"series title","summary":"2-3 sentence overall story","characters":[{"name":"","description":"fixed appearance"}],"parts":[{"title":"episode title","summary":"3-4 sentences of what happens in this part"}]} (max 3 characters).`;
       const data = extractJson<any>(await ask(system, user));
@@ -675,7 +724,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       }
       const system =
         'You are a senior AI video director. You turn ONE video idea into connected scenes for an AI video generator. Characters must keep the same fixed appearance in every scene. Reply with ONLY valid JSON, no markdown.';
-      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + ' ' : ''}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\n\nNumber of scenes: EXACTLY ${p.sceneCount} (the scenes array must contain exactly ${p.sceneCount} items)\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks (return them in the same order): ${charactersText(p.characters)}\n` : ''}\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
+      const user = `${ctx(p)}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\n\nNumber of scenes: EXACTLY ${p.sceneCount} (the scenes array must contain exactly ${p.sceneCount} items)\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue/narration/captions: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks (return them in the same order): ${charactersText(p.characters)}\n` : ''}\nReturn JSON exactly like:\n{"title":"video title","story":"2-3 sentence story summary","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed appearance: face, hair, clothes, age, art style"}],"scenes":[{${scenePromptSchema}}]}\nUse at most 3 characters and exactly ${p.sceneCount} scenes that flow as one story (clear beginning, build-up, ending).`;
       const text = await ask(system, user);
       const data = extractJson<any>(text);
       const rawScenes: any[] = (data.scenes || []).slice(0, 30);
@@ -697,6 +746,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         ...o,
         title: String(data.title || o.title),
         story: String(data.story || ''),
+        lesson: String(data.lesson || ''),
         characters: chars,
         scenes,
         seo: null,
@@ -867,7 +917,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     try {
       const system =
         'You are a social media SEO expert for short-form video. Reply with ONLY valid JSON, no markdown. Each platform must get DIFFERENT, platform-native copy.';
-      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + " Use channel name Beshaan in hashtags (#Beshaan #BeshaanVibe). " : ""}VIDEO TITLE: ${p.title}\nSTORY: ${p.story}\nIDEA: ${p.prompt}\nLANGUAGE: ${LANG_LABEL[p.language]} (hashtags may mix English)\nSCENES: ${p.scenes.map((s) => s.caption).join(' | ')}\n\nReturn JSON:\n{"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"max 3 words"},"youtube":{"title":"<=100 chars, keyword first, include #Shorts","description":"hook line + 2-3 lines + CTA","hashtags":"#a #b #c (5-8)"},"tiktok":{"title":"<=150 chars hooky caption","description":"short caption text","hashtags":"4-6 hashtags incl. trending-style"},"instagram":{"title":"first-line hook <=125 chars","description":"caption with line breaks, emojis, CTA","hashtags":"8-12 hashtags"},"facebook":{"title":"<=125 chars","description":"conversational caption, ask a question","hashtags":"3-5 hashtags"}}`;
+      const user = `${p.genre === BESHAAN ? BESHAAN_CONTEXT + " Use channel name Beshaan in hashtags (#Beshaan #BeshaanVibe). " : ""}VIDEO TITLE: ${p.title}${p.lesson ? `\nLESSON OF THE VIDEO: ${p.lesson} (mention it in the descriptions as a takeaway or question to the viewer)` : ''}\nSTORY: ${p.story}\nIDEA: ${p.prompt}\nLANGUAGE: ${LANG_LABEL[p.language]} (hashtags may mix English)\nSCENES: ${p.scenes.map((s) => s.caption).join(' | ')}\n\nReturn JSON:\n{"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"max 3 words"},"youtube":{"title":"<=100 chars, keyword first, include #Shorts","description":"hook line + 2-3 lines + CTA","hashtags":"#a #b #c (5-8)"},"tiktok":{"title":"<=150 chars hooky caption","description":"short caption text","hashtags":"4-6 hashtags incl. trending-style"},"instagram":{"title":"first-line hook <=125 chars","description":"caption with line breaks, emojis, CTA","hashtags":"8-12 hashtags"},"facebook":{"title":"<=125 chars","description":"conversational caption, ask a question","hashtags":"3-5 hashtags"}}`;
       const data = extractJson<any>(await ask(system, user));
       const pick = (k: Platform) => ({
         title: String(data[k]?.title || p.title),
@@ -1213,6 +1263,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     [
       `${p.title || 'AI VIDEO'}  |  ${p.style}  |  ${formatLabel}`,
       p.story ? `STORY: ${p.story}` : '',
+      p.lesson ? `LESSON: ${p.lesson}` : '',
       `CHARACTERS (attach the reference images and keep them IDENTICAL in every scene):\n${charactersText(p.characters) || '(none)'}`,
       ...p.scenes.map(
         (s, i) =>
@@ -1526,7 +1577,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-base font-bold text-white">Describe your video</h3>
         </div>
-        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
             <span className={label}>Niche Curriculum</span>
             <select
@@ -1540,6 +1591,18 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
               ))}
             </select>
           </div>
+          {p.genre === BESHAAN && (
+            <div>
+              <span className={label}>Topic of this video (one only)</span>
+              <select className={input} value={p.focus || 'Life lessons'} onChange={(e) => patch({ focus: e.target.value, series: null })}>
+                {FOCUS.map((f) => (
+                  <option key={f} value={f}>
+                    {f === 'Life lessons' ? '💡 Life lessons (relatable stories)' : f === 'Fashion' ? '👗 Fashion' : f === 'Lifestyle' ? '🏠 Lifestyle' : '🎮 Gaming'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <span className={label}>Dialogue / Voiceover</span>
             <select className={input} value={p.language} onChange={(e) => patch({ language: e.target.value as Project['language'] })}>
@@ -1563,19 +1626,19 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
           <div>
             <span className={label}>Mood</span>
             <select className={input} value={p.mood} onChange={(e) => patch({ mood: e.target.value })}>
-              {MOODS.map((x) => <option key={x}>{x}</option>)}
+              {MOODS.filter((x) => p.genre !== BESHAAN || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
             </select>
           </div>
           <div>
             <span className={label}>Setting</span>
             <select className={input} value={p.setting} onChange={(e) => patch({ setting: e.target.value })}>
-              {SETTINGS.map((x) => <option key={x}>{x}</option>)}
+              {SETTINGS.filter((x) => p.genre !== BESHAAN || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
             </select>
           </div>
           <div>
             <span className={label}>Characters</span>
             <select className={input} value={p.cast} onChange={(e) => patch({ cast: e.target.value })}>
-              {CASTS.map((x) => <option key={x}>{x}</option>)}
+              {CASTS.filter((x) => p.genre !== BESHAAN || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
             </select>
           </div>
         </div>
@@ -1761,6 +1824,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
           <p className="text-xs text-slate-400">
             Copy each scene into Google Flow (attach your character pictures there) and make one clip per scene. Then go to Join Videos.
           </p>
+          {p.lesson && <p className="mt-1 text-sm font-semibold text-emerald-300">Lesson: {p.lesson}</p>}
         </div>
         <div className="flex gap-2">
           <button className={btnGhost} onClick={addScene}>

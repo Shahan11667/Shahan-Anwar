@@ -2,7 +2,12 @@ import { generateText } from '@/lib/llm';
 import DailyPack, { IDailyPack } from '@/models/DailyPack';
 
 export const BESHAAN_CONTEXT =
-  'CHANNEL: BESHAAN. Tagline: Three Creators | Three Personalities | One Amazing Journey. Two girls and one boy blending fashion, lifestyle vibes and gaming entertainment. Tone: energetic trio banter, friendly, trendy, fun, positive, family-safe. The three recurring characters have distinct personalities (the stylish fashion girl, the bubbly lifestyle girl, the funny gamer boy) and always look the same.';
+  'CHANNEL: BESHAAN. Three young Pakistani creators (two girls, one boy) act out short, real-life stories. Tone: warm, natural, funny where it fits, family-safe. The three recurring characters always look the same.';
+
+const STORY_RULES =
+  'STORY RULES: Tell ONE relatable story that real viewers (teens to adults, 13+) can see themselves in: something that really happens in everyday life. Structure: a hook in the first 3 seconds, a real everyday problem, a mistake or conflict, a turning point, and a clear LESSON at the end, said naturally by a character (not preachy). No content made for small children.';
+const focusRules = (focus: string) =>
+  `TOPIC FOR THIS VIDEO: ${focus}. Stay on this ONE topic only: do NOT mix fashion, lifestyle and gaming in the same video. Realistic everyday Pakistani settings. NO horror, ghosts, fantasy, superpowers, fights, villains or action-movie scenes.`;
 
 export function todayKey(): string {
   // Pakistan time (UTC+5) so "today" matches the creator's day
@@ -24,7 +29,8 @@ export async function generatePack(opts: { source: 'cron' | 'manual'; hint?: str
   const sceneCount = Math.min(12, Math.max(3, Number(process.env.DAILY_PACK_SCENES) || 7));
   const language = LANG[process.env.DAILY_PACK_LANGUAGE || 'roman_urdu'] || LANG.roman_urdu;
   const genre = process.env.DAILY_PACK_GENRE || 'Beshaan (Fashion, Lifestyle, Gaming)';
-  const context = genre.toLowerCase().startsWith('beshaan') ? BESHAAN_CONTEXT : `CHANNEL GENRE: ${genre}.`;
+  const focus = process.env.DAILY_PACK_FOCUS || 'Life lessons';
+  const context = (genre.toLowerCase().startsWith('beshaan') ? `${BESHAAN_CONTEXT} ${focusRules(focus)}` : `CHANNEL GENRE: ${genre}.`) + ' ' + STORY_RULES;
 
   const recent = await DailyPack.find({}).sort({ createdAt: -1 }).limit(20).select('title').lean();
   const avoid = recent.map((r: any) => r.title).filter(Boolean).join(' | ');
@@ -37,7 +43,7 @@ Dialogue/narration/captions language: ${language}.
 The scenes will be pasted one by one into Google Flow / Veo (an AI video generator), each in a separate generation. So EVERY scene prompt must be fully SELF-CONTAINED: repeat each character's fixed look (age, face, hair, outfit, colors), the location, the action, facial expressions, camera movement, lighting, sound/music mood, and the exact spoken dialogue with who says it. Each scene is 8 seconds. Visual style: vibrant cinematic, consistent across scenes. No text overlays inside the video.
 
 Return ONLY JSON:
-{"title":"catchy title","idea":"one-line concept","story":"2-3 sentence summary",
+{"title":"catchy title","idea":"one-line concept","story":"2-3 sentence summary ending with: Lesson: <the lesson>",
 "characters":[{"name":"","description":"fixed appearance"}],
 "scenes":[{"prompt":"full self-contained video prompt","narration":"spoken dialogue lines","caption":"short subtitle <=12 words","duration":8}] (exactly ${sceneCount}),
 "thumbnail":{"headline":"max 4 words ALL CAPS","badge":"max 3 words","imagePrompt":"detailed prompt for an eye-catching thumbnail image, no text in the image"},
