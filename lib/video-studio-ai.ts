@@ -61,14 +61,14 @@ export async function generateSpeech(text: string, language: string): Promise<Bl
 }
 
 /** Text generation through the server (Groq first, Gemini as backup: see lib/llm.ts). */
-export async function aiText(system: string, user: string): Promise<string> {
+export async function aiText(system: string, user: string, opts: { story?: boolean } = {}): Promise<string> {
   const errors: string[] = [];
   {
     try {
       const res = await fetch('/api/admin/automation/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ system, prompt: user }),
+        body: JSON.stringify({ system, prompt: user, story: opts.story === true }),
       });
       const j = await res.json().catch(() => ({}));
       if (res.ok && j.success && j.text) return j.text as string;

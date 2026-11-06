@@ -10,6 +10,18 @@ export const BESHAAN_CONTEXT =
 
 export const isBeshaan = (genre: string) => genre.toLowerCase().startsWith('beshaan');
 
+/** Second channel: heartfelt Urdu stories about love, respect, patience, gratitude and good manners. */
+export const HEART = 'Heartfelt Stories (Mohabbat • Izzat • Sabr • Shukr)';
+export const isHeart = (genre: string) => genre.toLowerCase().startsWith('heartfelt');
+export const HEART_FOCUS = [
+  'Emotional Stories',
+  'Family Relationship Stories',
+  'Maa-Baap Ki Mohabbat',
+  'Husband-Wife Ka Pyara Rishta',
+  'Islamic Moral Stories',
+  'Zindagi Badalne Wale Sabak',
+] as const;
+
 /** One topic per video, so the channel feels like ONE kind of content (no fashion + gaming + action mix). */
 export const FOCUS = ['Life lessons', 'Fashion', 'Lifestyle', 'Gaming'] as const;
 
@@ -18,6 +30,12 @@ export const FOCUS_HINT: Record<string, string> = {
   Fashion: 'clothes, style, shopping, looks and confidence',
   Lifestyle: 'daily routines, home life, habits, food, health, money',
   Gaming: 'gaming life: playing with friends, online games, studies vs games, family',
+  'Emotional Stories': 'touching everyday stories that make the viewer feel something: regret, reunion, kindness, missing someone',
+  'Family Relationship Stories': 'bonds inside a family: siblings, cousins, in-laws, grandparents, misunderstandings and making peace',
+  'Maa-Baap Ki Mohabbat': 'the silent love and sacrifices of mothers and fathers, and children who realise it',
+  'Husband-Wife Ka Pyara Rishta': 'a respectful married couple: small everyday care, patience, apologies and gratitude',
+  'Islamic Moral Stories': 'everyday situations that show Islamic values like honesty, sabr, shukr, forgiveness, charity and respect for parents and neighbours',
+  'Zindagi Badalne Wale Sabak': 'life lessons that change a person: failure and trying again, time, good company, habits, humility',
 };
 
 export const FOCUS_THEMES: Record<string, string[]> = {
@@ -45,6 +63,44 @@ export const FOCUS_THEMES: Record<string, string[]> = {
     'parents who do not understand gaming', 'a scam inside an online game', 'a gaming friend from another city', 'gaming vs family time',
     'cheating in a game and getting banned', 'rage quitting and breaking things', 'a younger sibling who wants to play too', 'sharing your account password',
   ],
+  'Emotional Stories': [
+    'a child who finally understands what his mother gave up for him', 'a forgotten birthday and the small surprise that fixes it',
+    'an old friend who appears again after years', 'an apology that comes too late', 'a student who lost hope and a teacher who did not give up on him',
+    'a lonely neighbour and a plate of food', 'a first salary spent on the family', 'a letter found in an old drawer',
+    'a shy girl who is finally heard', 'a brother who protects his sister without saying a word', 'a lost wallet returned with honesty',
+    'missing someone who moved abroad', 'a kind word to a stranger who needed it',
+  ],
+  'Family Relationship Stories': [
+    'two siblings who stopped talking over a small fight', 'a daughter-in-law and a mother-in-law learning to understand each other',
+    'the eldest son silently carrying the family burden', 'cousins comparing themselves at a family gathering', 'a sister who gives up her wish so her brother can study',
+    'grandparents who feel ignored in their own home', 'a family dinner where everyone is on their phones', 'a misunderstanding between two brothers over money',
+    'a younger sibling copying what the elders do', 'making peace the night before a family function', 'the relative everyone avoids and what they are really going through',
+    'parents arguing in front of the kids and the child\'s quiet question',
+  ],
+  'Maa-Baap Ki Mohabbat': [
+    'a mother who stays awake the night before her child\'s exam', 'a father who walks to work to save money for his child\'s shoes', 'a mother who says she has already eaten',
+    'a father\'s silence and the love behind it', 'a child who shouts at his parents and regrets it', 'the parents\' old phone and the child\'s new one',
+    'a mother\'s dua before every journey', 'a father who never says I love you but shows it', 'a mother\'s hands, rough from years of work',
+    'taking the parents out for the first time', 'a daughter\'s wedding and a father\'s hidden tears', 'a parent waiting at the door for a late-night child',
+  ],
+  'Husband-Wife Ka Pyara Rishta': [
+    'a husband who notices the small things his wife does', 'a wife who stays patient when money is tight', 'a small argument that ends with chai and an apology',
+    'a husband helping in the kitchen for the first time', 'a wife\'s tiring day and a quiet surprise from her husband', 'saying thank you after years of marriage',
+    'a misunderstanding about a late-night phone call', 'a couple learning to listen instead of trying to win', 'caring for a sick husband or wife',
+    'a forgotten anniversary and the simple way to fix it', 'a wife who supports her husband\'s dream', 'a husband who says sorry first',
+  ],
+  'Islamic Moral Stories': [
+    'telling the truth even when it costs you', 'sabr (patience) while waiting for a result', 'shukr (gratitude) after losing something',
+    'forgiving someone who wronged you', 'giving sadaqah quietly without showing off', 'respect for neighbours and their rights',
+    'returning something that is not yours', 'not talking behind a friend\'s back', 'keeping a promise (amanat)',
+    'a shopkeeper who does not cheat his customers', 'helping a poor person with dignity', 'being kind to parents in their old age', 'making dua instead of complaining',
+  ],
+  'Zindagi Badalne Wale Sabak': [
+    'failing once and trying again', 'a small habit that changes a life in a year', 'valuing time before it runs out',
+    'choosing a good friend over a popular one', 'saying no to a bad habit', 'learning from a mistake instead of hiding it',
+    'a small kindness that comes back years later', 'working honestly even when nobody is watching', 'being thankful instead of comparing',
+    'listening to the advice of elders', 'the cost of anger and the power of silence', 'starting small instead of waiting for the perfect time',
+  ],
 };
 
 /** Themes for the other niches (no Beshaan topics). */
@@ -62,9 +118,31 @@ export const STORY_RULES =
 export const beshaanRules = (focus: string) =>
   `TOPIC FOR THIS VIDEO: ${focus} (${FOCUS_HINT[focus] || focus}). Stay on this ONE topic only: do NOT mix fashion, lifestyle and gaming in the same video. Realistic everyday Pakistani settings (home, college, family, friends, market, office, social media). NO horror, ghosts, fantasy, superpowers, fights, villains, explosions or action-movie scenes.`;
 
-/** The rules every prompt gets: channel + topic (Beshaan only) + story rules. */
-export const storyContext = (genre: string, focus: string) =>
-  `${isBeshaan(genre) ? `${BESHAAN_CONTEXT} ${beshaanRules(focus)} ` : ''}${STORY_RULES} `;
+export const HEART_CONTEXT =
+  'CHANNEL: heartfelt Urdu story videos. Our aim: every story carries a message of love (mohabbat), respect (izzat), patience (sabr), gratitude (shukr) and good manners (ikhlaq). Tone: warm, emotional, respectful, modest and family-safe. Ordinary people in ordinary Pakistani homes (a family, a couple, parents and children, neighbours): two or three main characters who look the same in every scene. Family members call each other the way Pakistani families do (Ammi, Abbu, Bhai, Baji, Dadi, Nani, beta); never use "Baap" or "Maa" as a name or a way of address.';
+
+export const heartRules = (focus: string) =>
+  `TOPIC FOR THIS VIDEO: ${focus} (${FOCUS_HINT[focus] || focus}). Stay on this ONE topic. Realistic everyday Pakistani homes and streets. Show the lesson through what happens, never through a lecture. Always modest and family-safe: no romance beyond a respectful married couple, no violence, no horror, no fantasy. NEVER show, name or voice prophets, sahaba, angels or other holy figures, and NEVER quote a Quran verse or a hadith: show the value through the story. Characters may use everyday phrases like Assalamualaikum, Alhamdulillah, InshaAllah, JazakAllah.`;
+
+/** The topics of a channel (empty for genres without topics). */
+export const focusesOf = (genre: string): readonly string[] => (isBeshaan(genre) ? FOCUS : isHeart(genre) ? HEART_FOCUS : []);
+
+/** A topic that really belongs to the genre (a leftover topic of another channel becomes the channel's first topic). */
+export const focusFor = (genre: string, focus: string) => {
+  const list = focusesOf(genre);
+  return list.length && !list.includes(focus) ? list[0] : focus;
+};
+
+/** The rules every prompt gets: channel + topic (Beshaan / Heartfelt) + story rules. */
+export const storyContext = (genre: string, focus: string) => {
+  const f = focusFor(genre, focus);
+  const head = isBeshaan(genre) ? `${BESHAAN_CONTEXT} ${beshaanRules(f)} ` : isHeart(genre) ? `${HEART_CONTEXT} ${heartRules(f)} ` : '';
+  return `${head}${STORY_RULES} `;
+};
+
+/** How the spoken lines must be written (the AI's Roman Urdu is weak unless it is told what natural means). */
+export const DIALOGUE_RULES =
+  'Dialogue rules: short natural sentences like real people speak at home, correct grammar, every line understandable on its own; people call each other by name or by relation (Ammi, Abbu, Bhai, Baji, beta), and a relation word is only used for that relation (Ammi and Abbu are said by children to their parents, never between a husband and a wife, and nobody is called by their own name); no line is repeated; no proverbs or lectures; no on-screen text, titles or captions.';
 
 export const LANG_LABEL: Record<'roman_urdu' | 'english' | 'urdu', string> = {
   roman_urdu: 'Roman Urdu (Urdu written in English letters)',

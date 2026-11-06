@@ -1,6 +1,6 @@
 import { generateText } from '@/lib/llm';
 import DailyPack, { IDailyPack } from '@/models/DailyPack';
-import { ANGLES, BESHAAN, FOCUS, FOCUS_THEMES, LANG_LABEL, isBeshaan, storyContext } from '@/lib/beshaan';
+import { ANGLES, BESHAAN, DIALOGUE_RULES, FOCUS_THEMES, LANG_LABEL, focusesOf, isBeshaan, storyContext } from '@/lib/beshaan';
 
 export function todayKey(): string {
   // Pakistan time (UTC+5) so "today" matches the creator's day
@@ -20,14 +20,15 @@ type Recent = { title?: string; idea?: string; focus?: string; theme?: string };
  * - theme: one that was not used in the last packs (the list is long enough to never run out quickly).
  */
 function chooseTopicAndTheme(recent: Recent[], genre: string): { focus: string; theme: string } {
-  if (!isBeshaan(genre)) {
+  const focuses = focusesOf(genre);
+  if (!focuses.length) {
     const fresh = ANGLES.filter((t) => !recent.slice(0, ANGLES.length - 4).some((r) => r.theme === t));
     const pool = fresh.length ? fresh : ANGLES;
     return { focus: genre, theme: pool[Math.floor(Math.random() * pool.length)] };
   }
   const env = process.env.DAILY_PACK_FOCUS || '';
   const used = (f: string) => recent.slice(0, 8).filter((r) => r.focus === f).length;
-  const focus = (FOCUS as readonly string[]).includes(env) ? env : [...FOCUS].sort((a, b) => used(a) - used(b))[0];
+  const focus = focuses.includes(env) ? env : [...focuses].sort((a, b) => used(a) - used(b))[0];
   const pool = FOCUS_THEMES[focus];
   const usedThemes = new Set(recent.slice(0, Math.max(0, pool.length - 4)).map((r) => r.theme));
   const fresh = pool.filter((t) => !usedThemes.has(t));
@@ -55,7 +56,7 @@ export async function generatePack(opts: { source: 'cron' | 'manual'; hint?: str
 Create ONE complete, ready-to-produce short video package for today (vertical 9:16, about ${sceneCount * 8} seconds).
 TODAY'S THEME (the heart of the story, use it): ${theme}.
 ${opts.hint ? `Creator's hint: ${opts.hint}\n` : ''}Do NOT repeat or closely copy these earlier videos (same situation, same twist or same lesson): ${avoid || '(none yet)'}.
-Dialogue/narration/captions language: ${language}.
+Dialogue/narration/captions language: ${language}. ${DIALOGUE_RULES}
 
 The scenes will be pasted one by one into Google Flow / Veo (an AI video generator), each in a separate generation. So EVERY scene prompt must be fully SELF-CONTAINED: repeat each character's fixed look (age, face, hair, outfit, colors), the location, the action, facial expressions, camera movement, lighting, sound/music mood, and the exact spoken dialogue with who says it. Each scene is 8 seconds. Visual style: vibrant cinematic, consistent across scenes. No text overlays inside the video.
 
@@ -79,7 +80,8 @@ Use at most 3 characters.${isBeshaan(genre) ? ' Use #Beshaan #BeshaanVibe in the
   let lastErr = '';
   for (let attempt = 0; attempt < 2 && !data?.scenes?.length; attempt++) {
     try {
-      const r = await generateText({ prompt, json: true, maxTokens: 8000 });
+      // one long answer (all scenes at once): allow more time per attempt than the interactive studio
+      const r = await generateText({ prompt, json: true, maxTokens: 8000, timeoutMs: 45_000, budgetMs: 55_000 });
       data = parseJson(r.text);
     } catch (e: any) {
       lastErr = e?.message || String(e);

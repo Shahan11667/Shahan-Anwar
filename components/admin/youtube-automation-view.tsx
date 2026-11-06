@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import JoinClips from '@/components/admin/join-clips';
 import { extractJson, fileToDataUrl, toJpegDataUrl, aiText, downloadBlob } from '@/lib/video-studio-ai';
 import { loadImage } from '@/lib/video-render';
-import { BESHAAN, ANGLES, FOCUS_THEMES, LANG_LABEL, isBeshaan, storyContext } from '@/lib/beshaan';
+import { BESHAAN, HEART, HEART_FOCUS, ANGLES, FOCUS_THEMES, LANG_LABEL, DIALOGUE_RULES, isBeshaan, isHeart, focusFor, storyContext } from '@/lib/beshaan';
 
 /* ------------------------------------------------------------------ types */
 
@@ -130,27 +130,44 @@ const STYLES = [
   'dark moody cinematic',
 ];
 
-type NicheOption = { id: string; icon: string; label: string; genre: string; focus?: string; desc: string };
+type NicheOption = { id: string; group: string; icon: string; label: string; genre: string; focus?: string; desc: string; cast?: string; mood?: string; setting?: string };
+const G_HEART = 'Heartfelt Stories (new)';
+const G_BESHAAN = 'Beshaan';
+const G_OTHER = 'Other niches';
 const NICHE_OPTIONS: NicheOption[] = [
-  { id: 'beshaan-life', icon: '💡', label: 'Beshaan Life Stories', genre: BESHAAN, focus: 'Life lessons', desc: 'Life-based stories with a lesson: everyday drama, pranks and challenges that people relate to. 2 girls + 1 boy.' },
-  { id: 'beshaan-fashion', icon: '👗', label: 'Beshaan Fashion', genre: BESHAAN, focus: 'Fashion', desc: 'Fashion-only stories with a lesson: outfits, shopping, style confidence, outfit challenges and pranks.' },
-  { id: 'beshaan-lifestyle', icon: '🏠', label: 'Beshaan Lifestyle', genre: BESHAAN, focus: 'Lifestyle', desc: 'Lifestyle-only stories with a lesson: home, routines, habits, money, food and family life.' },
-  { id: 'beshaan-gaming', icon: '🎮', label: 'Beshaan Gaming', genre: BESHAAN, focus: 'Gaming', desc: 'Gaming-only stories with a lesson: playing with friends, online games, studies vs games, family.' },
-  { id: 'romantic', icon: '💖', label: 'Romantic Anime Story (Bisma)', genre: 'Romantic Anime Story (Bisma)', desc: 'Cute, emotional anime love stories with heartfelt dialogue.' },
-  { id: 'ai-dev', icon: '🤖', label: 'AI & Developer Engineering', genre: 'AI & Developer Engineering', desc: 'AI tools, coding and developer tips explained simply.' },
-  { id: 'wealth', icon: '💰', label: 'High-Income Wealth & Micro-SaaS', genre: 'High-Income Wealth & Micro-SaaS', desc: 'Money, online income and small software business ideas.' },
-  { id: 'psychology', icon: '🧠', label: 'Dark Psychology & Influence', genre: 'Dark Psychology & Influence', desc: 'How people think and influence each other, with real-life examples.' },
-  { id: 'stoicism', icon: '⚡', label: 'High-Performance Stoicism', genre: 'High-Performance Stoicism', desc: 'Discipline, calm and mindset lessons for daily life.' },
-  { id: 'space', icon: '🌌', label: 'Space & Cosmic Physics', genre: 'Space & Cosmic Physics', desc: 'Amazing space and physics facts, explained visually.' },
-  { id: 'facts', icon: '🎙️', label: 'Curious Facts & Hidden History', genre: 'Curious Facts & Hidden History', desc: 'Surprising facts and untold history stories.' },
+  { id: 'heart-emotional', group: G_HEART, icon: '🌸', label: 'Emotional Stories', genre: HEART, focus: 'Emotional Stories', cast: 'Family (3 members)', mood: 'Emotional', setting: 'Family home (living room)', desc: 'Touching everyday stories that make the viewer feel: regret, reunion, kindness, missing someone. One clear lesson at the end.' },
+  { id: 'heart-family', group: G_HEART, icon: '❤️', label: 'Family Relationship Stories', genre: HEART, focus: 'Family Relationship Stories', cast: 'Family (4-5 members)', mood: 'Emotional', setting: 'Family home (living room)', desc: 'Siblings, in-laws, grandparents and cousins: misunderstandings, sacrifice and making peace.' },
+  { id: 'heart-parents', group: G_HEART, icon: '👨‍👩‍👧', label: 'Maa-Baap Ki Mohabbat', genre: HEART, focus: 'Maa-Baap Ki Mohabbat', cast: 'Mother + child', mood: 'Emotional', setting: 'Kitchen at home', desc: 'The silent love and sacrifices of mothers and fathers, and children who finally understand.' },
+  { id: 'heart-couple', group: G_HEART, icon: '💕', label: 'Husband-Wife Ka Pyara Rishta', genre: HEART, focus: 'Husband-Wife Ka Pyara Rishta', cast: 'Husband + wife', mood: 'Heartwarming', setting: 'Family home (living room)', desc: 'A respectful, modest married couple: small everyday care, patience, saying sorry and saying thank you.' },
+  { id: 'heart-islamic', group: G_HEART, icon: '🕌', label: 'Islamic Moral Stories', genre: HEART, focus: 'Islamic Moral Stories', cast: 'Family (3 members)', mood: 'Heartwarming', setting: 'Family home (living room)', desc: 'Everyday stories that show Islamic values (honesty, sabr, shukr, forgiveness, sadaqah). No prophets or holy figures are shown and no Quran verse or hadith is quoted.' },
+  { id: 'heart-life', group: G_HEART, icon: '✨', label: 'Zindagi Badalne Wale Sabak', genre: HEART, focus: 'Zindagi Badalne Wale Sabak', cast: '2-3 people (any relation)', mood: 'Heartwarming', setting: 'Family home (living room)', desc: 'Life lessons that change a person: failing and trying again, time, good friends, habits, humility.' },
+  { id: 'beshaan-life', group: G_BESHAAN, icon: '💡', label: 'Beshaan Life Stories', genre: BESHAAN, focus: 'Life lessons', cast: '2 girls + 1 boy', mood: 'Fun & energetic', desc: 'Life-based stories with a lesson: everyday drama, pranks and challenges that people relate to. 2 girls + 1 boy.' },
+  { id: 'beshaan-fashion', group: G_BESHAAN, icon: '👗', label: 'Beshaan Fashion', genre: BESHAAN, focus: 'Fashion', cast: '2 girls + 1 boy', mood: 'Fun & energetic', desc: 'Fashion-only stories with a lesson: outfits, shopping, style confidence, outfit challenges and pranks.' },
+  { id: 'beshaan-lifestyle', group: G_BESHAAN, icon: '🏠', label: 'Beshaan Lifestyle', genre: BESHAAN, focus: 'Lifestyle', cast: '2 girls + 1 boy', mood: 'Fun & energetic', desc: 'Lifestyle-only stories with a lesson: home, routines, habits, money, food and family life.' },
+  { id: 'beshaan-gaming', group: G_BESHAAN, icon: '🎮', label: 'Beshaan Gaming', genre: BESHAAN, focus: 'Gaming', cast: '2 girls + 1 boy', mood: 'Fun & energetic', desc: 'Gaming-only stories with a lesson: playing with friends, online games, studies vs games, family.' },
+  { id: 'romantic', group: G_OTHER, icon: '💖', label: 'Romantic Anime Story (Bisma)', genre: 'Romantic Anime Story (Bisma)', desc: 'Cute, emotional anime love stories with heartfelt dialogue.' },
+  { id: 'ai-dev', group: G_OTHER, icon: '🤖', label: 'AI & Developer Engineering', genre: 'AI & Developer Engineering', desc: 'AI tools, coding and developer tips explained simply.' },
+  { id: 'wealth', group: G_OTHER, icon: '💰', label: 'High-Income Wealth & Micro-SaaS', genre: 'High-Income Wealth & Micro-SaaS', desc: 'Money, online income and small software business ideas.' },
+  { id: 'psychology', group: G_OTHER, icon: '🧠', label: 'Dark Psychology & Influence', genre: 'Dark Psychology & Influence', desc: 'How people think and influence each other, with real-life examples.' },
+  { id: 'stoicism', group: G_OTHER, icon: '⚡', label: 'High-Performance Stoicism', genre: 'High-Performance Stoicism', desc: 'Discipline, calm and mindset lessons for daily life.' },
+  { id: 'space', group: G_OTHER, icon: '🌌', label: 'Space & Cosmic Physics', genre: 'Space & Cosmic Physics', desc: 'Amazing space and physics facts, explained visually.' },
+  { id: 'facts', group: G_OTHER, icon: '🎙️', label: 'Curious Facts & Hidden History', genre: 'Curious Facts & Hidden History', desc: 'Surprising facts and untold history stories.' },
 ];
 const nicheOf = (q: { genre: string; focus?: string }) =>
-  NICHE_OPTIONS.find((n) => n.genre === q.genre && (n.genre !== BESHAAN || n.focus === (q.focus || 'Life lessons')));
-const GENRES = [BESHAAN, 'Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming', 'Romantic Anime Story (Bisma)', 'AI & Developer Engineering', 'High-Income Wealth & Micro-SaaS', 'Dark Psychology & Influence', 'High-Performance Stoicism', 'Space & Cosmic Physics', 'Curious Facts & Hidden History'];
+  NICHE_OPTIONS.find((n) => n.genre === q.genre && (!n.focus || n.focus === focusFor(q.genre, q.focus || '')));
+const genreLabel = (g: string) => (g === BESHAAN ? 'Beshaan' : g === HEART ? 'Heartfelt Stories' : g);
+const blankCharacters = () => [0, 1, 2].map(() => ({ name: '', description: '' }));
+const GENRES = [BESHAAN, HEART, 'Romantic', 'Comedy', 'Horror', 'Action', 'Fantasy', 'Sci-Fi', 'Mystery', 'Motivational', 'Friendship', 'Family drama', 'Fashion & Lifestyle', 'Gaming', 'Romantic Anime Story (Bisma)', 'AI & Developer Engineering', 'High-Income Wealth & Micro-SaaS', 'Dark Psychology & Influence', 'High-Performance Stoicism', 'Space & Cosmic Physics', 'Curious Facts & Hidden History'];
 const MOODS = ['Fun & energetic', 'Emotional', 'Funny', 'Suspenseful', 'Epic', 'Heartwarming', 'Dark', 'Cute & light'];
 const SETTINGS = ['Fashion studio / bedroom', 'Shopping mall', 'Home lifestyle vlog', 'Rooftop at sunset', 'College campus', 'Rainy city street', 'Village & fields', 'Futuristic city', 'Haunted house', 'Beach', 'Mountains', 'Cafe', 'Gaming room', 'Wedding'];
 const NOT_FOR_BESHAAN = ['Suspenseful', 'Epic', 'Dark', 'Futuristic city', 'Haunted house', 'Hero vs villain', '1 hero alone'];
 const CASTS = ['1 boy + 1 girl', '2 girls + 1 boy', '3 friends', '1 hero alone', 'Family (3 members)', 'Hero vs villain'];
+const HEART_MOODS = ['Emotional', 'Heartwarming', 'Cute & light'];
+const HEART_SETTINGS = ['Family home (living room)', 'Kitchen at home', 'Village home & courtyard', 'Rooftop at sunset', 'Rainy city street', 'Family function (wedding)'];
+const HEART_CASTS = ['Family (3 members)', 'Family (4-5 members)', 'Mother + child', 'Father + child', 'Husband + wife', 'Grandparent + grandchild', '2-3 people (any relation)'];
+/** The options of a select: each channel only gets what fits it (no horror for Beshaan, no action for Heartfelt). */
+const optionsFor = (genre: string, all: string[], heartList: string[]) =>
+  isHeart(genre) ? heartList : isBeshaan(genre) ? all.filter((x) => !NOT_FOR_BESHAAN.includes(x)) : all;
 
 /** titleMax = the title length each platform accepts. The one shared text is cut to these limits when posting. */
 const PLATFORMS: { id: Platform; label: string; titleMax: number; uploadUrl: string }[] = [
@@ -299,7 +316,7 @@ function Spin({ on, children }: { on: boolean; children: React.ReactNode }) {
 /* ------------------------------------------------------------- rules & helpers */
 
 const ctx = (q: Project) => storyContext(q.genre, q.focus || 'Life lessons');
-const themePool = (q: Project) => (isBeshaan(q.genre) ? FOCUS_THEMES[q.focus || 'Life lessons'] || ANGLES : ANGLES);
+const themePool = (q: Project) => (isBeshaan(q.genre) || isHeart(q.genre) ? FOCUS_THEMES[focusFor(q.genre, q.focus || 'Life lessons')] || ANGLES : ANGLES);
 const pickFrom = (pool: string[], n: number) => pool.slice().sort(() => Math.random() - 0.5).slice(0, n);
 const pickAngles = (n: number, pool: string[] = ANGLES) => pickFrom(pool, n).join(', ');
 const seriesKey = (q: { genre: string; idea: string; seriesParts: number; cast: string; setting: string }) => `${q.genre}|${q.idea.trim()}|${q.seriesParts}|${q.cast}|${q.setting}`;
@@ -424,8 +441,8 @@ Invent an original, relatable story with a strong hook, a turning point and a cl
       const system = 'You are a viral short-video idea generator. Reply with ONLY valid JSON, no markdown.';
       const user = `${ctx(p)}Genre: ${p.genre}. Mood: ${p.mood}. Setting: ${p.setting}. Cast: ${p.cast}. Format: ${formatLabel}.
 ${topic ? `The creator is searching for ideas about: "${topic}". Every idea must be about this topic, but each one must use a DIFFERENT angle.\n` : ''}Idea #k must be built around the matching theme (so the ideas are completely different): ${themes.map((t, k) => `${k + 1}=${t}`).join('; ')}.\nRandom seed: ${Math.random().toString(36).slice(2, 8)}.\nAlready suggested (do NOT repeat the situation, the twist or the lesson): ${p.ideaHistory.slice(-60).map((x) => x.slice(0, 140)).join(' | ') || '(none)'}.\nGive 15 DIFFERENT, specific, fresh, RELATABLE video ideas. Each idea: one sentence with the everyday situation and the twist, then " | Lesson: " and the lesson (max 35 words in total). Return {"ideas":["...","..."]}`;
-      const data = extractJson<any>(await aiText(system, user));
-      const list: string[] = (data.ideas || []).map((x: any) => String(x)).filter(Boolean).slice(0, 20);
+      const data = extractJson<any>(await aiText(system, user, { story: true }));
+      const list: string[] = (data.ideas || []).map((x: any) => String(x).replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean).slice(0, 20);
       if (!list.length) throw new Error('No ideas returned. Try again.');
       setIdeaList(list);
       setP((o) => ({
@@ -517,12 +534,12 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       const bpSystem =
         'You are the head writer of short story videos. You write tight, believable stories where every scene is caused by the one before it. Reply with ONLY valid JSON, no markdown.';
       const bpUser = `${ctx(p)}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\nLength: exactly ${N} scenes of about 8 seconds each. Every scene is a separate clip made by an AI video tool.\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks: ${charactersText(p.characters)}\n` : ''}\nWrite the STORY BLUEPRINT first. Rules:\n- ONE story with a clear arc over exactly ${N} beats: beat 1 is the hook (something interesting happens in the first seconds), then the everyday situation, the mistake or conflict, it gets worse, the turning point, the resolution, and the LAST beat shows the lesson, said by a character in short, natural everyday words (never a speech, never the lesson sentence word for word).\n- Every beat is caused by the one before it ("because of that...", "so..."). No random jumps, no new unrelated characters or events.
-- KEEP IT SIMPLE: ONE problem, and only the main characters on screen (no side characters, nobody off-screen: other people can only be a phone call or a message). A viewer must be able to retell the story in one sentence.\n- ONE single room or place for the WHOLE video, no second location. Describe its layout and furniture once in "setting" and never add, move or rename furniture later. EVERY beat happens inside that same place (characters may talk about other places, but we never go there). Same time of day. The SAME outfit for every character in every scene.\n- "endsWith" is the exact last moment of that clip (positions, expressions, the last spoken line). The next beat starts from exactly that moment.\n\nReturn JSON: {"title":"video title","story":"3-4 sentence story","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed look: age, face, hair, the outfit worn in this whole video, art style"}],"setting":"the ONE location in detail: layout, furniture, colors, objects, lighting, time of day","props":"the important objects and where they are","beats":[{"what":"what happens (2 sentences)","who":"characters on screen","emotion":"main emotion","endsWith":"the last moment of the clip"}]}\nUse at most 3 characters and exactly ${N} beats.`;
+- KEEP IT SIMPLE: ONE problem, and only the main characters on screen (no side characters, nobody off-screen: other people can only be a phone call or a message). A viewer must be able to retell the story in one sentence.\n- "what" in every beat is a plain description of the action in English with NO spoken lines and no quotation marks (the dialogue is written later, in the scenes). No on-screen text, titles or captions anywhere.\n- ONE single room or place for the WHOLE video, no second location. Describe its layout and furniture once in "setting" and never add, move or rename furniture later. EVERY beat happens inside that same place (characters may talk about other places, but we never go there). Same time of day. The SAME outfit for every character in every scene.\n- "endsWith" is the exact last moment of that clip (positions, expressions, the last spoken line). The next beat starts from exactly that moment.\n\nReturn JSON: {"title":"video title","story":"3-4 sentence story","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed look: age, face, hair, the outfit worn in this whole video, art style"}],"setting":"the ONE location in detail: layout, furniture, colors, objects, lighting, time of day","props":"the important objects and where they are","beats":[{"what":"what happens (2 sentences)","who":"characters on screen","emotion":"main emotion","endsWith":"the last moment of the clip"}]}\nUse at most 3 characters and exactly ${N} beats.`;
       let data: any = null;
       let bpErr = '';
       for (let attempt = 0; attempt < 2 && !(Array.isArray(data?.beats) && data.beats.length === N); attempt++) {
         try {
-          data = extractJson<any>(await aiText(bpSystem, attempt ? `${bpUser}\nIMPORTANT: the beats array must have EXACTLY ${N} items.` : bpUser));
+          data = extractJson<any>(await aiText(bpSystem, attempt ? `${bpUser}\nIMPORTANT: the beats array must have EXACTLY ${N} items.` : bpUser, { story: true }));
         } catch (e: any) {
           bpErr = e?.message || '';
         }
@@ -545,16 +562,17 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       const scenes: Scene[] = [];
       let prevEnd = '';
       let prevLine = '';
+      const said: string[] = []; // every spoken line so far: a line is never used twice
       for (let i = 0; i < N; i++) {
         setPlanMsg(`Writing scene ${i + 1} of ${N}…`);
         const b = beats[i];
         const next = beats[i + 1];
-        const sceneUser = `${ctx(p)}STORY: ${data.title}: ${data.story}\nLESSON: ${data.lesson}\nCHARACTERS (same face and the same outfit in EVERY scene):\n${charactersText(chars)}\nSETTING (describe it again inside this scene): ${data.setting}\nPROPS: ${data.props}\nFULL OUTLINE:\n${outline}\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n\nNOW WRITE SCENE ${i + 1} of ${N}.\nWhat happens: ${b.what}\nOn screen: ${b.who}. Emotion: ${b.emotion}.\n${i === 0 ? 'This is the opening: something catches the viewer in the first 3 seconds.' : `The previous scene ended with: ${prevEnd}${prevLine ? ` (last line spoken: "${prevLine}")` : ''}. Start from exactly that moment: same place, same outfits, same time of day, same positions. Your first sentence describes the same frame the previous scene ended on, then the action continues. The first spoken line must react to that last line.`}\n${next ? `End this scene with: ${b.endsWith}, so that scene ${i + 2} (${next.what}) can start right away.` : `This is the FINAL scene: resolve the story and let a character say the lesson in short, natural everyday words (idea: ${data.lesson}), not word for word and not as a speech.`}\n\nReturn {${scenePromptSchema}}`;
+        const sceneUser = `${ctx(p)}STORY: ${data.title}: ${data.story}\nLESSON: ${data.lesson}\nCHARACTERS (same face and the same outfit in EVERY scene):\n${charactersText(chars)}\nSETTING (describe it again inside this scene): ${data.setting}\nPROPS: ${data.props}\nFULL OUTLINE:\n${outline}\nVisual style: ${p.style}\nAspect ratio: ${formatLabel}\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n${DIALOGUE_RULES}\n${said.length ? `LINES ALREADY SPOKEN (never repeat or rephrase them): ${said.slice(-8).join(' | ')}\n` : ''}\nNOW WRITE SCENE ${i + 1} of ${N}.\nWhat happens: ${b.what}\nOn screen: ${b.who}. Emotion: ${b.emotion}.\n${i === 0 ? 'This is the opening: something catches the viewer in the first 3 seconds.' : `The previous scene ended with: ${prevEnd}${prevLine ? ` (last line spoken: "${prevLine}")` : ''}. Start from exactly that moment: same place, same outfits, same time of day, same positions. Your first sentence describes the same frame the previous scene ended on, then the action continues. The first spoken line must react to that last line.`}\n${next ? `End this scene with: ${b.endsWith}, so that scene ${i + 2} (${next.what}) can start right away.` : `This is the FINAL scene: resolve the story and let a character say the lesson in short, natural everyday words (idea: ${data.lesson}), not word for word and not as a speech.`}\n\nReturn {${scenePromptSchema}}`;
         let raw: any = null;
         let lastErr = '';
         for (let attempt = 0; attempt < 2 && !raw; attempt++) {
           try {
-            raw = extractJson<any>(await aiText(sceneSystem, sceneUser));
+            raw = extractJson<any>(await aiText(sceneSystem, sceneUser, { story: true }));
           } catch (e: any) {
             lastErr = e?.message || '';
           }
@@ -565,6 +583,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         prevEnd = String(raw.ending || b.endsWith || '');
         const spoken = (Array.isArray(raw.dialogue) ? raw.dialogue : []).filter((d: any) => d && String(d.line || '').trim());
         prevLine = spoken.length ? String(spoken[spoken.length - 1].line).trim() : '';
+        spoken.forEach((d: any) => said.push(String(d.line).trim()));
       }
       setP((o) => ({
         ...o,
@@ -603,8 +622,8 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       const beat = bp?.beats[idx];
       const prevTail = p.scenes[idx - 1]?.prompt.slice(-700);
       const nextHead = p.scenes[idx + 1]?.prompt.slice(0, 600);
-      const user = `${ctx(p)}STORY: ${p.story || p.prompt}\nLESSON: ${p.lesson || '(none)'}\nCHARACTERS (same face and the same outfit in every scene):\n${charactersText(p.characters)}\n${bp ? `SETTING (describe it again inside this scene): ${bp.setting}\nPROPS: ${bp.props}\nOUTLINE:\n${bp.beats.map((b, i) => `${i + 1}. ${b.what}`).join('\n')}\n` : ''}Style: ${p.style}\nLanguage: ${LANG_LABEL[p.language]}\n${prevTail ? `The PREVIOUS scene ended like this (start from exactly this moment: same place, same outfits, the first line reacts to its last line): ...${prevTail}\n` : 'This is the opening scene: hook the viewer in the first 3 seconds.\n'}${nextHead ? `The NEXT scene starts like this (this scene must lead straight into it): ${nextHead}\n` : 'This is the final scene: resolve the story and say the lesson naturally.\n'}${beat ? `What must happen in this scene: ${beat.what}\n` : ''}Current scene ${idx + 1} of ${p.scenes.length}: ${sc.prompt}\n\nWrite a fresh, better version that fits exactly between the previous and the next scene. Return {${scenePromptSchema}}`;
-      const data = extractJson<any>(await aiText(system, user));
+      const user = `${ctx(p)}STORY: ${p.story || p.prompt}\nLESSON: ${p.lesson || '(none)'}\nCHARACTERS (same face and the same outfit in every scene):\n${charactersText(p.characters)}\n${bp ? `SETTING (describe it again inside this scene): ${bp.setting}\nPROPS: ${bp.props}\nOUTLINE:\n${bp.beats.map((b, i) => `${i + 1}. ${b.what}`).join('\n')}\n` : ''}Style: ${p.style}\nLanguage: ${LANG_LABEL[p.language]}\n${DIALOGUE_RULES}\n${prevTail ? `The PREVIOUS scene ended like this (start from exactly this moment: same place, same outfits, the first line reacts to its last line): ...${prevTail}\n` : 'This is the opening scene: hook the viewer in the first 3 seconds.\n'}${nextHead ? `The NEXT scene starts like this (this scene must lead straight into it): ${nextHead}\n` : 'This is the final scene: resolve the story and say the lesson naturally.\n'}${beat ? `What must happen in this scene: ${beat.what}\n` : ''}Current scene ${idx + 1} of ${p.scenes.length}: ${sc.prompt}\n\nWrite a fresh, better version that fits exactly between the previous and the next scene. Return {${scenePromptSchema}}`;
+      const data = extractJson<any>(await aiText(system, user, { story: true }));
       const f = flowPrompt(data, idx, p.scenes.length, p.style, p.format === 'vertical');
       patchScene(id, {
         prompt: f.prompt || sc.prompt,
@@ -625,7 +644,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     setBusy('seo');
     try {
       const system = 'You are a social media SEO expert for short-form video. Reply with ONLY valid JSON, no markdown.';
-      const user = `${isBeshaan(p.genre) ? 'CHANNEL: Beshaan. Use #Beshaan #BeshaanVibe in the hashtags. ' : ''}VIDEO TITLE: ${p.title}${p.lesson ? `\nLESSON OF THE VIDEO: ${p.lesson} (mention it in the description as a takeaway or a question to the viewer)` : ''}
+      const user = `${isBeshaan(p.genre) ? 'CHANNEL: Beshaan. Use #Beshaan #BeshaanVibe in the hashtags. ' : ''}${isHeart(p.genre) ? 'CHANNEL: heartfelt Urdu story videos about love, respect, patience and gratitude. Respectful tone, no clickbait, no exaggeration. ' : ''}VIDEO TITLE: ${p.title}${p.lesson ? `\nLESSON OF THE VIDEO: ${p.lesson} (mention it in the description as a takeaway or a question to the viewer)` : ''}
 STORY: ${p.story}
 IDEA: ${p.prompt.slice(0, 600)}
 LANGUAGE: ${LANG_LABEL[p.language]} (hashtags may mix English)
@@ -919,7 +938,7 @@ Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"ma
         {ideaList.length > 0 && (
           <div className="mt-2 grid gap-1.5 md:grid-cols-2">
             <h4 className="text-sm font-bold text-white md:col-span-2">
-              Self-Generated Video Topics for {p.genre === BESHAAN ? 'Beshaan' : p.genre}
+              Self-Generated Video Topics for {genreLabel(p.genre)}
             </h4>
             {ideaList.map((idea, i) => (
               <div
@@ -963,14 +982,28 @@ Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"ma
               onChange={(e) => {
                 const n = NICHE_OPTIONS.find((x) => x.id === e.target.value);
                 if (!n) return;
-                patch(n.genre === BESHAAN ? { genre: n.genre, focus: n.focus, cast: '2 girls + 1 boy', mood: 'Fun & energetic', series: null } : { genre: n.genre, series: null });
+                // a new niche starts clean: the characters of the old niche do not belong to it
+                patch({
+                  genre: n.genre,
+                  ...(n.focus ? { focus: n.focus } : {}),
+                  ...(n.cast ? { cast: n.cast } : {}),
+                  ...(n.mood ? { mood: n.mood } : {}),
+                  ...(n.setting ? { setting: n.setting } : {}),
+                  series: null,
+                  characters: blankCharacters(),
+                  prompt: p.promptEdited ? p.prompt : '',
+                });
               }}
             >
               {!nicheOf(p) && <option value="">Custom genre (below)</option>}
-              {NICHE_OPTIONS.map((n) => (
-                <option key={n.id} value={n.id}>
-                  {n.icon} {n.label}
-                </option>
+              {[G_HEART, G_BESHAAN, G_OTHER].map((g) => (
+                <optgroup key={g} label={g}>
+                  {NICHE_OPTIONS.filter((n) => n.group === g).map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.icon} {n.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             {nicheOf(p) && <p className="mt-1 text-xs text-slate-400">{nicheOf(p)!.desc}</p>}
@@ -988,8 +1021,8 @@ Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"ma
           <span className={label}>Genre</span>
           <div className="flex flex-wrap gap-1.5">
             {GENRES.map((g) => (
-              <button key={g} onClick={() => patch(g === BESHAAN ? { genre: g, cast: '2 girls + 1 boy', mood: 'Fun & energetic' } : { genre: g })} className={`rounded-full px-3 py-1 text-xs font-semibold ${p.genre === g ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
-                {g === BESHAAN ? 'Beshaan' : g}
+              <button key={g} onClick={() => patch(g === BESHAAN ? { genre: g, cast: '2 girls + 1 boy', mood: 'Fun & energetic' } : g === HEART ? { genre: g, focus: HEART_FOCUS[0], cast: 'Family (3 members)', mood: 'Emotional', setting: 'Family home (living room)', characters: blankCharacters(), series: null } : { genre: g })} className={`rounded-full px-3 py-1 text-xs font-semibold ${p.genre === g ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                {genreLabel(g)}
               </button>
             ))}
           </div>
@@ -998,19 +1031,19 @@ Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"ma
           <div>
             <span className={label}>Mood</span>
             <select className={input} value={p.mood} onChange={(e) => patch({ mood: e.target.value })}>
-              {MOODS.filter((x) => !isBeshaan(p.genre) || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
+              {optionsFor(p.genre, MOODS, HEART_MOODS).map((x) => <option key={x}>{x}</option>)}
             </select>
           </div>
           <div>
             <span className={label}>Setting</span>
             <select className={input} value={p.setting} onChange={(e) => patch({ setting: e.target.value })}>
-              {SETTINGS.filter((x) => !isBeshaan(p.genre) || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
+              {optionsFor(p.genre, SETTINGS, HEART_SETTINGS).map((x) => <option key={x}>{x}</option>)}
             </select>
           </div>
           <div>
             <span className={label}>Characters</span>
             <select className={input} value={p.cast} onChange={(e) => patch({ cast: e.target.value })}>
-              {CASTS.filter((x) => !isBeshaan(p.genre) || !NOT_FOR_BESHAAN.includes(x)).map((x) => <option key={x}>{x}</option>)}
+              {optionsFor(p.genre, CASTS, HEART_CASTS).map((x) => <option key={x}>{x}</option>)}
             </select>
           </div>
         </div>
