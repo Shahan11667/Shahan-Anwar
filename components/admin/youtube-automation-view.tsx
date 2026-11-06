@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import JoinClips from '@/components/admin/join-clips';
 import { extractJson, fileToDataUrl, toJpegDataUrl, aiText, downloadBlob } from '@/lib/video-studio-ai';
 import { loadImage } from '@/lib/video-render';
-import { BESHAAN, HEART, HEART_FOCUS, ANGLES, FOCUS_THEMES, LANG_LABEL, DIALOGUE_RULES, isBeshaan, isHeart, focusFor, storyContext } from '@/lib/beshaan';
+import { BESHAAN, HEART, HEART_FOCUS, HEART_HASHTAGS, ANGLES, FOCUS_THEMES, LANG_LABEL, DIALOGUE_RULES, isBeshaan, isHeart, focusFor, storyContext } from '@/lib/beshaan';
 
 /* ------------------------------------------------------------------ types */
 
@@ -131,7 +131,7 @@ const STYLES = [
 ];
 
 type NicheOption = { id: string; group: string; icon: string; label: string; genre: string; focus?: string; desc: string; cast?: string; mood?: string; setting?: string };
-const G_HEART = 'Heartfelt Stories (new)';
+const G_HEART = 'Beshaan Family (new)';
 const G_BESHAAN = 'Beshaan';
 const G_OTHER = 'Other niches';
 const NICHE_OPTIONS: NicheOption[] = [
@@ -141,6 +141,7 @@ const NICHE_OPTIONS: NicheOption[] = [
   { id: 'heart-couple', group: G_HEART, icon: '💕', label: 'Husband-Wife Ka Pyara Rishta', genre: HEART, focus: 'Husband-Wife Ka Pyara Rishta', cast: 'Husband + wife', mood: 'Heartwarming', setting: 'Family home (living room)', desc: 'A respectful, modest married couple: small everyday care, patience, saying sorry and saying thank you.' },
   { id: 'heart-islamic', group: G_HEART, icon: '🕌', label: 'Islamic Moral Stories', genre: HEART, focus: 'Islamic Moral Stories', cast: 'Family (3 members)', mood: 'Heartwarming', setting: 'Family home (living room)', desc: 'Everyday stories that show Islamic values (honesty, sabr, shukr, forgiveness, sadaqah). No prophets or holy figures are shown and no Quran verse or hadith is quoted.' },
   { id: 'heart-life', group: G_HEART, icon: '✨', label: 'Zindagi Badalne Wale Sabak', genre: HEART, focus: 'Zindagi Badalne Wale Sabak', cast: '2-3 people (any relation)', mood: 'Heartwarming', setting: 'Family home (living room)', desc: 'Life lessons that change a person: failing and trying again, time, good friends, habits, humility.' },
+  { id: 'heart-friends', group: G_HEART, icon: '🤝', label: 'Dosti, Bharosa Aur Insaniyat Ki Kahaniyan', genre: HEART, focus: 'Dosti, Bharosa Aur Insaniyat Ki Kahaniyan', cast: '2 friends (same gender)', mood: 'Heartwarming', setting: 'Neighbourhood street', desc: 'Friendship, trust and humanity: a loyal friend, keeping a secret, helping a neighbour or a stranger. No romance.' },
   { id: 'beshaan-life', group: G_BESHAAN, icon: '💡', label: 'Beshaan Life Stories', genre: BESHAAN, focus: 'Life lessons', cast: '2 girls + 1 boy', mood: 'Fun & energetic', desc: 'Life-based stories with a lesson: everyday drama, pranks and challenges that people relate to. 2 girls + 1 boy.' },
   { id: 'beshaan-fashion', group: G_BESHAAN, icon: '👗', label: 'Beshaan Fashion', genre: BESHAAN, focus: 'Fashion', cast: '2 girls + 1 boy', mood: 'Fun & energetic', desc: 'Fashion-only stories with a lesson: outfits, shopping, style confidence, outfit challenges and pranks.' },
   { id: 'beshaan-lifestyle', group: G_BESHAAN, icon: '🏠', label: 'Beshaan Lifestyle', genre: BESHAAN, focus: 'Lifestyle', cast: '2 girls + 1 boy', mood: 'Fun & energetic', desc: 'Lifestyle-only stories with a lesson: home, routines, habits, money, food and family life.' },
@@ -163,8 +164,8 @@ const SETTINGS = ['Fashion studio / bedroom', 'Shopping mall', 'Home lifestyle v
 const NOT_FOR_BESHAAN = ['Suspenseful', 'Epic', 'Dark', 'Futuristic city', 'Haunted house', 'Hero vs villain', '1 hero alone'];
 const CASTS = ['1 boy + 1 girl', '2 girls + 1 boy', '3 friends', '1 hero alone', 'Family (3 members)', 'Hero vs villain'];
 const HEART_MOODS = ['Emotional', 'Heartwarming', 'Cute & light'];
-const HEART_SETTINGS = ['Family home (living room)', 'Kitchen at home', 'Village home & courtyard', 'Rooftop at sunset', 'Rainy city street', 'Family function (wedding)'];
-const HEART_CASTS = ['Family (3 members)', 'Family (4-5 members)', 'Mother + child', 'Father + child', 'Husband + wife', 'Grandparent + grandchild', '2-3 people (any relation)'];
+const HEART_SETTINGS = ['Family home (living room)', 'Kitchen at home', 'Village home & courtyard', 'Rooftop at sunset', 'Rainy city street', 'Family function (wedding)', 'Neighbourhood street', 'School / college campus'];
+const HEART_CASTS = ['Family (3 members)', 'Family (4-5 members)', 'Mother + child', 'Father + child', 'Husband + wife', 'Grandparent + grandchild', '2-3 people (any relation)', '2 friends (same gender)', '3 friends (same gender)'];
 /** The options of a select: each channel only gets what fits it (no horror for Beshaan, no action for Heartfelt). */
 const optionsFor = (genre: string, all: string[], heartList: string[]) =>
   isHeart(genre) ? heartList : isBeshaan(genre) ? all.filter((x) => !NOT_FOR_BESHAAN.includes(x)) : all;
@@ -644,7 +645,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
     setBusy('seo');
     try {
       const system = 'You are a social media SEO expert for short-form video. Reply with ONLY valid JSON, no markdown.';
-      const user = `${isBeshaan(p.genre) ? 'CHANNEL: Beshaan. Use #Beshaan #BeshaanVibe in the hashtags. ' : ''}${isHeart(p.genre) ? 'CHANNEL: heartfelt Urdu story videos about love, respect, patience and gratitude. Respectful tone, no clickbait, no exaggeration. ' : ''}VIDEO TITLE: ${p.title}${p.lesson ? `\nLESSON OF THE VIDEO: ${p.lesson} (mention it in the description as a takeaway or a question to the viewer)` : ''}
+      const user = `${isBeshaan(p.genre) ? 'CHANNEL: Beshaan. Use #Beshaan #BeshaanVibe in the hashtags. ' : ''}${isHeart(p.genre) ? `CHANNEL: Beshaan Family, heartfelt Urdu story videos about love, respect, patience and gratitude. Use these hashtags among the others: ${HEART_HASHTAGS}. Respectful tone, no clickbait, no exaggeration. ` : ''}VIDEO TITLE: ${p.title}${p.lesson ? `\nLESSON OF THE VIDEO: ${p.lesson} (mention it in the description as a takeaway or a question to the viewer)` : ''}
 STORY: ${p.story}
 IDEA: ${p.prompt.slice(0, 600)}
 LANGUAGE: ${LANG_LABEL[p.language]} (hashtags may mix English)

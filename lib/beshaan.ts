@@ -20,7 +20,11 @@ export const HEART_FOCUS = [
   'Husband-Wife Ka Pyara Rishta',
   'Islamic Moral Stories',
   'Zindagi Badalne Wale Sabak',
+  'Dosti, Bharosa Aur Insaniyat Ki Kahaniyan',
 ] as const;
+
+/** Hashtags for the Beshaan Family channel (from the channel description), used in every SEO. */
+export const HEART_HASHTAGS = '#BeshaanFamily #EmotionalStories #FamilyStories #MoralStories #UrduStories #UrduKahaniyan #HeartTouchingStories #LifeLessons';
 
 /** One topic per video, so the channel feels like ONE kind of content (no fashion + gaming + action mix). */
 export const FOCUS = ['Life lessons', 'Fashion', 'Lifestyle', 'Gaming'] as const;
@@ -36,6 +40,7 @@ export const FOCUS_HINT: Record<string, string> = {
   'Husband-Wife Ka Pyara Rishta': 'a respectful married couple: small everyday care, patience, apologies and gratitude',
   'Islamic Moral Stories': 'everyday situations that show Islamic values like honesty, sabr, shukr, forgiveness, charity and respect for parents and neighbours',
   'Zindagi Badalne Wale Sabak': 'life lessons that change a person: failure and trying again, time, good company, habits, humility',
+  'Dosti, Bharosa Aur Insaniyat Ki Kahaniyan': 'friendship, trust and humanity: a loyal friend, keeping someone\'s trust, helping a stranger or a neighbour, standing by a friend in a hard time',
 };
 
 export const FOCUS_THEMES: Record<string, string[]> = {
@@ -101,6 +106,13 @@ export const FOCUS_THEMES: Record<string, string[]> = {
     'a small kindness that comes back years later', 'working honestly even when nobody is watching', 'being thankful instead of comparing',
     'listening to the advice of elders', 'the cost of anger and the power of silence', 'starting small instead of waiting for the perfect time',
   ],
+  'Dosti, Bharosa Aur Insaniyat Ki Kahaniyan': [
+    'a friend who stays beside you when everyone else leaves', 'keeping a friend\'s secret even when it is hard', 'a misunderstanding between two friends and the one who calls first',
+    'sharing your lunch with a classmate who has none', 'a friend who lends money quietly and never mentions it', 'helping an old neighbour carry her shopping',
+    'a friend who tells you the truth, not what you want to hear', 'a new student who has no one to sit with', 'standing up for a friend who is being laughed at',
+    'a stranger who helps in the rain and asks nothing', 'a trust that is broken and slowly earned back', 'a shopkeeper who gives credit to a family in need',
+    'two old friends meeting after many years',
+  ],
 };
 
 /** Themes for the other niches (no Beshaan topics). */
@@ -119,7 +131,7 @@ export const beshaanRules = (focus: string) =>
   `TOPIC FOR THIS VIDEO: ${focus} (${FOCUS_HINT[focus] || focus}). Stay on this ONE topic only: do NOT mix fashion, lifestyle and gaming in the same video. Realistic everyday Pakistani settings (home, college, family, friends, market, office, social media). NO horror, ghosts, fantasy, superpowers, fights, villains, explosions or action-movie scenes.`;
 
 export const HEART_CONTEXT =
-  'CHANNEL: heartfelt Urdu story videos. Our aim: every story carries a message of love (mohabbat), respect (izzat), patience (sabr), gratitude (shukr) and good manners (ikhlaq). Tone: warm, emotional, respectful, modest and family-safe. Ordinary people in ordinary Pakistani homes (a family, a couple, parents and children, neighbours): two or three main characters who look the same in every scene. Family members call each other the way Pakistani families do (Ammi, Abbu, Bhai, Baji, Dadi, Nani, beta); never use "Baap" or "Maa" as a name or a way of address.';
+  'CHANNEL: BESHAAN FAMILY, heartfelt Urdu story videos. Our aim: every story carries a message of love (mohabbat), respect (izzat), patience (sabr), gratitude (shukr) and good manners (ikhlaq). Tone: warm, emotional, respectful, modest and family-safe. Ordinary people in ordinary Pakistani homes and streets (a family, a couple, parents and children, friends, neighbours; friends in a story are of the same gender, with no romance): two or three main characters who look the same in every scene. Family members call each other the way Pakistani families do (Ammi, Abbu, Bhai, Baji, Dadi, Nani, beta); never use "Baap" or "Maa" as a name or a way of address.';
 
 export const heartRules = (focus: string) =>
   `TOPIC FOR THIS VIDEO: ${focus} (${FOCUS_HINT[focus] || focus}). Stay on this ONE topic. Realistic everyday Pakistani homes and streets. Show the lesson through what happens, never through a lecture. Always modest and family-safe: no romance beyond a respectful married couple, no violence, no horror, no fantasy. NEVER show, name or voice prophets, sahaba, angels or other holy figures, and NEVER quote a Quran verse or a hadith: show the value through the story. Characters may use everyday phrases like Assalamualaikum, Alhamdulillah, InshaAllah, JazakAllah.`;
@@ -142,7 +154,7 @@ export const storyContext = (genre: string, focus: string) => {
 
 /** How the spoken lines must be written (the AI's Roman Urdu is weak unless it is told what natural means). */
 export const DIALOGUE_RULES =
-  'Dialogue rules: short natural sentences like real people speak at home, correct grammar, every line understandable on its own; people call each other by name or by relation (Ammi, Abbu, Bhai, Baji, beta), and a relation word is only used for that relation (Ammi and Abbu are said by children to their parents, never between a husband and a wife, and nobody is called by their own name); no line is repeated; no proverbs or lectures; no on-screen text, titles or captions.';
+  'Dialogue rules: short natural sentences like real people speak at home, correct grammar, every line understandable on its own; every character speaks with the grammar of their own gender (a man says "karunga", a woman says "karungi") and the same character is never given two genders; people call each other by name or by relation (Ammi, Abbu, Bhai, Baji, beta), and a relation word is only used for that relation (Ammi and Abbu are said by children to their parents, never between a husband and a wife, and nobody is called by their own name); no line is repeated; no proverbs or lectures; no on-screen text, titles or captions.';
 
 export const LANG_LABEL: Record<'roman_urdu' | 'english' | 'urdu', string> = {
   roman_urdu: 'Roman Urdu (Urdu written in English letters)',

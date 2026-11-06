@@ -1,6 +1,6 @@
 import { generateText } from '@/lib/llm';
 import DailyPack, { IDailyPack } from '@/models/DailyPack';
-import { ANGLES, BESHAAN, DIALOGUE_RULES, FOCUS_THEMES, LANG_LABEL, focusesOf, isBeshaan, storyContext } from '@/lib/beshaan';
+import { ANGLES, BESHAAN, DIALOGUE_RULES, FOCUS_THEMES, HEART_HASHTAGS, LANG_LABEL, focusesOf, isBeshaan, isHeart, storyContext } from '@/lib/beshaan';
 
 export function todayKey(): string {
   // Pakistan time (UTC+5) so "today" matches the creator's day
@@ -74,7 +74,7 @@ Return ONLY JSON:
 "scenes":[{"prompt":"full self-contained video prompt","narration":"spoken dialogue lines","caption":"short subtitle <=12 words","duration":8}] (exactly ${sceneCount}),
 "thumbnail":{"headline":"max 4 words ALL CAPS","badge":"max 3 words","imagePrompt":"detailed prompt for an eye-catching thumbnail image, no text in the image"},
 "seo":{"title":"<=100 chars, keyword first, include #Shorts","description":"hook + 2-3 lines + a question + CTA","hashtags":"8-12 hashtags separated by spaces"}}
-Use at most 3 characters.${isBeshaan(genre) ? ' Use #Beshaan #BeshaanVibe in the hashtags.' : ''}`;
+Use at most 3 characters.${isBeshaan(genre) ? ' Use #Beshaan #BeshaanVibe in the hashtags.' : ''}${isHeart(genre) ? ` Use these hashtags among the others: ${HEART_HASHTAGS}.` : ''}`;
 
   let data: any = null;
   let lastErr = '';
