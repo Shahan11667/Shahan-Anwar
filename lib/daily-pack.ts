@@ -1,4 +1,5 @@
 import { generateText } from '@/lib/llm';
+import { STORY_CHECK_RULES } from '@/lib/story-check';
 import DailyPack, { IDailyPack } from '@/models/DailyPack';
 import { ANGLES, BESHAAN, DIALOGUE_RULES, FOCUS_THEMES, HEART_HASHTAGS, arcFor, LANG_LABEL, focusesOf, isBeshaan, isHeart, storyContext } from '@/lib/beshaan';
 
@@ -62,6 +63,7 @@ The scenes will be pasted one by one into Google Flow / Veo (an AI video generat
 
 CONNECTED STORY (very important): write the "beats" BEFORE the scenes and follow them exactly.
 - ${arcFor(sceneCount)} The lesson is said naturally by a character.
+- ${STORY_CHECK_RULES}
 - Every beat is caused by the one before it. No random jumps, no new unrelated characters or events.
 - ONE main location for the whole video, the same time of day, and the SAME outfit for every character in every scene.
 - Scene N starts exactly where scene N-1 ended (same place, same outfits, same positions) and its first spoken line reacts to the last line of the previous scene.

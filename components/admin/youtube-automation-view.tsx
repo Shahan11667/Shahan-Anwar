@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import JoinClips from '@/components/admin/join-clips';
 import { extractJson, fileToDataUrl, toJpegDataUrl, aiText, downloadBlob } from '@/lib/video-studio-ai';
 import { loadImage } from '@/lib/video-render';
+import { STORY_CHECK_RULES, reviewPrompt, normalizeChecks, failedChecks, type StoryCheck } from '@/lib/story-check';
 import { BESHAAN, HEART, HEART_FOCUS, HEART_HASHTAGS, arcFor, ANGLES, FOCUS_THEMES, LANG_LABEL, DIALOGUE_RULES, isBeshaan, isHeart, focusFor, storyContext } from '@/lib/beshaan';
 
 /* ------------------------------------------------------------------ types */
@@ -50,6 +51,7 @@ interface Beat {
 
 /** The story plan every scene is written from, so the scenes connect (same place, same outfits, cause -> effect). */
 interface Blueprint {
+  checks?: StoryCheck[] | null;
   setting: string;
   props: string;
   beats: Beat[];
@@ -536,7 +538,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       const bpSystem =
         'You are the head writer of short story videos. You write tight, believable stories where every scene is caused by the one before it. Reply with ONLY valid JSON, no markdown.';
       const bpUser = `${ctx(p)}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\nLength: exactly ${N} scenes of about 8 seconds each. Every scene is a separate clip made by an AI video tool.\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks: ${charactersText(p.characters)}\n` : ''}\nWrite the STORY BLUEPRINT first. Rules:\n- ${arcFor(N)} The parts connect like ONE film: same place, same people, same outfits, and each part starts where the last one ended. The lesson is said by a character in short, natural everyday words (never a speech, never the lesson sentence word for word).\n- Every beat is caused by the one before it ("because of that...", "so..."). No random jumps, no new unrelated characters or events.
-- KEEP IT SIMPLE: ONE problem, and only the main characters on screen (no side characters, nobody off-screen: other people can only be a phone call or a message). A viewer must be able to retell the story in one sentence.\n- "what" in every beat is a plain description of the action in English with NO spoken lines and no quotation marks (the dialogue is written later, in the scenes). No on-screen text, titles or captions anywhere.\n- ONE single room or place for the WHOLE video, no second location. Describe its layout and furniture once in "setting" and never add, move or rename furniture later. EVERY beat happens inside that same place (characters may talk about other places, but we never go there). Same time of day. The SAME outfit for every character in every scene.\n- "endsWith" is the exact last moment of that clip (positions, expressions, the last spoken line). The next beat starts from exactly that moment.\n\nReturn JSON: {"title":"video title","story":"3-4 sentence story","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed look: age, face, hair, the outfit worn in this whole video, art style"}],"setting":"the ONE location in detail: layout, furniture, colors, objects, lighting, time of day","props":"the important objects and where they are","beats":[{"what":"what happens (2 sentences)","who":"characters on screen","emotion":"main emotion","endsWith":"the last moment of the clip"}]}\nUse at most 3 characters and exactly ${N} beats.`;
+- ${STORY_CHECK_RULES}\n- KEEP IT SIMPLE: ONE problem, and only the main characters on screen (no side characters, nobody off-screen: other people can only be a phone call or a message). A viewer must be able to retell the story in one sentence.\n- "what" in every beat is a plain description of the action in English with NO spoken lines and no quotation marks (the dialogue is written later, in the scenes). No on-screen text, titles or captions anywhere.\n- ONE single room or place for the WHOLE video, no second location. Describe its layout and furniture once in "setting" and never add, move or rename furniture later. EVERY beat happens inside that same place (characters may talk about other places, but we never go there). Same time of day. The SAME outfit for every character in every scene.\n- "endsWith" is the exact last moment of that clip (positions, expressions, the last spoken line). The next beat starts from exactly that moment.\n\nReturn JSON: {"title":"video title","story":"3-4 sentence story","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed look: age, face, hair, the outfit worn in this whole video, art style"}],"setting":"the ONE location in detail: layout, furniture, colors, objects, lighting, time of day","props":"the important objects and where they are","beats":[{"what":"what happens (2 sentences)","who":"characters on screen","emotion":"main emotion","endsWith":"the last moment of the clip"}]}\nUse at most 3 characters and exactly ${N} beats.`;
       let data: any = null;
       let bpErr = '';
       for (let attempt = 0; attempt < 2 && !(Array.isArray(data?.beats) && data.beats.length === N); attempt++) {
@@ -547,6 +549,38 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         }
       }
       if (!Array.isArray(data?.beats) || data.beats.length !== N) throw new Error(`The story came back incomplete. Try again. ${bpErr}`);
+
+      // CHECKLIST: the story is checked against the 5 rules (hook, problem, solution, result, simple) and fixed once if one fails
+      let checks: StoryCheck[] | null = null;
+      const reviewOf = async (d: any): Promise<StoryCheck[] | null> => {
+        try {
+          const rp = reviewPrompt({ title: String(d.title || ''), story: String(d.story || ''), lesson: String(d.lesson || ''), beats: d.beats.map((b: any) => String(b.what || '')) });
+          return normalizeChecks(extractJson<any>(await aiText(rp.system, rp.user)));
+        } catch {
+          return null; // the check itself failed: the story is used as it is
+        }
+      };
+      setPlanMsg('Checking the story (hook, problem, solution, result)…');
+      checks = await reviewOf(data);
+      const bad = failedChecks(checks);
+      if (bad.length) {
+        setPlanMsg('Fixing the weak points of the story…');
+        try {
+          const fixed = extractJson<any>(
+            await aiText(bpSystem, `${bpUser}\n\nYOUR FIRST DRAFT (JSON): ${JSON.stringify({ title: data.title, story: data.story, lesson: data.lesson, setting: data.setting, props: data.props, beats: data.beats })}\nThe editor found these problems, fix them and keep everything else (same place, same characters, exactly ${N} beats):\n${bad.map((c) => `- ${c.label} ${c.note}`).join('\n')}`, { story: true })
+          );
+          if (Array.isArray(fixed?.beats) && fixed.beats.length === N) {
+            const again = await reviewOf(fixed);
+            // keep the new version only when it is really better
+            if (again && failedChecks(again).length < bad.length) {
+              data = { ...data, ...fixed, characters: data.characters };
+              checks = again;
+            }
+          }
+        } catch {
+          /* keep the first draft */
+        }
+      }
       const chars = [0, 1, 2].map((i) => {
         const old = p.characters[i];
         const ai = (data.characters || [])[i];
@@ -594,7 +628,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
         lesson: String(data.lesson || ''),
         characters: chars,
         scenes,
-        blueprint: { setting: String(data.setting || ''), props: String(data.props || ''), beats },
+        blueprint: { setting: String(data.setting || ''), props: String(data.props || ''), beats, checks },
         seo: null,
         thumb: { ...o.thumb, bg: '', headline: '', badge: '' },
         partIdx: part >= 0 ? part : 0,
@@ -1196,6 +1230,16 @@ Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"ma
             ))}
           </ol>
           <p className="mt-2 text-xs text-slate-500">Place: {p.blueprint.setting}</p>
+          {p.blueprint.checks && (
+            <ul className="mt-3 space-y-1 text-sm" data-testid="story-checks">
+              {p.blueprint.checks.map((c) => (
+                <li key={c.key} className={c.ok ? 'text-emerald-300' : 'text-amber-300'}>
+                  {c.ok ? '✅' : '⚠️'} {c.label}
+                  {!c.ok && c.note ? <span className="text-xs text-slate-400"> — {c.note}</span> : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </details>
       )}
 
