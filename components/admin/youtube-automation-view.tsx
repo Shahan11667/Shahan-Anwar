@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import JoinClips from '@/components/admin/join-clips';
 import { extractJson, fileToDataUrl, toJpegDataUrl, aiText, downloadBlob } from '@/lib/video-studio-ai';
 import { loadImage } from '@/lib/video-render';
-import { BESHAAN, HEART, HEART_FOCUS, HEART_HASHTAGS, ANGLES, FOCUS_THEMES, LANG_LABEL, DIALOGUE_RULES, isBeshaan, isHeart, focusFor, storyContext } from '@/lib/beshaan';
+import { BESHAAN, HEART, HEART_FOCUS, HEART_HASHTAGS, arcFor, ANGLES, FOCUS_THEMES, LANG_LABEL, DIALOGUE_RULES, isBeshaan, isHeart, focusFor, storyContext } from '@/lib/beshaan';
 
 /* ------------------------------------------------------------------ types */
 
@@ -137,6 +137,7 @@ const G_OTHER = 'Other niches';
 const NICHE_OPTIONS: NicheOption[] = [
   { id: 'heart-emotional', group: G_HEART, icon: '🌸', label: 'Emotional Stories', genre: HEART, focus: 'Emotional Stories', cast: 'Family (3 members)', mood: 'Emotional', setting: 'Family home (living room)', desc: 'Touching everyday stories that make the viewer feel: regret, reunion, kindness, missing someone. One clear lesson at the end.' },
   { id: 'heart-family', group: G_HEART, icon: '❤️', label: 'Family Relationship Stories', genre: HEART, focus: 'Family Relationship Stories', cast: 'Family (4-5 members)', mood: 'Emotional', setting: 'Family home (living room)', desc: 'Siblings, in-laws, grandparents and cousins: misunderstandings, sacrifice and making peace.' },
+  { id: 'heart-university', group: G_HEART, icon: '🎓', label: 'University Friendship & Love Stories', genre: HEART, focus: 'University Friendship & Love Stories', cast: '1 boy + 1 girl (classmates)', mood: 'Heartwarming', setting: 'University campus', desc: 'Life at university: friendship, study pressure, trust and a clean, respectful bond between classmates. No dating scenes, the lesson comes first.' },
   { id: 'heart-parents', group: G_HEART, icon: '👨‍👩‍👧', label: 'Maa-Baap Ki Mohabbat', genre: HEART, focus: 'Maa-Baap Ki Mohabbat', cast: 'Mother + child', mood: 'Emotional', setting: 'Kitchen at home', desc: 'The silent love and sacrifices of mothers and fathers, and children who finally understand.' },
   { id: 'heart-couple', group: G_HEART, icon: '💕', label: 'Husband-Wife Ka Pyara Rishta', genre: HEART, focus: 'Husband-Wife Ka Pyara Rishta', cast: 'Husband + wife', mood: 'Heartwarming', setting: 'Family home (living room)', desc: 'A respectful, modest married couple: small everyday care, patience, saying sorry and saying thank you.' },
   { id: 'heart-islamic', group: G_HEART, icon: '🕌', label: 'Islamic Moral Stories', genre: HEART, focus: 'Islamic Moral Stories', cast: 'Family (3 members)', mood: 'Heartwarming', setting: 'Family home (living room)', desc: 'Everyday stories that show Islamic values (honesty, sabr, shukr, forgiveness, sadaqah). No prophets or holy figures are shown and no Quran verse or hadith is quoted.' },
@@ -164,8 +165,8 @@ const SETTINGS = ['Fashion studio / bedroom', 'Shopping mall', 'Home lifestyle v
 const NOT_FOR_BESHAAN = ['Suspenseful', 'Epic', 'Dark', 'Futuristic city', 'Haunted house', 'Hero vs villain', '1 hero alone'];
 const CASTS = ['1 boy + 1 girl', '2 girls + 1 boy', '3 friends', '1 hero alone', 'Family (3 members)', 'Hero vs villain'];
 const HEART_MOODS = ['Emotional', 'Heartwarming', 'Cute & light'];
-const HEART_SETTINGS = ['Family home (living room)', 'Kitchen at home', 'Village home & courtyard', 'Rooftop at sunset', 'Rainy city street', 'Family function (wedding)', 'Neighbourhood street', 'School / college campus'];
-const HEART_CASTS = ['Family (3 members)', 'Family (4-5 members)', 'Mother + child', 'Father + child', 'Husband + wife', 'Grandparent + grandchild', '2-3 people (any relation)', '2 friends (same gender)', '3 friends (same gender)'];
+const HEART_SETTINGS = ['Family home (living room)', 'Kitchen at home', 'Village home & courtyard', 'Rooftop at sunset', 'Rainy city street', 'Family function (wedding)', 'Neighbourhood street', 'School / college campus', 'University campus'];
+const HEART_CASTS = ['Family (3 members)', 'Family (4-5 members)', 'Mother + child', 'Father + child', 'Husband + wife', 'Grandparent + grandchild', '2-3 people (any relation)', '2 friends (same gender)', '3 friends (same gender)', '1 boy + 1 girl (classmates)'];
 /** The options of a select: each channel only gets what fits it (no horror for Beshaan, no action for Heartfelt). */
 const optionsFor = (genre: string, all: string[], heartList: string[]) =>
   isHeart(genre) ? heartList : isBeshaan(genre) ? all.filter((x) => !NOT_FOR_BESHAAN.includes(x)) : all;
@@ -534,7 +535,7 @@ Plan ONE story told across exactly ${n} short episodes (parts). Each part must b
       setPlanMsg('Writing the story…');
       const bpSystem =
         'You are the head writer of short story videos. You write tight, believable stories where every scene is caused by the one before it. Reply with ONLY valid JSON, no markdown.';
-      const bpUser = `${ctx(p)}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\nLength: exactly ${N} scenes of about 8 seconds each. Every scene is a separate clip made by an AI video tool.\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks: ${charactersText(p.characters)}\n` : ''}\nWrite the STORY BLUEPRINT first. Rules:\n- ONE story with a clear arc over exactly ${N} beats: beat 1 is the hook (something interesting happens in the first seconds), then the everyday situation, the mistake or conflict, it gets worse, the turning point, the resolution, and the LAST beat shows the lesson, said by a character in short, natural everyday words (never a speech, never the lesson sentence word for word).\n- Every beat is caused by the one before it ("because of that...", "so..."). No random jumps, no new unrelated characters or events.
+      const bpUser = `${ctx(p)}VIDEO IDEA:\n${mainPrompt}\n${seriesCtx}\nLength: exactly ${N} scenes of about 8 seconds each. Every scene is a separate clip made by an AI video tool.\nLanguage for dialogue: ${LANG_LABEL[p.language]}\n${p.characters.some((c) => c.name.trim()) ? `Use EXACTLY these characters with these names and looks: ${charactersText(p.characters)}\n` : ''}\nWrite the STORY BLUEPRINT first. Rules:\n- ${arcFor(N)} The parts connect like ONE film: same place, same people, same outfits, and each part starts where the last one ended. The lesson is said by a character in short, natural everyday words (never a speech, never the lesson sentence word for word).\n- Every beat is caused by the one before it ("because of that...", "so..."). No random jumps, no new unrelated characters or events.
 - KEEP IT SIMPLE: ONE problem, and only the main characters on screen (no side characters, nobody off-screen: other people can only be a phone call or a message). A viewer must be able to retell the story in one sentence.\n- "what" in every beat is a plain description of the action in English with NO spoken lines and no quotation marks (the dialogue is written later, in the scenes). No on-screen text, titles or captions anywhere.\n- ONE single room or place for the WHOLE video, no second location. Describe its layout and furniture once in "setting" and never add, move or rename furniture later. EVERY beat happens inside that same place (characters may talk about other places, but we never go there). Same time of day. The SAME outfit for every character in every scene.\n- "endsWith" is the exact last moment of that clip (positions, expressions, the last spoken line). The next beat starts from exactly that moment.\n\nReturn JSON: {"title":"video title","story":"3-4 sentence story","lesson":"one line: what viewers learn","characters":[{"name":"","description":"fixed look: age, face, hair, the outfit worn in this whole video, art style"}],"setting":"the ONE location in detail: layout, furniture, colors, objects, lighting, time of day","props":"the important objects and where they are","beats":[{"what":"what happens (2 sentences)","who":"characters on screen","emotion":"main emotion","endsWith":"the last moment of the clip"}]}\nUse at most 3 characters and exactly ${N} beats.`;
       let data: any = null;
       let bpErr = '';
@@ -990,6 +991,8 @@ Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"ma
                   ...(n.cast ? { cast: n.cast } : {}),
                   ...(n.mood ? { mood: n.mood } : {}),
                   ...(n.setting ? { setting: n.setting } : {}),
+                  // Beshaan Family videos are told in 3 connected parts (Hook+Problem, Solution, Result); the count can still be changed
+                  ...(n.group === G_HEART ? { sceneCount: 3 } : {}),
                   series: null,
                   characters: blankCharacters(),
                   prompt: p.promptEdited ? p.prompt : '',
@@ -1067,7 +1070,7 @@ Return JSON: {"thumbnail":{"headline":"max 4 punchy words, ALL CAPS","badge":"ma
             <select className={input} value={p.sceneCount} onChange={(e) => patch({ sceneCount: Number(e.target.value) })}>
               {[3, 4, 5, 6, 7, 8, 10, 12, 15].map((n) => (
                 <option key={n} value={n}>
-                  {n} scenes
+                  {n} scenes{n === 3 ? ' (Hook+Problem · Solution · Result)' : n === 4 ? ' (Hook · Problem · Solution · Result)' : ''}
                 </option>
               ))}
             </select>

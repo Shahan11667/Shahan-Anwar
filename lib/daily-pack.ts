@@ -1,6 +1,6 @@
 import { generateText } from '@/lib/llm';
 import DailyPack, { IDailyPack } from '@/models/DailyPack';
-import { ANGLES, BESHAAN, DIALOGUE_RULES, FOCUS_THEMES, HEART_HASHTAGS, LANG_LABEL, focusesOf, isBeshaan, isHeart, storyContext } from '@/lib/beshaan';
+import { ANGLES, BESHAAN, DIALOGUE_RULES, FOCUS_THEMES, HEART_HASHTAGS, arcFor, LANG_LABEL, focusesOf, isBeshaan, isHeart, storyContext } from '@/lib/beshaan';
 
 export function todayKey(): string {
   // Pakistan time (UTC+5) so "today" matches the creator's day
@@ -61,7 +61,7 @@ Dialogue/narration/captions language: ${language}. ${DIALOGUE_RULES}
 The scenes will be pasted one by one into Google Flow / Veo (an AI video generator), each in a separate generation. So EVERY scene prompt must be fully SELF-CONTAINED: repeat each character's fixed look (age, face, hair, outfit, colors), the location, the action, facial expressions, camera movement, lighting, sound/music mood, and the exact spoken dialogue with who says it. Each scene is 8 seconds. Visual style: vibrant cinematic, consistent across scenes. No text overlays inside the video.
 
 CONNECTED STORY (very important): write the "beats" BEFORE the scenes and follow them exactly.
-- ONE story arc over exactly ${sceneCount} beats: beat 1 is the hook, then the everyday situation, the mistake or conflict, it gets worse, the turning point, the resolution, and the last beat shows the lesson said naturally by a character.
+- ${arcFor(sceneCount)} The lesson is said naturally by a character.
 - Every beat is caused by the one before it. No random jumps, no new unrelated characters or events.
 - ONE main location for the whole video, the same time of day, and the SAME outfit for every character in every scene.
 - Scene N starts exactly where scene N-1 ended (same place, same outfits, same positions) and its first spoken line reacts to the last line of the previous scene.

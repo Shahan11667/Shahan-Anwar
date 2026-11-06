@@ -16,6 +16,7 @@ export const isHeart = (genre: string) => genre.toLowerCase().startsWith('heartf
 export const HEART_FOCUS = [
   'Emotional Stories',
   'Family Relationship Stories',
+  'University Friendship & Love Stories',
   'Maa-Baap Ki Mohabbat',
   'Husband-Wife Ka Pyara Rishta',
   'Islamic Moral Stories',
@@ -36,6 +37,7 @@ export const FOCUS_HINT: Record<string, string> = {
   Gaming: 'gaming life: playing with friends, online games, studies vs games, family',
   'Emotional Stories': 'touching everyday stories that make the viewer feel something: regret, reunion, kindness, missing someone',
   'Family Relationship Stories': 'bonds inside a family: siblings, cousins, in-laws, grandparents, misunderstandings and making peace',
+  'University Friendship & Love Stories': 'life at university: friendships, study pressure, a respectful and honest bond between two classmates, trust, jealousy and growing up (clean and modest, no dating scenes)',
   'Maa-Baap Ki Mohabbat': 'the silent love and sacrifices of mothers and fathers, and children who realise it',
   'Husband-Wife Ka Pyara Rishta': 'a respectful married couple: small everyday care, patience, apologies and gratitude',
   'Islamic Moral Stories': 'everyday situations that show Islamic values like honesty, sabr, shukr, forgiveness, charity and respect for parents and neighbours',
@@ -81,6 +83,13 @@ export const FOCUS_THEMES: Record<string, string[]> = {
     'grandparents who feel ignored in their own home', 'a family dinner where everyone is on their phones', 'a misunderstanding between two brothers over money',
     'a younger sibling copying what the elders do', 'making peace the night before a family function', 'the relative everyone avoids and what they are really going through',
     'parents arguing in front of the kids and the child\'s quiet question',
+  ],
+  'University Friendship & Love Stories': [
+    'a friend who helps before the exam without being asked', 'two classmates who study together and learn to respect each other', 'jealousy between best friends over marks',
+    'a boy who admires a classmate and chooses to respect her and focus on studies first', 'a group project where one friend does all the work', 'a friend who lies to hide a bad result',
+    'a scholarship student who feels out of place and a friend who makes him feel at home', 'an honest apology after hurting a friend with a joke', 'choosing a true friend over the popular group',
+    'a girl who wants to tell her parents the truth about her results', 'a friendship that fades when one gets busy, and the call that fixes it', 'the last day at university and what the friends say to each other',
+    'a love that waits for a degree and a family\'s blessing',
   ],
   'Maa-Baap Ki Mohabbat': [
     'a mother who stays awake the night before her child\'s exam', 'a father who walks to work to save money for his child\'s shoes', 'a mother who says she has already eaten',
@@ -133,8 +142,19 @@ export const beshaanRules = (focus: string) =>
 export const HEART_CONTEXT =
   'CHANNEL: BESHAAN FAMILY, heartfelt Urdu story videos. Our aim: every story carries a message of love (mohabbat), respect (izzat), patience (sabr), gratitude (shukr) and good manners (ikhlaq). Tone: warm, emotional, respectful, modest and family-safe. Ordinary people in ordinary Pakistani homes and streets (a family, a couple, parents and children, friends, neighbours; friends in a story are of the same gender, with no romance): two or three main characters who look the same in every scene. Family members call each other the way Pakistani families do (Ammi, Abbu, Bhai, Baji, Dadi, Nani, beta); never use "Baap" or "Maa" as a name or a way of address.';
 
+/**
+ * The story shape for a video of n scenes. A 3-part or 4-part video is told as Hook, Problem, Solution, Result
+ * (each part is one prompt, and the parts must connect like one film: same place, same people, same outfits).
+ */
+export const arcFor = (n: number) =>
+  n === 3
+    ? 'ONE story told in exactly 3 connected parts: beat 1 = HOOK + PROBLEM (something catches the viewer in the first seconds, then the real everyday problem), beat 2 = SOLUTION (the turning point: someone does the right thing), beat 3 = RESULT + LESSON (how it ends, and a character says the lesson).'
+    : n === 4
+      ? 'ONE story told in exactly 4 connected parts: beat 1 = HOOK (something catches the viewer in the first seconds), beat 2 = PROBLEM (the real everyday problem or mistake), beat 3 = SOLUTION (the turning point: someone does the right thing), beat 4 = RESULT + LESSON (how it ends, and a character says the lesson).'
+      : `ONE story with a clear arc over exactly ${n} beats: beat 1 is the hook (something interesting happens in the first seconds), then the everyday situation, the mistake or conflict, it gets worse, the turning point, the resolution, and the LAST beat shows the lesson.`;
+
 export const heartRules = (focus: string) =>
-  `TOPIC FOR THIS VIDEO: ${focus} (${FOCUS_HINT[focus] || focus}). Stay on this ONE topic. Realistic everyday Pakistani homes and streets. Show the lesson through what happens, never through a lecture. Always modest and family-safe: no romance beyond a respectful married couple, no violence, no horror, no fantasy. NEVER show, name or voice prophets, sahaba, angels or other holy figures, and NEVER quote a Quran verse or a hadith: show the value through the story. Characters may use everyday phrases like Assalamualaikum, Alhamdulillah, InshaAllah, JazakAllah.`;
+  `TOPIC FOR THIS VIDEO: ${focus} (${FOCUS_HINT[focus] || focus}). Stay on this ONE topic. The story is based on a REAL-LIFE situation that people of every age recognise from their own life, and every viewer (young or old) must take something useful away from it. Realistic everyday Pakistani homes and streets. Show the lesson through what happens, never through a lecture. Always modest and family-safe: no romance beyond a respectful married couple, no violence, no horror, no fantasy. NEVER show, name or voice prophets, sahaba, angels or other holy figures, and NEVER quote a Quran verse or a hadith: show the value through the story. Characters may use everyday phrases like Assalamualaikum, Alhamdulillah, InshaAllah, JazakAllah.`;
 
 /** The topics of a channel (empty for genres without topics). */
 export const focusesOf = (genre: string): readonly string[] => (isBeshaan(genre) ? FOCUS : isHeart(genre) ? HEART_FOCUS : []);
