@@ -19,6 +19,7 @@ import AnalyticsDashboard from './analytics-dashboard'
 import YoutubeAutomationView from './youtube-automation-view'
 import VideoEditorPro from './video-editor-pro'
 import DailyPackView from './daily-pack-view'
+import ReelScriptView from './reel-script-view'
 import { IProject } from '@/models/Project'
 
 interface Project {
@@ -46,7 +47,7 @@ interface Contact {
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser' | 'analytics' | 'automation' | 'video-studio' | 'daily-pack'>('hero')
+  const [activeTab, setActiveTab] = useState<'hero' | 'about' | 'projects' | 'contacts' | 'contact-info' | 'chat-users' | 'settings' | 'cv-parser' | 'analytics' | 'automation' | 'video-studio' | 'daily-pack' | 'reel-script'>('hero')
   const [projects, setProjects] = useState<Project[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [chatUsers, setChatUsers] = useState<any[]>([])
@@ -423,6 +424,15 @@ const AdminDashboard = () => {
           >
             <Film className="h-4 w-4 mr-2 text-emerald-400" />
             Daily Pack
+          </Button>
+          <Button
+            variant={activeTab === 'reel-script' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('reel-script')}
+            size="sm"
+            className={activeTab === 'reel-script' ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white border-0 shadow-md shadow-amber-500/20' : ''}
+          >
+            <Film className="h-4 w-4 mr-2 text-amber-400" />
+            Reel Script
           </Button>
           <Button
             variant={activeTab === 'video-studio' ? 'default' : 'outline'}
@@ -1538,6 +1548,13 @@ const AdminDashboard = () => {
         {activeTab === 'daily-pack' && (
           <div>
             <DailyPackView onOpenStudio={() => setActiveTab('automation')} />
+          </div>
+        )}
+
+        {/* Reel Script Tab */}
+        {activeTab === 'reel-script' && (
+          <div>
+            <ReelScriptView />
           </div>
         )}
 
